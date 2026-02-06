@@ -10,6 +10,8 @@
     "build:ts": "tsc",
     "build:native": "swift build --package-path native -c release",
     "build": "npm run build:ts && npm run build:native",
+    "postinstall": "npm run build:native || echo 'Native build failed. Ensure Swift is installed for full functionality.'",
+    "prepublishOnly": "npm run build:ts",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "test": "npm run build && node --test tests/mcp.contract.test.mjs",

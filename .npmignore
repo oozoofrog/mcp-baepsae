@@ -1,0 +1,23 @@
+# Dependency directories
+node_modules/
+native/.build/
+native/.swiftpm/
+
+# Source files (TypeScript source is not needed in runtime if dist is present)
+src/
+tsconfig.json
+
+# Tests
+tests/
+test.mjs
+test-page.html
+
+# Git & Config
+.git/
+.gitignore
+.npmignore
+.DS_Store
+
+# Agent context
+AGENTS.md
+**/AGENTS.md
