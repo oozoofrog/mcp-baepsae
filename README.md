@@ -6,7 +6,7 @@
 
 > **Baepsae** (Vinous-throated Parrotbill) — A tiny Korean bird. Round, chubby, and constantly hopping around chirping. Known for its grit — even when a little bird tries to keep up with a stork, it never gives up. This project is small too, but it pecks away at your simulators tirelessly.
 
-Local MCP server for iOS Simulator automation with a TypeScript MCP layer and a Swift native bridge.
+Local MCP server for iOS Simulator and macOS app automation with a TypeScript MCP layer and a Swift native bridge.
 
 한국어 문서는 `README-KR.md`를 참고하세요.
 
@@ -131,34 +131,69 @@ npm run setup:mcp   # Alias for scripts/install.sh
 
 ## MCP Tool Status
 
-Implemented end-to-end:
+32 tools implemented end-to-end, organized by platform:
 
-- `list_simulators`: List available iOS simulators
-- `open_url`: Open a URL (Safari/Deep Link)
-- `install_app`: Install .app or .ipa file
-- `launch_app`: Launch an app by Bundle ID
-- `terminate_app`: Terminate a running app
-- `uninstall_app`: Uninstall an app
-- `screenshot`: Capture screen
-- `record_video`: Record screen
-- `describe_ui`: Read accessibility tree (requires Accessibility permission)
-- `tap`: Tap at (x, y) or by element ID/label
-- `type_text`: Type text
-- `swipe`: Swipe gesture
-- `button`: Press hardware buttons (home, lock, etc.)
-- `key`, `key_sequence`, `key_combo`: Keyboard input
-- `touch`, `gesture`: Advanced touch/gestures
-- `stream_video`: Stream video frames
+### iOS Simulator Only (11)
 
-## Usage Examples (New Tools)
+| Tool | Description |
+|---|---|
+| `list_simulators` | List available iOS simulators |
+| `screenshot` | Capture simulator screen |
+| `record_video` | Record simulator screen |
+| `stream_video` | Stream video frames |
+| `open_url` | Open URL in simulator (Safari/Deep Link) |
+| `install_app` | Install .app or .ipa |
+| `launch_app` | Launch app by Bundle ID |
+| `terminate_app` | Terminate running app |
+| `uninstall_app` | Uninstall app |
+| `button` | Hardware buttons (home, lock, side, siri, apple-pay) |
+| `gesture` | Preset gestures (scroll, swipe-edge) |
 
-**Open a URL:**
+### macOS Only (4)
+
+| Tool | Description |
+|---|---|
+| `list_apps` | List running macOS apps |
+| `scroll` | Scroll wheel events |
+| `menu_action` | Execute menu bar actions |
+| `get_focused_app` | Get focused app info |
+
+### Cross-Platform — iOS Simulator + macOS (15)
+
+| Tool | Description |
+|---|---|
+| `describe_ui` | Accessibility tree (pagination, filter, subtree, summary) |
+| `search_ui` | Search UI elements by text/ID/label |
+| `tap` | Tap by coordinates or element ID/label (supports double-click) |
+| `type_text` | Type text input |
+| `swipe` | Swipe gesture |
+| `key` | HID keycode input |
+| `key_sequence` | Sequential keycode input |
+| `key_combo` | Modifier + key combination |
+| `touch` | Touch down/up events |
+| `right_click` | Right-click by ID/label or coordinates |
+| `drag_drop` | Drag and drop |
+| `clipboard` | Read/write clipboard |
+| `list_windows` | List app windows |
+| `activate_app` | Bring app to foreground |
+| `screenshot_app` | Capture app window screenshot |
+
+### Utility (2)
+
+| Tool | Description |
+|---|---|
+| `baepsae_help` | Show help info |
+| `baepsae_version` | Show version info |
+
+## Usage Examples
+
+**Open a URL (iOS Simulator):**
 ```javascript
 // Open Naver Mobile
 open_url({ udid: "...", url: "https://m.naver.com" })
 ```
 
-**Manage Apps:**
+**Manage Apps (iOS Simulator):**
 ```javascript
 // Install an app
 install_app({ udid: "...", path: "/path/to/App.app" })
@@ -168,6 +203,15 @@ launch_app({ udid: "...", bundleId: "com.apple.mobilesafari" })
 
 // Terminate Safari
 terminate_app({ udid: "...", bundleId: "com.apple.mobilesafari" })
+```
+
+**macOS App Automation:**
+```javascript
+// List running macOS apps
+list_apps({})
+
+// Take screenshot of a macOS app
+screenshot_app({ bundleId: "com.apple.Safari" })
 ```
 
 ## Troubleshooting

@@ -6,7 +6,7 @@
 
 > **뱁새** (붉은머리오목눈이) — 한국의 작은 새. 동글동글 통통한 몸에 삐약삐약 부지런히 돌아다니는 모습이 특징입니다. 황새를 따라가다 가랑이가 찢어질 뻔해도 포기하지 않는 근성의 아이콘. 이 프로젝트도 작지만 부지런히 시뮬레이터를 쪼아댑니다.
 
-TypeScript MCP 레이어와 Swift 네이티브 브리지를 사용하는 iOS 시뮬레이터 자동화용 로컬 MCP 서버입니다.
+TypeScript MCP 레이어와 Swift 네이티브 브리지를 사용하는 iOS 시뮬레이터 및 macOS 앱 자동화용 로컬 MCP 서버입니다.
 
 영문 문서는 `README.md`를 참고하세요.
 
@@ -123,22 +123,59 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 
 ## MCP 도구 구현 상태
 
-현재 end-to-end 구현 완료:
+총 32개 도구가 end-to-end 구현 완료되었습니다.
 
-- `list_simulators`
-- `screenshot`
-- `record_video`
-- `describe_ui`
-- `tap`
-- `type_text`
-- `swipe`
-- `button`
-- `key`
-- `key_sequence`
-- `key_combo`
-- `touch`
-- `gesture`
-- `stream_video`
+### iOS 시뮬레이터 전용 (11개)
+
+| 도구 | 설명 |
+|---|---|
+| `list_simulators` | iOS 시뮬레이터 목록 조회 |
+| `screenshot` | 시뮬레이터 스크린샷 캡처 |
+| `record_video` | 시뮬레이터 화면 녹화 |
+| `stream_video` | 비디오 프레임 스트리밍 |
+| `open_url` | 시뮬레이터에서 URL 열기 (Safari/딥링크) |
+| `install_app` | .app/.ipa 설치 |
+| `launch_app` | Bundle ID로 앱 실행 |
+| `terminate_app` | 실행 중인 앱 종료 |
+| `uninstall_app` | 앱 제거 |
+| `button` | 하드웨어 버튼 (home/lock/side/siri/apple-pay) |
+| `gesture` | 프리셋 제스처 (scroll/swipe-edge) |
+
+### macOS 전용 (4개)
+
+| 도구 | 설명 |
+|---|---|
+| `list_apps` | 실행 중인 macOS 앱 목록 조회 |
+| `scroll` | 스크롤 휠 이벤트 |
+| `menu_action` | 메뉴 바 액션 실행 |
+| `get_focused_app` | 포커스된 앱 정보 조회 |
+
+### 공통 — iOS 시뮬레이터 + macOS (15개)
+
+| 도구 | 설명 |
+|---|---|
+| `describe_ui` | 접근성 트리 조회 (페이지네이션, 필터, 서브트리, 요약 지원) |
+| `search_ui` | UI 요소 검색 (텍스트/ID/라벨) |
+| `tap` | 좌표 또는 ID/라벨로 탭 (더블클릭 지원) |
+| `type_text` | 텍스트 입력 |
+| `swipe` | 스와이프 제스처 |
+| `key` | HID 키코드 입력 |
+| `key_sequence` | 연속 키코드 입력 |
+| `key_combo` | 수정키 + 키 조합 |
+| `touch` | 터치 다운/업 이벤트 |
+| `right_click` | 우클릭 (ID/라벨 또는 좌표) |
+| `drag_drop` | 드래그 앤 드롭 |
+| `clipboard` | 클립보드 읽기/쓰기 |
+| `list_windows` | 앱 윈도우 목록 |
+| `activate_app` | 앱을 포그라운드로 전환 |
+| `screenshot_app` | 앱 윈도우 스크린샷 |
+
+### 유틸리티 (2개)
+
+| 도구 | 설명 |
+|---|---|
+| `baepsae_help` | 도움말 표시 |
+| `baepsae_version` | 버전 정보 표시 |
 
 ## 트러블슈팅
 
