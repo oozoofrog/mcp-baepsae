@@ -119,20 +119,42 @@ npm run setup:mcp   # Alias for scripts/install.sh
 
 Implemented end-to-end:
 
-- `list_simulators`
-- `screenshot`
-- `record_video`
-- `describe_ui`
-- `tap`
-- `type_text`
-- `swipe`
-- `button`
-- `key`
-- `key_sequence`
-- `key_combo`
-- `touch`
-- `gesture`
-- `stream_video`
+- `list_simulators`: List available iOS simulators
+- `open_url`: Open a URL (Safari/Deep Link)
+- `install_app`: Install .app or .ipa file
+- `launch_app`: Launch an app by Bundle ID
+- `terminate_app`: Terminate a running app
+- `uninstall_app`: Uninstall an app
+- `screenshot`: Capture screen
+- `record_video`: Record screen
+- `describe_ui`: Read accessibility tree (requires Accessibility permission)
+- `tap`: Tap at (x, y) or by element ID/label
+- `type_text`: Type text
+- `swipe`: Swipe gesture
+- `button`: Press hardware buttons (home, lock, etc.)
+- `key`, `key_sequence`, `key_combo`: Keyboard input
+- `touch`, `gesture`: Advanced touch/gestures
+- `stream_video`: Stream video frames
+
+## Usage Examples (New Tools)
+
+**Open a URL:**
+```javascript
+// Open Naver Mobile
+open_url({ udid: "...", url: "https://m.naver.com" })
+```
+
+**Manage Apps:**
+```javascript
+// Install an app
+install_app({ udid: "...", path: "/path/to/App.app" })
+
+// Launch Safari
+launch_app({ udid: "...", bundleId: "com.apple.mobilesafari" })
+
+// Terminate Safari
+terminate_app({ udid: "...", bundleId: "com.apple.mobilesafari" })
+```
 
 ## Troubleshooting
 
