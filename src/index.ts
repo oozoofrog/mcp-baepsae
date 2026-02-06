@@ -480,7 +480,7 @@ server.tool(
 
 server.tool(
   "describe_ui",
-  "Describe UI hierarchy. Works with iOS Simulator (udid) or macOS app (bundleId/appName).",
+  "Describe UI hierarchy. Works with iOS Simulator (udid) or macOS app (bundleId/appName). Supports pagination (offset/limit), subtree filtering (rootElementId), role filtering, visible-only mode, depth limiting, and summary mode.",
   {
     udid: z.string().min(1).optional().describe("Simulator UDID"),
     bundleId: z.string().optional().describe("macOS app bundle ID"),
@@ -488,6 +488,13 @@ server.tool(
     output: z.string().optional().describe("Optional output file path for hierarchy text"),
     focusId: z.string().optional().describe("Focus on element with specific ID"),
     all: z.boolean().optional().describe("Include all elements (system UI, bezels)"),
+    offset: z.number().int().min(0).optional().describe("Pagination start position (0-based node index)"),
+    limit: z.number().int().min(1).optional().describe("Maximum number of nodes to return"),
+    rootElementId: z.string().optional().describe("Only traverse subtree under this element ID"),
+    role: z.string().optional().describe("Filter by AX role (e.g. AXButton, AXStaticText)"),
+    visibleOnly: z.boolean().optional().describe("Only include visible elements"),
+    maxDepth: z.number().int().min(0).optional().describe("Maximum tree traversal depth"),
+    summary: z.boolean().optional().describe("Summary mode — collapse children as [N children]"),
   },
   async (params) => {
     const target = resolveTargetArgs(params);
@@ -499,24 +506,43 @@ server.tool(
     if (params.all) {
       args.push("--all");
     }
+    pushOption(args, "--offset", params.offset);
+    pushOption(args, "--limit", params.limit);
+    pushOption(args, "--root-element-id", params.rootElementId);
+    pushOption(args, "--role", params.role);
+    if (params.visibleOnly) {
+      args.push("--visible-only");
+    }
+    pushOption(args, "--max-depth", params.maxDepth);
+    if (params.summary) {
+      args.push("--summary");
+    }
     return await runNative(args);
   }
 );
 
 server.tool(
   "search_ui",
-  "Search for UI elements by text, identifier, or label. Works with iOS Simulator (udid) or macOS app (bundleId/appName).",
+  "Search for UI elements by text, identifier, or label. Works with iOS Simulator (udid) or macOS app (bundleId/appName). Supports role filtering, visible-only mode, and depth limiting.",
   {
     udid: z.string().min(1).optional().describe("Simulator UDID"),
     bundleId: z.string().optional().describe("macOS app bundle ID"),
     appName: z.string().optional().describe("macOS app name"),
     query: z.string().min(1).describe("Text to search for"),
+    role: z.string().optional().describe("Filter by AX role (e.g. AXButton, AXStaticText)"),
+    visibleOnly: z.boolean().optional().describe("Only include visible elements"),
+    maxDepth: z.number().int().min(0).optional().describe("Maximum tree traversal depth"),
   },
   async (params) => {
     const target = resolveTargetArgs(params);
     if (!Array.isArray(target)) return target;
 
     const args = ["search-ui", ...target, "--query", params.query];
+    pushOption(args, "--role", params.role);
+    if (params.visibleOnly) {
+      args.push("--visible-only");
+    }
+    pushOption(args, "--max-depth", params.maxDepth);
     return await runNative(args);
   }
 );

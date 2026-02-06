@@ -692,34 +692,109 @@ func describeAccessibilityElement(_ element: UIElement, includeEmpty: Bool = tru
     return parts.joined(separator: " ")
 }
 
-func describeAccessibilityTree(from root: UIElement, maxDepth: Int = 12, maxNodes: Int = 1500) -> [String] {
+struct DescribeOptions {
+    var maxDepth: Int = Int.max
+    var offset: Int = 0
+    var limit: Int = Int.max
+    var roleFilter: String? = nil
+    var visibleOnly: Bool = false
+    var screenBounds: CGRect? = nil
+    var summary: Bool = false
+}
+
+func describeAccessibilityTree(from root: UIElement, options: DescribeOptions = DescribeOptions()) -> [String] {
     var lines: [String] = []
     var stack: [(element: UIElement, depth: Int)] = [(root, 0)]
-    var visited = 0
+    var totalNodes = 0
+    var emitted = 0
 
     while let current = stack.popLast() {
-        if visited >= maxNodes {
-            lines.append("... truncated after \(maxNodes) nodes")
-            break
+        let element = current.element
+        let depth = current.depth
+
+        // Apply filters
+        if options.roleFilter != nil || options.visibleOnly {
+            let attrs = copyMultipleAttributes(element, [kAXRoleAttribute as String, "AXFrame"])
+            if let roleFilter = options.roleFilter {
+                if let roleRef = attrs[kAXRoleAttribute as String], let role = stringFromCFTypeRef(roleRef) {
+                    if role != roleFilter {
+                        // Still traverse children even if this node doesn't match
+                        if depth < options.maxDepth {
+                            let children = Children(element)
+                            for child in children.reversed() {
+                                stack.append((child, depth + 1))
+                            }
+                        }
+                        continue
+                    }
+                } else {
+                    if depth < options.maxDepth {
+                        let children = Children(element)
+                        for child in children.reversed() {
+                            stack.append((child, depth + 1))
+                        }
+                    }
+                    continue
+                }
+            }
+            if options.visibleOnly, let screenBounds = options.screenBounds {
+                if let frameRef = attrs["AXFrame"], let frame = frameFromCFTypeRef(frameRef) {
+                    if !screenBounds.intersects(frame) {
+                        if depth < options.maxDepth {
+                            let children = Children(element)
+                            for child in children.reversed() {
+                                stack.append((child, depth + 1))
+                            }
+                        }
+                        continue
+                    }
+                }
+            }
         }
 
-        visited += 1
-        let prefix = String(repeating: "  ", count: current.depth)
+        totalNodes += 1
+        let prefix = String(repeating: "  ", count: depth)
 
-        if let description = describeAccessibilityElement(current.element) {
-            lines.append("\(prefix)- \(description)")
-        } else {
-            lines.append("\(prefix)- [hidden: no accessible content]")
+        // Pagination: only emit nodes within [offset, offset+limit)
+        if totalNodes > options.offset && emitted < options.limit {
+            if options.summary {
+                let children = Children(element)
+                if let description = describeAccessibilityElement(element) {
+                    if !children.isEmpty {
+                        lines.append("\(prefix)- \(description) [\(children.count) children]")
+                    } else {
+                        lines.append("\(prefix)- \(description)")
+                    }
+                }
+                emitted += 1
+                // In summary mode, don't recurse into children
+                continue
+            } else {
+                if let description = describeAccessibilityElement(element) {
+                    lines.append("\(prefix)- \(description)")
+                } else {
+                    lines.append("\(prefix)- [hidden: no accessible content]")
+                }
+                emitted += 1
+            }
         }
 
-        if current.depth >= maxDepth {
+        if depth >= options.maxDepth {
             continue
         }
 
-        let children = Children(current.element)
+        let children = Children(element)
         for child in children.reversed() {
-            stack.append((child, current.depth + 1))
+            stack.append((child, depth + 1))
         }
+    }
+
+    // Add pagination header/footer
+    if options.offset > 0 || options.limit < Int.max {
+        let start = options.offset + 1
+        let end = options.offset + emitted
+        lines.insert("[Total: \(totalNodes) nodes]", at: 0)
+        lines.append("[Showing \(start)-\(end) of \(totalNodes)]")
     }
 
     return lines
@@ -783,8 +858,8 @@ func findAccessibilityElement(
     in root: UIElement,
     identifier: String?,
     label: String?,
-    maxDepth: Int = 14,
-    maxNodes: Int = 2000
+    maxDepth: Int = Int.max,
+    maxNodes: Int = Int.max
 ) -> UIElement? {
     var stack: [(element: UIElement, depth: Int)] = [(root, 0)]
     var visited = 0
@@ -812,11 +887,17 @@ func findAccessibilityElement(
     return nil
 }
 
+struct SearchOptions {
+    var maxDepth: Int = Int.max
+    var roleFilter: String? = nil
+    var visibleOnly: Bool = false
+    var screenBounds: CGRect? = nil
+}
+
 // DFS search for an element containing text in ID, Label, or Value
-func searchAccessibilityElements(in root: UIElement, query: String, maxNodes: Int = 3000) -> [String] {
+func searchAccessibilityElements(in root: UIElement, query: String, options: SearchOptions = SearchOptions()) -> [String] {
     var results: [String] = []
     var stack: [(element: UIElement, depth: Int)] = [(root, 0)]
-    var visited = 0
     let normalizedQuery = normalizeText(query)
 
     let searchAttributes: [String] = [
@@ -829,16 +910,55 @@ func searchAccessibilityElements(in root: UIElement, query: String, maxNodes: In
     ]
 
     while let current = stack.popLast() {
-        if visited >= maxNodes {
-            results.append("... truncated search after \(maxNodes) nodes")
-            break
-        }
-        visited += 1
-
         let element = current.element
-        let attrs = copyMultipleAttributes(element, searchAttributes)
-        var matchFound = false
+        let depth = current.depth
 
+        // Fetch search attributes + filter attributes in one call
+        var allAttrs = searchAttributes
+        if options.roleFilter != nil { allAttrs.append(kAXRoleAttribute as String) }
+        if options.visibleOnly { allAttrs.append("AXFrame") }
+        let attrs = copyMultipleAttributes(element, allAttrs)
+
+        // Apply role filter
+        if let roleFilter = options.roleFilter {
+            if let roleRef = attrs[kAXRoleAttribute as String], let role = stringFromCFTypeRef(roleRef) {
+                if role != roleFilter {
+                    if depth < options.maxDepth {
+                        let children = Children(element)
+                        for child in children.reversed() {
+                            stack.append((child, depth + 1))
+                        }
+                    }
+                    continue
+                }
+            } else {
+                if depth < options.maxDepth {
+                    let children = Children(element)
+                    for child in children.reversed() {
+                        stack.append((child, depth + 1))
+                    }
+                }
+                continue
+            }
+        }
+
+        // Apply visible-only filter
+        if options.visibleOnly, let screenBounds = options.screenBounds {
+            if let frameRef = attrs["AXFrame"], let frame = frameFromCFTypeRef(frameRef) {
+                if !screenBounds.intersects(frame) {
+                    if depth < options.maxDepth {
+                        let children = Children(element)
+                        for child in children.reversed() {
+                            stack.append((child, depth + 1))
+                        }
+                    }
+                    continue
+                }
+            }
+        }
+
+        // Check text match
+        var matchFound = false
         for key in searchAttributes {
             if let ref = attrs[key], let s = stringFromCFTypeRef(ref), !s.isEmpty,
                normalizeText(s).contains(normalizedQuery) {
@@ -853,9 +973,11 @@ func searchAccessibilityElements(in root: UIElement, query: String, maxNodes: In
             }
         }
 
-        let children = Children(element)
-        for child in children.reversed() {
-            stack.append((child, current.depth + 1))
+        if depth < options.maxDepth {
+            let children = Children(element)
+            for child in children.reversed() {
+                stack.append((child, depth + 1))
+            }
         }
     }
     return results
@@ -938,8 +1060,10 @@ func printHelp() {
       baepsae-native --version
       baepsae-native list-simulators
       baepsae-native list-apps
-      baepsae-native describe-ui <TARGET> [--all] [--focus-id <ID>] [--output <path>]
-      baepsae-native search-ui <TARGET> --query <text>
+      baepsae-native describe-ui <TARGET> [--all] [--focus-id <ID>] [--root-element-id <ID>]
+                     [--offset <N>] [--limit <M>] [--max-depth <N>]
+                     [--role <ROLE>] [--visible-only] [--summary] [--output <path>]
+      baepsae-native search-ui <TARGET> --query <text> [--max-depth <N>] [--role <ROLE>] [--visible-only]
       baepsae-native screenshot --udid <UDID> [--output <path>]
       baepsae-native record-video --udid <UDID> [--output <path>]
       baepsae-native tap <TARGET> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--double] [--pre-delay <S>] [--post-delay <S>]
@@ -1051,13 +1175,38 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
             }
         }
 
-        let isMacApp: Bool
-        if case .macApp = target { isMacApp = true } else { isMacApp = false }
-        let lines = describeAccessibilityTree(
-            from: targetRoot,
-            maxDepth: isMacApp ? 8 : 12,
-            maxNodes: isMacApp ? 500 : 1500
-        )
+        // Override root if --root-element-id is provided (subtree exploration)
+        if let rootElementId = parsed.options["--root-element-id"] {
+            if let found = findAccessibilityElement(in: appRoot, identifier: rootElementId, label: nil) {
+                targetRoot = found
+            } else {
+                throw NativeError.commandFailed("Could not find element with id: \(rootElementId)")
+            }
+        }
+
+        // Build describe options
+        var descOpts = DescribeOptions()
+        if let maxDepthStr = parsed.options["--max-depth"], let maxDepthVal = Int(maxDepthStr) {
+            descOpts.maxDepth = maxDepthVal
+        }
+        if let offsetStr = parsed.options["--offset"], let offsetVal = Int(offsetStr) {
+            descOpts.offset = offsetVal
+        }
+        if let limitStr = parsed.options["--limit"], let limitVal = Int(limitStr) {
+            descOpts.limit = limitVal
+        }
+        descOpts.roleFilter = parsed.options["--role"]
+        descOpts.summary = parsed.flags.contains("--summary")
+        if parsed.flags.contains("--visible-only") {
+            descOpts.visibleOnly = true
+            if let bounds = windowBounds(for: target) {
+                descOpts.screenBounds = bounds
+            } else if let mainScreen = NSScreen.main {
+                descOpts.screenBounds = mainScreen.frame
+            }
+        }
+
+        let lines = describeAccessibilityTree(from: targetRoot, options: descOpts)
         if lines.isEmpty {
             throw NativeError.commandFailed("No accessibility elements found.")
         }
@@ -1089,9 +1238,22 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
             }
         }
 
-        let searchIsMacApp: Bool
-        if case .macApp = target { searchIsMacApp = true } else { searchIsMacApp = false }
-        let results = searchAccessibilityElements(in: searchRoot, query: query, maxNodes: searchIsMacApp ? 500 : 3000)
+        // Build search options
+        var searchOpts = SearchOptions()
+        if let maxDepthStr = parsed.options["--max-depth"], let maxDepthVal = Int(maxDepthStr) {
+            searchOpts.maxDepth = maxDepthVal
+        }
+        searchOpts.roleFilter = parsed.options["--role"]
+        if parsed.flags.contains("--visible-only") {
+            searchOpts.visibleOnly = true
+            if let bounds = windowBounds(for: target) {
+                searchOpts.screenBounds = bounds
+            } else if let mainScreen = NSScreen.main {
+                searchOpts.screenBounds = mainScreen.frame
+            }
+        }
+
+        let results = searchAccessibilityElements(in: searchRoot, query: query, options: searchOpts)
         if results.isEmpty {
             print("No elements found matching query: \(query)")
         } else {
