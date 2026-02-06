@@ -4,7 +4,7 @@
   <img src="assets/baepsae.png" width="300" alt="baepsae">
 </p>
 
-> **뱁새** (Vinous-throated Parrotbill) — 한국의 작은 새. 동글동글 통통한 몸에 삐약삐약 부지런히 돌아다니는 모습이 특징입니다. 황새를 따라가다 가랑이가 찢어질 뻔해도 포기하지 않는 근성의 아이콘. 이 프로젝트도 작지만 부지런히 시뮬레이터를 쪼아댑니다.
+> **Baepsae** (Vinous-throated Parrotbill) — A tiny Korean bird. Round, chubby, and constantly hopping around chirping. Known for its grit — even when a little bird tries to keep up with a stork, it never gives up. This project is small too, but it pecks away at your simulators tirelessly.
 
 Local MCP server for iOS Simulator automation with a TypeScript MCP layer and a Swift native bridge.
 
