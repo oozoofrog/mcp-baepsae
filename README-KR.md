@@ -1,5 +1,9 @@
 # mcp-baepsae
 
+<p align="center">
+  <img src="assets/baepsae.png" width="300" alt="baepsae">
+</p>
+
 TypeScript MCP 레이어와 Swift 네이티브 브리지를 사용하는 iOS 시뮬레이터 자동화용 로컬 MCP 서버입니다.
 
 영문 문서는 `README.md`를 참고하세요.

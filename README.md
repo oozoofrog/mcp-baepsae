@@ -1,5 +1,10 @@
 # mcp-baepsae
 
+<p align="center">
+  <img src="assets/baepsae.png" width="300" alt="baepsae">
+</p>
+
+
 Local MCP server for iOS Simulator automation with a TypeScript MCP layer and a Swift native bridge.
 
 한국어 문서는 `README-KR.md`를 참고하세요.
