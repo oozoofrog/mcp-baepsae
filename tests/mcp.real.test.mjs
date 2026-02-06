@@ -951,6 +951,247 @@ test("Phase 3: uninstall_app → uninstall sample app", { timeout: 30_000 }, asy
   });
 });
 
+// ─── Phase 4: macOS app interaction (Safari) ────────────────────────────────
+// These tests require Safari and macOS accessibility permissions.
+// They are skipped in CI or when Safari is unavailable.
+
+const gestureFixturePath = path.join(projectRoot, "test-fixtures", "mac-gesture-test.html");
+
+function isMacOS() {
+  return process.platform === "darwin";
+}
+
+function isCI() {
+  return !!(process.env.CI || process.env.GITHUB_ACTIONS || process.env.JENKINS_URL);
+}
+
+async function isSafariAvailable() {
+  if (!isMacOS()) return false;
+  try {
+    execSync("pgrep -x Safari", { stdio: "pipe" });
+    return true;
+  } catch {
+    // Safari not running — try to open it
+    try {
+      execSync(`open -a Safari "${gestureFixturePath}"`, { stdio: "pipe", timeout: 5000 });
+      await sleep(3000);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
+ * Poll search_ui for a macOS app until check(text) returns true or timeout.
+ */
+async function waitForMacUI(client, bundleId, query, check, timeoutMs = 5000) {
+  const interval = 500;
+  const deadline = Date.now() + timeoutMs;
+  let lastText = "";
+  while (Date.now() < deadline) {
+    const result = await client.callTool({
+      name: "search_ui",
+      arguments: { bundleId, query },
+    });
+    lastText = extractText(result);
+    if (!result.isError && check(lastText)) return lastText;
+    await sleep(interval);
+  }
+  return lastText;
+}
+
+test("Phase 4: macOS Safari → list_apps includes Safari", { timeout: 30_000 }, async (t) => {
+  if (!isMacOS() || isCI()) {
+    t.skip("macOS-only test, skipped in CI");
+    return;
+  }
+
+  await withClient(async (client) => {
+    // Open gesture test page in Safari
+    if (existsSync(gestureFixturePath)) {
+      execSync(`open -a Safari "${gestureFixturePath}"`, { stdio: "pipe" });
+      await sleep(2000);
+    }
+
+    const result = await client.callTool({ name: "list_apps", arguments: {} });
+    const text = extractText(result);
+
+    if (result.isError && isAccessibilityDenied(text)) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+    assert.equal(result.isError ?? false, false, "list_apps should not error");
+    assert.ok(text.includes("com.apple.Safari"), "list_apps should include Safari");
+  });
+});
+
+test("Phase 4: macOS Safari → search_ui finds Ready status", { timeout: 30_000 }, async (t) => {
+  if (!isMacOS() || isCI()) {
+    t.skip("macOS-only test, skipped in CI");
+    return;
+  }
+
+  await withClient(async (client) => {
+    const safariAvail = await isSafariAvailable();
+    if (!safariAvail) {
+      t.skip("Safari not available");
+      return;
+    }
+
+    const text = await waitForMacUI(
+      client,
+      "com.apple.Safari",
+      "Ready",
+      (t) => t.includes("Ready"),
+      8000,
+    );
+
+    if (isAccessibilityDenied(text)) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+    assert.ok(text.includes("Ready"), `search_ui should find 'Ready' status, got: ${text}`);
+  });
+});
+
+test("Phase 4: macOS Safari → tap button and verify state change", { timeout: 45_000 }, async (t) => {
+  if (!isMacOS() || isCI()) {
+    t.skip("macOS-only test, skipped in CI");
+    return;
+  }
+
+  await withClient(async (client) => {
+    const safariAvail = await isSafariAvailable();
+    if (!safariAvail) {
+      t.skip("Safari not available");
+      return;
+    }
+
+    // Reset state first
+    const resetResult = await client.callTool({
+      name: "tap",
+      arguments: { bundleId: "com.apple.Safari", label: "Reset All" },
+    });
+    if (resetResult.isError && isAccessibilityDenied(extractText(resetResult))) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+    await sleep(500);
+
+    // Verify initial state
+    const beforeText = await waitForMacUI(
+      client,
+      "com.apple.Safari",
+      "Ready",
+      (t) => t.includes("Ready"),
+      5000,
+    );
+    assert.ok(beforeText.includes("Ready"), `initial status should be Ready, got: ${beforeText}`);
+
+    // Tap Click Me button
+    const tapResult = await client.callTool({
+      name: "tap",
+      arguments: { bundleId: "com.apple.Safari", label: "Click Me" },
+    });
+    assert.equal(tapResult.isError ?? false, false, "tap Click Me should not error");
+    await sleep(500);
+
+    // Verify state changed
+    const afterText = await waitForMacUI(
+      client,
+      "com.apple.Safari",
+      "Clicked",
+      (t) => t.includes("Clicked!"),
+      5000,
+    );
+    assert.ok(afterText.includes("Clicked!"), `status should be Clicked! after tap, got: ${afterText}`);
+  });
+});
+
+test("Phase 4: macOS Safari → describe_ui returns window hierarchy", { timeout: 30_000 }, async (t) => {
+  if (!isMacOS() || isCI()) {
+    t.skip("macOS-only test, skipped in CI");
+    return;
+  }
+
+  await withClient(async (client) => {
+    const safariAvail = await isSafariAvailable();
+    if (!safariAvail) {
+      t.skip("Safari not available");
+      return;
+    }
+
+    const result = await client.callTool({
+      name: "describe_ui",
+      arguments: { bundleId: "com.apple.Safari" },
+    });
+    const text = extractText(result);
+
+    if (result.isError && isAccessibilityDenied(text)) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+    assert.equal(result.isError ?? false, false, "describe_ui should not error");
+    assert.ok(text.includes("AXWindow"), "describe_ui should include AXWindow element");
+    assert.ok(text.includes("AXToolbar"), "describe_ui should include AXToolbar element");
+  });
+});
+
+test("Phase 4: macOS Safari → tap Reset All restores Ready state", { timeout: 45_000 }, async (t) => {
+  if (!isMacOS() || isCI()) {
+    t.skip("macOS-only test, skipped in CI");
+    return;
+  }
+
+  await withClient(async (client) => {
+    const safariAvail = await isSafariAvailable();
+    if (!safariAvail) {
+      t.skip("Safari not available");
+      return;
+    }
+
+    // Tap Click Me to change state
+    const tapResult = await client.callTool({
+      name: "tap",
+      arguments: { bundleId: "com.apple.Safari", label: "Click Me" },
+    });
+    if (tapResult.isError && isAccessibilityDenied(extractText(tapResult))) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+    await sleep(500);
+
+    // Verify state changed to Clicked!
+    const clickedText = await waitForMacUI(
+      client,
+      "com.apple.Safari",
+      "Clicked",
+      (t) => t.includes("Clicked!"),
+      5000,
+    );
+    assert.ok(clickedText.includes("Clicked!"), `status should be Clicked! before reset, got: ${clickedText}`);
+
+    // Tap Reset All
+    const resetResult = await client.callTool({
+      name: "tap",
+      arguments: { bundleId: "com.apple.Safari", label: "Reset All" },
+    });
+    assert.equal(resetResult.isError ?? false, false, "tap Reset All should not error");
+    await sleep(500);
+
+    // Verify state restored to Ready
+    const readyText = await waitForMacUI(
+      client,
+      "com.apple.Safari",
+      "Ready",
+      (t) => t.includes("Ready"),
+      5000,
+    );
+    assert.ok(readyText.includes("Ready"), `status should be Ready after reset, got: ${readyText}`);
+  });
+});
+
 // ─── Cleanup ────────────────────────────────────────────────────────────────
 
 test("cleanup: remove test artifacts", async () => {

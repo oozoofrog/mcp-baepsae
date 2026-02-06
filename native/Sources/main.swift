@@ -54,6 +54,15 @@ let supportedCommands: Set<String> = [
     "gesture",
     "stream-video",
     "list-apps",
+    "list-windows",
+    "activate-app",
+    "screenshot-app",
+    "right-click",
+    "scroll",
+    "drag-drop",
+    "menu-action",
+    "get-focused-app",
+    "clipboard",
 ]
 
 func parse(arguments: [String]) throws -> ParsedOptions {
@@ -339,6 +348,38 @@ func sendClick(at point: CGPoint) {
     postMouseEvent(type: .leftMouseUp, point: point)
 }
 
+func sendRightClick(at point: CGPoint) {
+    postMouseEvent(type: .rightMouseDown, point: point, button: .right)
+    postMouseEvent(type: .rightMouseUp, point: point, button: .right)
+}
+
+func sendScrollWheel(at point: CGPoint?, deltaX: Int32, deltaY: Int32) {
+    let source = CGEventSource(stateID: .hidSystemState)
+    let event = CGEvent(scrollWheelEvent2Source: source, units: .line, wheelCount: 2, wheel1: deltaY, wheel2: deltaX, wheel3: 0)
+    if let point = point {
+        event?.location = point
+    }
+    event?.post(tap: CGEventTapLocation.cghidEventTap)
+}
+
+func sendDoubleClick(at point: CGPoint) {
+    let source = CGEventSource(stateID: .hidSystemState)
+    // First click
+    let down1 = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left)
+    down1?.setIntegerValueField(.mouseEventClickState, value: 1)
+    down1?.post(tap: .cghidEventTap)
+    let up1 = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left)
+    up1?.setIntegerValueField(.mouseEventClickState, value: 1)
+    up1?.post(tap: .cghidEventTap)
+    // Second click
+    let down2 = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left)
+    down2?.setIntegerValueField(.mouseEventClickState, value: 2)
+    down2?.post(tap: .cghidEventTap)
+    let up2 = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left)
+    up2?.setIntegerValueField(.mouseEventClickState, value: 2)
+    up2?.post(tap: .cghidEventTap)
+}
+
 func sendSwipe(from start: CGPoint, to end: CGPoint, duration: Double?) {
     postMouseEvent(type: .leftMouseDown, point: start)
     let steps = 10
@@ -422,6 +463,48 @@ func CopyAttributeValue(_ element: UIElement, _ attribute: CFString) -> CFTypeRe
         return nil
     }
     return value
+}
+
+func copyMultipleAttributes(_ element: UIElement, _ attributes: [String]) -> [String: CFTypeRef] {
+    var result = [String: CFTypeRef]()
+    var values: CFArray?
+    let cfAttributes = attributes as CFArray
+    let status = AXUIElementCopyMultipleAttributeValues(element, cfAttributes, AXCopyMultipleAttributeOptions(rawValue: 0), &values)
+    guard status == .success, let array = values as? [Any?] else {
+        return result
+    }
+    for (index, attribute) in attributes.enumerated() {
+        guard index < array.count, let value = array[index] else { continue }
+        let typeRef = value as CFTypeRef
+        if CFGetTypeID(typeRef) != 0 {
+            result[attribute] = typeRef
+        }
+    }
+    return result
+}
+
+func stringFromCFTypeRef(_ value: CFTypeRef) -> String? {
+    if let stringValue = value as? String {
+        return stringValue
+    }
+    if let attributed = value as? NSAttributedString {
+        return attributed.string
+    }
+    if let numberValue = value as? NSNumber {
+        return numberValue.stringValue
+    }
+    return nil
+}
+
+func frameFromCFTypeRef(_ value: CFTypeRef) -> CGRect? {
+    guard let axValue = ValueFromCFType(value), AXValueGetType(axValue) == .cgRect else {
+        return nil
+    }
+    var rect = CGRect.zero
+    guard AXValueGetValue(axValue, .cgRect, &rect) else {
+        return nil
+    }
+    return rect
 }
 
 func UIElementFromCFType(_ value: CFTypeRef) -> UIElement? {
@@ -523,39 +606,54 @@ func IdentifierAttribute(_ element: UIElement) -> String? {
     return StringAttribute(element, "AXIdentifier" as CFString)
 }
 
+let describeAttributes: [String] = [
+    kAXRoleAttribute as String,
+    kAXSubroleAttribute as String,
+    "AXIdentifier",
+    "AXLabel",
+    kAXTitleAttribute as String,
+    kAXDescriptionAttribute as String,
+    kAXValueAttribute as String,
+    kAXHelpAttribute as String,
+    "AXPlaceholderValue",
+    kAXEnabledAttribute as String,
+    "AXSelected",
+    "AXFrame",
+]
+
 func describeAccessibilityElement(_ element: UIElement, includeEmpty: Bool = true) -> String? {
+    let attrs = copyMultipleAttributes(element, describeAttributes)
     var parts: [String] = []
 
-    let role = StringAttribute(element, kAXRoleAttribute as CFString) ?? "unknown"
+    let role: String
+    if let roleRef = attrs[kAXRoleAttribute as String], let s = stringFromCFTypeRef(roleRef), !s.isEmpty {
+        role = s
+    } else {
+        role = "unknown"
+    }
     parts.append("role=\(role)")
 
-    if let subrole = StringAttribute(element, kAXSubroleAttribute as CFString), !subrole.isEmpty {
-        parts.append("subrole=\(subrole)")
+    if let ref = attrs[kAXSubroleAttribute as String], let s = stringFromCFTypeRef(ref), !s.isEmpty {
+        parts.append("subrole=\(s)")
     }
 
-    if let identifier = IdentifierAttribute(element), !identifier.isEmpty {
-        parts.append("id=\(truncateText(identifier))")
+    if let ref = attrs["AXIdentifier"], let s = stringFromCFTypeRef(ref), !s.isEmpty {
+        parts.append("id=\(truncateText(s))")
     }
 
     var textSources: [String] = []
-
-    if let label = StringAttribute(element, "AXLabel" as CFString), !label.isEmpty {
-        textSources.append(label)
-    }
-    if let title = StringAttribute(element, kAXTitleAttribute as CFString), !title.isEmpty {
-        textSources.append(title)
-    }
-    if let desc = StringAttribute(element, kAXDescriptionAttribute as CFString), !desc.isEmpty {
-        textSources.append(desc)
-    }
-    if let value = StringAttribute(element, kAXValueAttribute as CFString), !value.isEmpty {
-        textSources.append(value)
-    }
-    if let help = StringAttribute(element, kAXHelpAttribute as CFString), !help.isEmpty {
-        textSources.append(help)
-    }
-    if let placeholder = StringAttribute(element, "AXPlaceholderValue" as CFString), !placeholder.isEmpty {
-        textSources.append("placeholder:\(placeholder)")
+    let textKeys: [(String, String?)] = [
+        ("AXLabel", nil),
+        (kAXTitleAttribute as String, nil),
+        (kAXDescriptionAttribute as String, nil),
+        (kAXValueAttribute as String, nil),
+        (kAXHelpAttribute as String, nil),
+        ("AXPlaceholderValue", "placeholder:"),
+    ]
+    for (key, prefix) in textKeys {
+        if let ref = attrs[key], let s = stringFromCFTypeRef(ref), !s.isEmpty {
+            textSources.append(prefix != nil ? "\(prefix!)\(s)" : s)
+        }
     }
 
     let uniqueTexts = Array(Set(textSources)).filter { !$0.isEmpty }
@@ -565,27 +663,29 @@ func describeAccessibilityElement(_ element: UIElement, includeEmpty: Bool = tru
         parts.append("text=\(truncateText(combinedText))")
     }
 
-    if let enabled = StringAttribute(element, kAXEnabledAttribute as CFString) {
-        if enabled.lowercased() == "false" || enabled == "0" {
+    if let ref = attrs[kAXEnabledAttribute as String], let s = stringFromCFTypeRef(ref) {
+        if s.lowercased() == "false" || s == "0" {
             parts.append("enabled=false")
         }
     }
 
-    if let selected = StringAttribute(element, "AXSelected" as CFString) {
-        if selected.lowercased() == "true" || selected == "1" {
+    if let ref = attrs["AXSelected"], let s = stringFromCFTypeRef(ref) {
+        if s.lowercased() == "true" || s == "1" {
             parts.append("selected=true")
         }
     }
 
-    if let frame = FrameAttribute(element) {
+    if let ref = attrs["AXFrame"], let frame = frameFromCFTypeRef(ref) {
         let frameText = "frame=(x:\(formatFloat(frame.origin.x)),y:\(formatFloat(frame.origin.y)),w:\(formatFloat(frame.size.width)),h:\(formatFloat(frame.size.height)))"
         parts.append(frameText)
     }
 
-    if !includeEmpty && uniqueTexts.isEmpty && IdentifierAttribute(element) == nil {
-        let children = Children(element)
-        if children.isEmpty {
-            return nil
+    if !includeEmpty && uniqueTexts.isEmpty {
+        if attrs["AXIdentifier"] == nil || (stringFromCFTypeRef(attrs["AXIdentifier"]!) ?? "").isEmpty {
+            let children = Children(element)
+            if children.isEmpty {
+                return nil
+            }
         }
     }
 
@@ -625,46 +725,58 @@ func describeAccessibilityTree(from root: UIElement, maxDepth: Int = 12, maxNode
     return lines
 }
 
+let textAttributes: [String] = [
+    "AXLabel",
+    kAXTitleAttribute as String,
+    kAXDescriptionAttribute as String,
+    kAXValueAttribute as String,
+    kAXHelpAttribute as String,
+]
+
 func getElementTextValues(_ element: UIElement) -> [String] {
+    let attrs = copyMultipleAttributes(element, textAttributes)
     var texts: [String] = []
-
-    if let label = StringAttribute(element, "AXLabel" as CFString), !label.isEmpty {
-        texts.append(label)
+    for key in textAttributes {
+        if let ref = attrs[key], let s = stringFromCFTypeRef(ref), !s.isEmpty {
+            texts.append(s)
+        }
     }
-    if let title = StringAttribute(element, kAXTitleAttribute as CFString), !title.isEmpty {
-        texts.append(title)
-    }
-    if let desc = StringAttribute(element, kAXDescriptionAttribute as CFString), !desc.isEmpty {
-        texts.append(desc)
-    }
-    if let value = StringAttribute(element, kAXValueAttribute as CFString), !value.isEmpty {
-        texts.append(value)
-    }
-    if let help = StringAttribute(element, kAXHelpAttribute as CFString), !help.isEmpty {
-        texts.append(help)
-    }
-
     return texts
 }
 
+let matchAttributes: [String] = [
+    "AXIdentifier",
+    "AXLabel",
+    kAXTitleAttribute as String,
+    kAXDescriptionAttribute as String,
+    kAXValueAttribute as String,
+    kAXHelpAttribute as String,
+]
+
 func matchesAccessibilityElement(_ element: UIElement, identifier: String?, label: String?) -> Bool {
+    guard identifier != nil || label != nil else { return false }
+
+    let attrs = copyMultipleAttributes(element, matchAttributes)
+
     if let identifier {
-        guard let actualIdentifier = IdentifierAttribute(element),
-              normalizeText(actualIdentifier) == normalizeText(identifier) else {
+        guard let ref = attrs["AXIdentifier"], let s = stringFromCFTypeRef(ref),
+              normalizeText(s) == normalizeText(identifier) else {
             return false
         }
     }
 
     if let label {
-        let matches = getElementTextValues(element).contains {
-            normalizeText($0) == normalizeText(label)
+        let textKeys = ["AXLabel", kAXTitleAttribute as String, kAXDescriptionAttribute as String, kAXValueAttribute as String, kAXHelpAttribute as String]
+        let matches = textKeys.contains { key in
+            guard let ref = attrs[key], let s = stringFromCFTypeRef(ref), !s.isEmpty else { return false }
+            return normalizeText(s) == normalizeText(label)
         }
         if !matches {
             return false
         }
     }
 
-    return identifier != nil || label != nil
+    return true
 }
 
 func findAccessibilityElement(
@@ -707,6 +819,15 @@ func searchAccessibilityElements(in root: UIElement, query: String, maxNodes: In
     var visited = 0
     let normalizedQuery = normalizeText(query)
 
+    let searchAttributes: [String] = [
+        "AXIdentifier",
+        "AXLabel",
+        kAXTitleAttribute as String,
+        kAXDescriptionAttribute as String,
+        kAXValueAttribute as String,
+        kAXHelpAttribute as String,
+    ]
+
     while let current = stack.popLast() {
         if visited >= maxNodes {
             results.append("... truncated search after \(maxNodes) nodes")
@@ -715,18 +836,14 @@ func searchAccessibilityElements(in root: UIElement, query: String, maxNodes: In
         visited += 1
 
         let element = current.element
+        let attrs = copyMultipleAttributes(element, searchAttributes)
         var matchFound = false
 
-        if let id = IdentifierAttribute(element), normalizeText(id).contains(normalizedQuery) {
-            matchFound = true
-        }
-
-        if !matchFound {
-            for text in getElementTextValues(element) {
-                if normalizeText(text).contains(normalizedQuery) {
-                    matchFound = true
-                    break
-                }
+        for key in searchAttributes {
+            if let ref = attrs[key], let s = stringFromCFTypeRef(ref), !s.isEmpty,
+               normalizeText(s).contains(normalizedQuery) {
+                matchFound = true
+                break
             }
         }
 
@@ -750,11 +867,12 @@ func findElementBySubrole(from root: UIElement, subrole: String) -> UIElement? {
     while let current = stack.popLast() {
         if visited > 500 { break }
         visited += 1
-        
-        if let sr = StringAttribute(current, kAXSubroleAttribute as CFString), sr == subrole {
+
+        let attrs = copyMultipleAttributes(current, [kAXSubroleAttribute as String])
+        if let ref = attrs[kAXSubroleAttribute as String], let sr = stringFromCFTypeRef(ref), sr == subrole {
             return current
         }
-        
+
         for child in Children(current).reversed() {
             stack.append(child)
         }
@@ -824,7 +942,7 @@ func printHelp() {
       baepsae-native search-ui <TARGET> --query <text>
       baepsae-native screenshot --udid <UDID> [--output <path>]
       baepsae-native record-video --udid <UDID> [--output <path>]
-      baepsae-native tap <TARGET> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--pre-delay <S>] [--post-delay <S>]
+      baepsae-native tap <TARGET> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--double] [--pre-delay <S>] [--post-delay <S>]
       baepsae-native type <TARGET> [<TEXT> | --stdin | --file <PATH>]
       baepsae-native swipe <TARGET> --start-x <X> --start-y <Y> --end-x <X> --end-y <Y> [--duration <S>] [--pre-delay <S>] [--post-delay <S>]
       baepsae-native button --udid <UDID> <TYPE> [--duration <S>]
@@ -834,6 +952,15 @@ func printHelp() {
       baepsae-native touch <TARGET> -x <X> -y <Y> [--down] [--up] [--delay <S>]
       baepsae-native gesture --udid <UDID> <PRESET> [--screen-width <W>] [--screen-height <H>] [--duration <S>]
       baepsae-native stream-video --udid <UDID> [--output <PATH>] [--duration <S>]
+      baepsae-native list-windows <TARGET>
+      baepsae-native activate-app <TARGET>
+      baepsae-native screenshot-app <TARGET> [--output <path>]
+      baepsae-native right-click <TARGET> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--pre-delay <S>] [--post-delay <S>]
+      baepsae-native scroll <TARGET> [--delta-x <N>] [--delta-y <N>] [-x <X> -y <Y>]
+      baepsae-native drag-drop <TARGET> --start-x <X> --start-y <Y> --end-x <X> --end-y <Y> [--duration <S>] [--pre-delay <S>] [--post-delay <S>]
+      baepsae-native menu-action --bundle-id <ID> | --app-name <NAME> --menu <MENU> --item <ITEM>
+      baepsae-native get-focused-app
+      baepsae-native clipboard --read | --write <TEXT>
 
     Where <TARGET> is one of:
       --udid <UDID>           iOS Simulator device UDID
@@ -976,6 +1103,7 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         let target = try resolveTarget(from: parsed)
         let accessibilityId = parsed.options["--id"]
         let accessibilityLabel = parsed.options["--label"]
+        let isDouble = parsed.flags.contains("--double")
         if accessibilityId != nil || accessibilityLabel != nil {
             let preDelay = try optionalDoubleOption("--pre-delay", from: parsed) ?? 0
             let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
@@ -1002,17 +1130,24 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
                 throw NativeError.commandFailed("No accessibility element matched \(selectors.joined(separator: " and ")).")
             }
 
-            let actions = ActionNames(matchedElement)
-            if actions.contains(kAXPressAction as String) {
-                let status = AXUIElementPerformAction(matchedElement, kAXPressAction as CFString)
-                if status != .success {
-                    throw NativeError.commandFailed("Matched accessibility element but AXPress failed with status \(status.rawValue).")
+            if isDouble {
+                guard let frame = FrameAttribute(matchedElement) else {
+                    throw NativeError.commandFailed("Matched accessibility element has no frame for double-click.")
                 }
-            } else if let frame = FrameAttribute(matchedElement) {
-                let point = CGPoint(x: frame.midX, y: frame.midY)
-                sendClick(at: point)
+                sendDoubleClick(at: CGPoint(x: frame.midX, y: frame.midY))
             } else {
-                throw NativeError.commandFailed("Matched accessibility element has no AXPress action or frame for fallback click.")
+                let actions = ActionNames(matchedElement)
+                if actions.contains(kAXPressAction as String) {
+                    let status = AXUIElementPerformAction(matchedElement, kAXPressAction as CFString)
+                    if status != .success {
+                        throw NativeError.commandFailed("Matched accessibility element but AXPress failed with status \(status.rawValue).")
+                    }
+                } else if let frame = FrameAttribute(matchedElement) {
+                    let point = CGPoint(x: frame.midX, y: frame.midY)
+                    sendClick(at: point)
+                } else {
+                    throw NativeError.commandFailed("Matched accessibility element has no AXPress action or frame for fallback click.")
+                }
             }
 
             if postDelay > 0 {
@@ -1034,7 +1169,11 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
             Thread.sleep(forTimeInterval: preDelay)
         }
         let point = try pointInWindow(x: x, y: y, for: target)
-        sendClick(at: point)
+        if isDouble {
+            sendDoubleClick(at: point)
+        } else {
+            sendClick(at: point)
+        }
         if postDelay > 0 {
             Thread.sleep(forTimeInterval: postDelay)
         }
@@ -1241,6 +1380,267 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         let duration = try optionalDoubleOption("--duration", from: parsed) ?? 10
         let args = ["simctl", "io", udid, "recordVideo", "--force", output]
         return try runProcessWithTimeout("/usr/bin/xcrun", args, timeoutSeconds: max(1, duration))
+
+    case "list-windows":
+        let target = try resolveTarget(from: parsed)
+        guard let windowInfo = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] else {
+            throw NativeError.commandFailed("Failed to get window list.")
+        }
+        let filterPid: pid_t?
+        let filterName: String?
+        switch target {
+        case .macApp(let pid, _, _):
+            filterPid = pid
+            filterName = nil
+        case .simulator:
+            filterPid = nil
+            filterName = "Simulator"
+        }
+        let windows = windowInfo.filter { info in
+            let ownerPid = info[kCGWindowOwnerPID as String] as? pid_t
+            let ownerName = info[kCGWindowOwnerName as String] as? String
+            let layer = info[kCGWindowLayer as String] as? Int
+            if (layer ?? 0) != 0 { return false }
+            if let filterPid { return ownerPid == filterPid }
+            if let filterName { return ownerName == filterName }
+            return false
+        }
+        if windows.isEmpty {
+            print("No windows found.")
+        }
+        for info in windows {
+            let title = info[kCGWindowName as String] as? String ?? ""
+            let windowId = info[kCGWindowNumber as String] as? Int ?? 0
+            var frameStr = ""
+            if let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
+               let x = boundsDict["X"] as? CGFloat,
+               let y = boundsDict["Y"] as? CGFloat,
+               let w = boundsDict["Width"] as? CGFloat,
+               let h = boundsDict["Height"] as? CGFloat {
+                frameStr = "(\(formatFloat(x)),\(formatFloat(y)),\(formatFloat(w)),\(formatFloat(h)))"
+            }
+            print("\(title) | \(frameStr) | \(windowId)")
+        }
+        return 0
+
+    case "activate-app":
+        let target = try resolveTarget(from: parsed)
+        try activateTarget(target)
+        switch target {
+        case .macApp(_, let bundleId, let name):
+            print("Activated: \(name ?? bundleId ?? "app")")
+        case .simulator:
+            print("Activated: Simulator")
+        }
+        return 0
+
+    case "screenshot-app":
+        let target = try resolveTarget(from: parsed)
+        let output = parsed.options["--output"] ?? defaultOutputPath(prefix: "app-screenshot", ext: "png")
+        // Find the main window ID for the target
+        guard let windowInfo = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] else {
+            throw NativeError.commandFailed("Failed to get window list.")
+        }
+        let targetPid: pid_t
+        switch target {
+        case .macApp(let pid, _, _):
+            targetPid = pid
+        case .simulator:
+            let bundleIdentifier = "com.apple.iphonesimulator"
+            guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
+                throw NativeError.commandFailed("Simulator is not running.")
+            }
+            targetPid = app.processIdentifier
+        }
+        let appWindows = windowInfo.filter { info in
+            let ownerPid = info[kCGWindowOwnerPID as String] as? pid_t
+            let layer = info[kCGWindowLayer as String] as? Int
+            return ownerPid == targetPid && (layer ?? 0) == 0
+        }
+        guard let mainWindow = appWindows.first,
+              let windowId = mainWindow[kCGWindowNumber as String] as? CGWindowID else {
+            throw NativeError.commandFailed("No window found for the target app.")
+        }
+        // Use screencapture -l to capture specific window
+        let status = try runProcess("/usr/sbin/screencapture", ["-l", String(windowId), "-x", output])
+        if status == 0 {
+            print("Screenshot saved to: \(output)")
+        }
+        return status
+
+    case "right-click":
+        let target = try resolveTarget(from: parsed)
+        try activateTarget(target)
+        try ensureAccessibilityTrusted()
+        let accessibilityId = parsed.options["--id"]
+        let accessibilityLabel = parsed.options["--label"]
+        let preDelay = try optionalDoubleOption("--pre-delay", from: parsed) ?? 0
+        let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
+        if preDelay > 0 {
+            Thread.sleep(forTimeInterval: preDelay)
+        }
+        if accessibilityId != nil || accessibilityLabel != nil {
+            let root = try accessibilityRootElement(for: target)
+            guard let matchedElement = findAccessibilityElement(
+                in: root,
+                identifier: accessibilityId,
+                label: accessibilityLabel
+            ) else {
+                var selectors: [String] = []
+                if let accessibilityId { selectors.append("id='\(accessibilityId)'") }
+                if let accessibilityLabel { selectors.append("label='\(accessibilityLabel)'") }
+                throw NativeError.commandFailed("No accessibility element matched \(selectors.joined(separator: " and ")).")
+            }
+            guard let frame = FrameAttribute(matchedElement) else {
+                throw NativeError.commandFailed("Matched element has no frame for right-click.")
+            }
+            sendRightClick(at: CGPoint(x: frame.midX, y: frame.midY))
+        } else {
+            let xRaw = parsed.options["-x"]
+            let yRaw = parsed.options["-y"]
+            guard let xRaw, let yRaw, let x = Double(xRaw), let y = Double(yRaw) else {
+                throw NativeError.invalidArguments("right-click requires --id/--label or -x/-y coordinates.")
+            }
+            let point = try pointInWindow(x: x, y: y, for: target)
+            sendRightClick(at: point)
+        }
+        if postDelay > 0 {
+            Thread.sleep(forTimeInterval: postDelay)
+        }
+        return 0
+
+    case "scroll":
+        let target = try resolveTarget(from: parsed)
+        try activateTarget(target)
+        let deltaX = try optionalDoubleOption("--delta-x", from: parsed) ?? 0
+        let deltaY = try optionalDoubleOption("--delta-y", from: parsed) ?? 0
+        if deltaX == 0 && deltaY == 0 {
+            throw NativeError.invalidArguments("scroll requires --delta-x and/or --delta-y.")
+        }
+        var scrollPoint: CGPoint? = nil
+        let xRaw = parsed.options["-x"]
+        let yRaw = parsed.options["-y"]
+        if let xRaw, let yRaw, let x = Double(xRaw), let y = Double(yRaw) {
+            scrollPoint = try pointInWindow(x: x, y: y, for: target)
+        }
+        sendScrollWheel(at: scrollPoint, deltaX: Int32(deltaX), deltaY: Int32(deltaY))
+        return 0
+
+    case "drag-drop":
+        let target = try resolveTarget(from: parsed)
+        try activateTarget(target)
+        let startX = try requiredOption("--start-x", from: parsed)
+        let startY = try requiredOption("--start-y", from: parsed)
+        let endX = try requiredOption("--end-x", from: parsed)
+        let endY = try requiredOption("--end-y", from: parsed)
+        guard let startXVal = Double(startX),
+              let startYVal = Double(startY),
+              let endXVal = Double(endX),
+              let endYVal = Double(endY) else {
+            throw NativeError.invalidArguments("drag-drop requires numeric start/end coordinates.")
+        }
+        let duration = try optionalDoubleOption("--duration", from: parsed) ?? 0.5
+        let preDelay = try optionalDoubleOption("--pre-delay", from: parsed) ?? 0
+        let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
+        if preDelay > 0 {
+            Thread.sleep(forTimeInterval: preDelay)
+        }
+        let start = try pointInWindow(x: startXVal, y: startYVal, for: target)
+        let end = try pointInWindow(x: endXVal, y: endYVal, for: target)
+        sendSwipe(from: start, to: end, duration: duration)
+        if postDelay > 0 {
+            Thread.sleep(forTimeInterval: postDelay)
+        }
+        return 0
+
+    case "menu-action":
+        let target = try resolveTarget(from: parsed)
+        if case .simulator = target {
+            throw NativeError.commandFailed("menu-action is only supported for macOS apps (use --bundle-id or --app-name).")
+        }
+        try ensureAccessibilityTrusted()
+        try activateTarget(target)
+        Thread.sleep(forTimeInterval: 0.3)
+        let menuName = try requiredOption("--menu", from: parsed)
+        let itemName = try requiredOption("--item", from: parsed)
+        guard case .macApp(let pid, _, _) = target else {
+            throw NativeError.commandFailed("menu-action requires a macOS app target.")
+        }
+        let appElement = AXUIElementCreateApplication(pid)
+        guard let menuBar = ElementAttribute(appElement, kAXMenuBarAttribute as CFString) else {
+            throw NativeError.commandFailed("Could not access menu bar for the application.")
+        }
+        let menuBarItems = Children(menuBar)
+        var foundMenu: UIElement? = nil
+        for menuBarItem in menuBarItems {
+            if let title = StringAttribute(menuBarItem, kAXTitleAttribute as CFString),
+               normalizeText(title) == normalizeText(menuName) {
+                foundMenu = menuBarItem
+                break
+            }
+        }
+        guard let menuItem = foundMenu else {
+            let availableMenus = menuBarItems.compactMap { StringAttribute($0, kAXTitleAttribute as CFString) }
+            throw NativeError.commandFailed("Menu '\(menuName)' not found. Available menus: \(availableMenus.joined(separator: ", "))")
+        }
+        // Open the menu
+        AXUIElementPerformAction(menuItem, kAXPressAction as CFString)
+        Thread.sleep(forTimeInterval: 0.2)
+        // Find the item within the opened menu
+        let menuChildren = Children(menuItem)
+        var foundItem: UIElement? = nil
+        for child in menuChildren {
+            let items = Children(child)
+            for item in items {
+                if let title = StringAttribute(item, kAXTitleAttribute as CFString),
+                   normalizeText(title) == normalizeText(itemName) {
+                    foundItem = item
+                    break
+                }
+            }
+            if foundItem != nil { break }
+        }
+        guard let targetItem = foundItem else {
+            // Cancel the menu
+            AXUIElementPerformAction(menuItem, "AXCancel" as CFString)
+            throw NativeError.commandFailed("Menu item '\(itemName)' not found in '\(menuName)'.")
+        }
+        let pressStatus = AXUIElementPerformAction(targetItem, kAXPressAction as CFString)
+        if pressStatus != .success {
+            throw NativeError.commandFailed("Failed to activate menu item '\(itemName)' (status: \(pressStatus.rawValue)).")
+        }
+        print("Performed: \(menuName) > \(itemName)")
+        return 0
+
+    case "get-focused-app":
+        guard let app = NSWorkspace.shared.frontmostApplication else {
+            throw NativeError.commandFailed("No frontmost application found.")
+        }
+        let bundleId = app.bundleIdentifier ?? "unknown"
+        let name = app.localizedName ?? "unknown"
+        let pid = app.processIdentifier
+        print("\(bundleId) | \(name) | \(pid)")
+        return 0
+
+    case "clipboard":
+        if parsed.flags.contains("--read") {
+            let pasteboard = NSPasteboard.general
+            if let text = pasteboard.string(forType: .string) {
+                print(text)
+            } else {
+                print("")
+            }
+        } else if let text = parsed.options["--write"] {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
+            print("Clipboard updated.")
+        } else {
+            throw NativeError.invalidArguments("clipboard requires --read or --write <text>.")
+        }
+        return 0
 
     default:
         throw NativeError.invalidArguments("Unhandled command: \(parsed.command)")

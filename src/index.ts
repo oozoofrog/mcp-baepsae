@@ -72,6 +72,15 @@ const BAEPSAE_SUBCOMMANDS = [
   "stream-video",
   "record-video",
   "screenshot",
+  "list-windows",
+  "activate-app",
+  "screenshot-app",
+  "right-click",
+  "scroll",
+  "drag-drop",
+  "menu-action",
+  "get-focused-app",
+  "clipboard",
 ] as const;
 
 const keycodeSchema = z.number().int().min(0).max(255);
@@ -349,6 +358,7 @@ server.tool(
       "",
       "Implemented tools:",
       "- describe_ui, search_ui, tap, type_text, swipe, button, key, key_sequence, key_combo, touch, gesture, stream_video",
+      "- list_windows, activate_app, screenshot_app, right_click, scroll, drag_drop, menu_action, get_focused_app, clipboard",
       "",
       `Native binary requirement: build native binary or set ${NATIVE_BINARY_ENV}`,
     ];
@@ -522,6 +532,7 @@ server.tool(
     y: z.number().optional().describe("Y coordinate"),
     id: z.string().optional().describe("Accessibility identifier"),
     label: z.string().optional().describe("Accessibility label"),
+    double: z.boolean().optional().describe("Send double-click instead of single click"),
     preDelay: z.number().optional().describe("Delay before tap in seconds"),
     postDelay: z.number().optional().describe("Delay after tap in seconds"),
   },
@@ -559,6 +570,9 @@ server.tool(
     pushOption(args, "-y", params.y);
     pushOption(args, "--id", params.id);
     pushOption(args, "--label", params.label);
+    if (params.double) {
+      args.push("--double");
+    }
     pushOption(args, "--pre-delay", params.preDelay);
     pushOption(args, "--post-delay", params.postDelay);
     args.push(...target);
@@ -870,6 +884,173 @@ server.tool(
     return await runSimctl(["io", params.udid, "screenshot", resolvedOutput], undefined, {
       extraLines: [`Output file: ${resolvedOutput}`],
     });
+  }
+);
+
+server.tool(
+  "list_windows",
+  "List windows of a macOS app or simulator.",
+  {
+    udid: z.string().min(1).optional(),
+    bundleId: z.string().optional(),
+    appName: z.string().optional(),
+  },
+  async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+    return await runNative(["list-windows", ...target]);
+  }
+);
+
+server.tool(
+  "activate_app",
+  "Bring a macOS app or simulator to foreground.",
+  {
+    udid: z.string().min(1).optional(),
+    bundleId: z.string().optional(),
+    appName: z.string().optional(),
+  },
+  async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+    return await runNative(["activate-app", ...target]);
+  }
+);
+
+server.tool(
+  "screenshot_app",
+  "Take a screenshot of a macOS app window.",
+  {
+    udid: z.string().min(1).optional(),
+    bundleId: z.string().optional(),
+    appName: z.string().optional(),
+    output: z.string().optional().describe("Output file path"),
+  },
+  async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+    const args = ["screenshot-app", ...target];
+    pushOption(args, "--output", params.output);
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "right_click",
+  "Right-click on a macOS app element or coordinate.",
+  {
+    udid: z.string().min(1).optional(),
+    bundleId: z.string().optional(),
+    appName: z.string().optional(),
+    x: z.number().optional(),
+    y: z.number().optional(),
+    id: z.string().optional(),
+    label: z.string().optional(),
+  },
+  async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+    const args = ["right-click", ...target];
+    pushOption(args, "-x", params.x);
+    pushOption(args, "-y", params.y);
+    pushOption(args, "--id", params.id);
+    pushOption(args, "--label", params.label);
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "scroll",
+  "Send scroll wheel events to a macOS app.",
+  {
+    udid: z.string().min(1).optional(),
+    bundleId: z.string().optional(),
+    appName: z.string().optional(),
+    deltaX: z.number().optional().describe("Horizontal scroll amount"),
+    deltaY: z.number().optional().describe("Vertical scroll amount"),
+    x: z.number().optional().describe("X coordinate for scroll position"),
+    y: z.number().optional().describe("Y coordinate for scroll position"),
+  },
+  async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+    const args = ["scroll", ...target];
+    pushOption(args, "--delta-x", params.deltaX);
+    pushOption(args, "--delta-y", params.deltaY);
+    pushOption(args, "-x", params.x);
+    pushOption(args, "-y", params.y);
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "drag_drop",
+  "Drag and drop between two points.",
+  {
+    udid: z.string().min(1).optional(),
+    bundleId: z.string().optional(),
+    appName: z.string().optional(),
+    startX: z.number().describe("Start X"),
+    startY: z.number().describe("Start Y"),
+    endX: z.number().describe("End X"),
+    endY: z.number().describe("End Y"),
+    duration: z.number().optional().describe("Duration in seconds"),
+  },
+  async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+    const args = ["drag-drop", ...target];
+    args.push("--start-x", String(params.startX), "--start-y", String(params.startY));
+    args.push("--end-x", String(params.endX), "--end-y", String(params.endY));
+    pushOption(args, "--duration", params.duration);
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "menu_action",
+  "Execute a menu bar action in a macOS app.",
+  {
+    bundleId: z.string().optional(),
+    appName: z.string().optional(),
+    menu: z.string().describe("Menu name (e.g. 'File')"),
+    item: z.string().describe("Menu item name (e.g. 'Save')"),
+  },
+  async (params) => {
+    const args = ["menu-action"];
+    if (params.bundleId) args.push("--bundle-id", params.bundleId);
+    else if (params.appName) args.push("--app-name", params.appName);
+    else return { content: [{ type: "text", text: "Provide bundleId or appName." }], isError: true };
+    args.push("--menu", params.menu, "--item", params.item);
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "get_focused_app",
+  "Get information about the currently focused macOS app.",
+  {},
+  async () => {
+    return await runNative(["get-focused-app"]);
+  }
+);
+
+server.tool(
+  "clipboard",
+  "Read or write the system clipboard.",
+  {
+    action: z.enum(["read", "write"]).describe("Read or write clipboard"),
+    text: z.string().optional().describe("Text to write (required for write action)"),
+  },
+  async (params) => {
+    const args = ["clipboard"];
+    if (params.action === "read") {
+      args.push("--read");
+    } else {
+      if (!params.text) return { content: [{ type: "text", text: "text is required for write action." }], isError: true };
+      args.push("--write", params.text);
+    }
+    return await runNative(args);
   }
 );
 

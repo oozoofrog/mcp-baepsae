@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gesture Test</title>
+<style>
+  body { font-family: -apple-system, sans-serif; margin: 20px; }
+  .area { border: 2px solid #333; padding: 16px; margin: 8px 0; border-radius: 6px; user-select: none; }
+  .status { font-weight: bold; color: #007aff; }
+  button { font-size: 16px; padding: 8px 16px; cursor: pointer; }
+  #drag-area { width: 300px; height: 80px; background: #e0e0e0; position: relative; }
+  #text-input { font-size: 16px; padding: 6px; width: 250px; }
+</style>
+</head>
+<body>
+
+<h2>Gesture Test Page</h2>
+
+<!-- 1. Single Click -->
+<div>
+  <button id="click-btn" onclick="document.getElementById('click-status').textContent='Clicked!'">Click Me</button>
+  <span id="click-status" class="status">Ready</span>
+</div>
+
+<!-- 2. Double Click -->
+<div class="area" id="dblclick-area">
+  Double-click this area
+  <div>Status: <span id="dblclick-status" class="status">Ready</span></div>
+</div>
+
+<!-- 3. Right Click -->
+<div class="area" id="rightclick-area">
+  Right-click this area
+  <div>Status: <span id="rightclick-status" class="status">Ready</span></div>
+</div>
+
+<!-- 4. Key Input -->
+<div class="area" id="key-area" tabindex="0">
+  Click here, then press any key
+  <div>Key: <span id="key-status" class="status">None</span></div>
+</div>
+
+<!-- 5. Text Input -->
+<div>
+  <label for="text-input">Type here:</label>
+  <input type="text" id="text-input" placeholder="type something...">
+  <div>Value: <span id="text-status" class="status">Empty</span></div>
+</div>
+
+<!-- 6. Mouse Down/Up -->
+<div class="area" id="mousepress-area">
+  Press and release mouse here
+  <div>Status: <span id="mousepress-status" class="status">Ready</span></div>
+</div>
+
+<!-- 7. Drag -->
+<div class="area" id="drag-area">
+  Drag across this area
+  <div>Status: <span id="drag-status" class="status">Ready</span></div>
+</div>
+
+<!-- 8. Reset -->
+<div style="margin-top: 16px;">
+  <button id="reset-btn">Reset All</button>
+</div>
+
+<script>
+// 2. Double Click
+document.getElementById('dblclick-area').addEventListener('dblclick', function() {
+  document.getElementById('dblclick-status').textContent = 'DoubleClicked!';
+});
+
+// 3. Right Click
+document.getElementById('rightclick-area').addEventListener('contextmenu', function(e) {
+  e.preventDefault();
+  document.getElementById('rightclick-status').textContent = 'RightClicked!';
+});
+
+// 4. Key Input
+document.getElementById('key-area').addEventListener('keydown', function(e) {
+  document.getElementById('key-status').textContent = e.key;
+});
+
+// 5. Text Input
+document.getElementById('text-input').addEventListener('input', function() {
+  document.getElementById('text-status').textContent = this.value || 'Empty';
+});
+
+// 6. Mouse Down/Up
+(function() {
+  var area = document.getElementById('mousepress-area');
+  var status = document.getElementById('mousepress-status');
+  area.addEventListener('mousedown', function() { status.textContent = 'MouseDown'; });
+  area.addEventListener('mouseup', function() {
+    if (status.textContent === 'MouseDown') status.textContent = 'MouseDown+Up';
+  });
+})();
+
+// 7. Drag
+(function() {
+  var area = document.getElementById('drag-area');
+  var status = document.getElementById('drag-status');
+  var dragging = false;
+  area.addEventListener('mousedown', function() { dragging = true; status.textContent = 'DragStart'; });
+  area.addEventListener('mousemove', function() {
+    if (dragging) status.textContent = 'Dragging';
+  });
+  area.addEventListener('mouseup', function() {
+    if (dragging) { dragging = false; status.textContent = 'DragEnd'; }
+  });
+  area.addEventListener('mouseleave', function() {
+    if (dragging) { dragging = false; status.textContent = 'DragEnd'; }
+  });
+})();
+
+// 8. Reset
+document.getElementById('reset-btn').addEventListener('click', function() {
+  document.getElementById('click-status').textContent = 'Ready';
+  document.getElementById('dblclick-status').textContent = 'Ready';
+  document.getElementById('rightclick-status').textContent = 'Ready';
+  document.getElementById('key-status').textContent = 'None';
+  document.getElementById('text-input').value = '';
+  document.getElementById('text-status').textContent = 'Empty';
+  document.getElementById('mousepress-status').textContent = 'Ready';
+  document.getElementById('drag-status').textContent = 'Ready';
+});
+</script>
+</body>
+</html>
