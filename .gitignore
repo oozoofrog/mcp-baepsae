@@ -10,3 +10,4 @@ native/.build/
 .mcp.json
 opencode.json
 .sisyphus/
+.claude/agents/
