@@ -707,6 +707,16 @@ func printHelp() {
       baepsae-native search-ui --udid <UDID> --query <text>
       baepsae-native screenshot --udid <UDID> [--output <path>]
       baepsae-native record-video --udid <UDID> [--output <path>]
+      baepsae-native tap --udid <UDID> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--pre-delay <S>] [--post-delay <S>]
+      baepsae-native type --udid <UDID> [<TEXT> | --stdin | --file <PATH>]
+      baepsae-native swipe --udid <UDID> --start-x <X> --start-y <Y> --end-x <X> --end-y <Y> [--duration <S>] [--pre-delay <S>] [--post-delay <S>]
+      baepsae-native button --udid <UDID> <TYPE> [--duration <S>]
+      baepsae-native key --udid <UDID> <KEYCODE> [--duration <S>]
+      baepsae-native key-sequence --udid <UDID> --keycodes <CODE,...> [--delay <S>]
+      baepsae-native key-combo --udid <UDID> --modifiers <CODE,...> --key <CODE>
+      baepsae-native touch --udid <UDID> -x <X> -y <Y> [--down] [--up] [--delay <S>]
+      baepsae-native gesture --udid <UDID> <PRESET> [--screen-width <W>] [--screen-height <H>] [--duration <S>]
+      baepsae-native stream-video --udid <UDID> [--output <PATH>] [--duration <S>]
     """
     print(help)
 }

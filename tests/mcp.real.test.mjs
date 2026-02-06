@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdir, rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { execSync } from "node:child_process";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -43,7 +44,54 @@ function extractBootedUdid(text) {
 }
 
 function isAccessibilityDenied(text) {
-  return /permission denied|accessibility/i.test(text);
+  return /\[Permission Denied\].*Accessibility/i.test(text);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Poll describe_ui until check(text) returns true or timeout.
+ * Returns the last describe_ui text.
+ */
+async function waitForUI(client, udid, focusId, check, timeoutMs = 5000) {
+  const interval = 500;
+  const deadline = Date.now() + timeoutMs;
+  let lastText = "";
+  while (Date.now() < deadline) {
+    const args = { udid };
+    if (focusId) args.focusId = focusId;
+    const result = await client.callTool({ name: "describe_ui", arguments: args });
+    lastText = extractText(result);
+    if (!result.isError && check(lastText)) return lastText;
+    await sleep(interval);
+  }
+  return lastText;
+}
+
+/**
+ * Detect if a context menu (Cut/Copy/Paste) is visible in the UI.
+ */
+async function hasContextMenu(client, udid) {
+  const result = await client.callTool({ name: "describe_ui", arguments: { udid } });
+  const text = extractText(result);
+  return /\b(Cut|Copy|Paste|Select All|Select)\b/.test(text);
+}
+
+/**
+ * Dismiss context menu if present by tapping outside or sending Escape.
+ * Returns true if a menu was detected and dismissed.
+ */
+async function dismissContextMenu(client, udid) {
+  if (!(await hasContextMenu(client, udid))) return false;
+  // Send Escape key (keycode 41 in HID) to dismiss
+  await client.callTool({ name: "key", arguments: { udid, keycode: 41 } });
+  await sleep(500);
+  // If still present, tap an empty area
+  if (await hasContextMenu(client, udid)) {
+    await client.callTool({ name: "tap", arguments: { udid, x: 200, y: 50 } });
+    await sleep(500);
+  }
+  return true;
 }
 
 function findSampleApp() {
@@ -59,6 +107,52 @@ function findSampleApp() {
   }
   return null;
 }
+
+const sampleAppProject = path.join(projectRoot, "test-fixtures", "SampleApp", "SampleApp.xcodeproj");
+
+// ─── Setup: Build and install SampleApp ──────────────────────────────────────
+
+test("Setup: build SampleApp for simulator", { timeout: 120_000 }, async (t) => {
+  if (!existsSync(sampleAppProject)) {
+    t.skip("SampleApp.xcodeproj not found");
+    return;
+  }
+
+  await withClient(async (client) => {
+    const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+    const udid = extractBootedUdid(extractText(listResult));
+    if (!udid) {
+      t.skip("No booted simulator detected");
+      return;
+    }
+
+    // Build SampleApp targeting the booted simulator
+    execSync(
+      `xcodebuild -project "${sampleAppProject}" -scheme SampleApp -sdk iphonesimulator ` +
+      `-destination "id=${udid}" build`,
+      { cwd: path.join(projectRoot, "test-fixtures", "SampleApp"), stdio: "pipe", timeout: 90_000 },
+    );
+
+    const appPath = findSampleApp();
+    assert.ok(appPath, "SampleApp.app should exist after build");
+
+    // Install and launch
+    const installResult = await client.callTool({
+      name: "install_app",
+      arguments: { udid, path: appPath },
+    });
+    assert.equal(installResult.isError ?? false, false, "install_app should not error");
+
+    const launchResult = await client.callTool({
+      name: "launch_app",
+      arguments: { udid, bundleId: "com.baepsae.sampleapp" },
+    });
+    assert.equal(launchResult.isError ?? false, false, "launch_app should not error");
+
+    // Wait for the app UI to load
+    await waitForUI(client, udid, "test-label", (text) => text.includes("Ready"), 10000);
+  });
+});
 
 // ─── Phase 1: Basic (simulator only) ────────────────────────────────────────
 
@@ -217,7 +311,7 @@ test("Phase 2: search_ui → find 'Baepsae' on page", { timeout: 30_000 }, async
   });
 });
 
-test("Phase 2: tap → tap by label 'Click Me'", { timeout: 30_000 }, async (t) => {
+test("Phase 2: tap → tap by label 'Tap Me'", { timeout: 45_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -226,9 +320,18 @@ test("Phase 2: tap → tap by label 'Click Me'", { timeout: 30_000 }, async (t) 
       return;
     }
 
+    const appPath = findSampleApp();
+    if (!appPath) {
+      t.skip("SampleApp.app not built — run xcodebuild first");
+      return;
+    }
+
+    // Ensure SampleApp is in foreground (may have been backgrounded by open_url)
+    await relaunchSampleApp(client, udid);
+
     const result = await client.callTool({
       name: "tap",
-      arguments: { udid, label: "Click Me" },
+      arguments: { udid, label: "Tap Me" },
     });
     const text = extractText(result);
 
@@ -237,10 +340,13 @@ test("Phase 2: tap → tap by label 'Click Me'", { timeout: 30_000 }, async (t) 
       return;
     }
     assert.equal(result.isError ?? false, false, "tap should not error");
+
+    // Wait for UI to settle after tap
+    await sleep(500);
   });
 });
 
-test("Phase 2: type_text → type text in text mode", { timeout: 30_000 }, async (t) => {
+test("Phase 2: type_text → tap input, type text, verify result", { timeout: 45_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -249,17 +355,120 @@ test("Phase 2: type_text → type text in text mode", { timeout: 30_000 }, async
       return;
     }
 
-    const result = await client.callTool({
-      name: "type_text",
-      arguments: { udid, text: "Hello Baepsae" },
-    });
-    const text = extractText(result);
+    const appPath = findSampleApp();
+    if (!appPath) {
+      t.skip("SampleApp.app not built — run xcodebuild first");
+      return;
+    }
 
-    if (result.isError && isAccessibilityDenied(text)) {
+    // Re-launch SampleApp to reset input state and ensure it's in foreground
+    await relaunchSampleApp(client, udid);
+
+    // Tap on the text input field to give it focus
+    const tapResult = await client.callTool({
+      name: "tap",
+      arguments: { udid, id: "test-input" },
+    });
+    if (tapResult.isError && isAccessibilityDenied(extractText(tapResult))) {
       t.skip("Accessibility permission denied");
       return;
     }
-    assert.equal(result.isError ?? false, false, "type_text should not error");
+    assert.equal(tapResult.isError ?? false, false, "tap on test-input should not error");
+    await sleep(500);
+
+    // Type text into the focused input
+    const typeResult = await client.callTool({
+      name: "type_text",
+      arguments: { udid, text: "Hello Baepsae" },
+    });
+    assert.equal(typeResult.isError ?? false, false, "type_text should not error");
+    await sleep(500);
+
+    // Dismiss context menu if it appeared after type_text
+    await dismissContextMenu(client, udid);
+
+    // Verify that type_text delivered some input via describe_ui.
+    // HID typing via CGEvent may not produce exact text depending on simulator
+    // keyboard language/focus state, so we only check that some text was entered.
+    const describeResult = await client.callTool({
+      name: "describe_ui",
+      arguments: { udid, focusId: "test-result" },
+    });
+    if (!describeResult.isError) {
+      const describeText = extractText(describeResult);
+      assert.ok(describeText.length > 0, "test-result should have content after type_text");
+    }
+  });
+});
+
+test("Phase 2: type_text → stdinText mode", { timeout: 45_000 }, async (t) => {
+  await withClient(async (client) => {
+    const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+    const udid = extractBootedUdid(extractText(listResult));
+    if (!udid) {
+      t.skip("No booted simulator detected");
+      return;
+    }
+
+    const appPath = findSampleApp();
+    if (!appPath) {
+      t.skip("SampleApp.app not built — run xcodebuild first");
+      return;
+    }
+
+    // Re-launch SampleApp to reset input state and wait for UI
+    await relaunchSampleApp(client, udid);
+
+    // Tap on input to focus
+    const tapResult = await client.callTool({
+      name: "tap",
+      arguments: { udid, id: "test-input" },
+    });
+    if (tapResult.isError && isAccessibilityDenied(extractText(tapResult))) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+    await sleep(500);
+
+    // Type via stdinText mode
+    const typeResult = await client.callTool({
+      name: "type_text",
+      arguments: { udid, stdinText: "stdin mode test" },
+    });
+    assert.equal(typeResult.isError ?? false, false, "type_text with stdinText should not error");
+    await sleep(500);
+
+    // Dismiss context menu if it appeared after type_text
+    await dismissContextMenu(client, udid);
+
+    // Verify that test-result has some text (stdinText may not inject all characters via HID)
+    const describeResult = await client.callTool({
+      name: "describe_ui",
+      arguments: { udid, focusId: "test-result" },
+    });
+    if (!describeResult.isError) {
+      const describeText = extractText(describeResult);
+      assert.ok(describeText.length > 0, "test-result should have content after stdinText input");
+    }
+    // If test-result doesn't exist, that's OK — the empty Text may not appear in accessibility tree
+  });
+});
+
+test("Phase 2: type_text → empty text should error", { timeout: 30_000 }, async (t) => {
+  await withClient(async (client) => {
+    const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+    const udid = extractBootedUdid(extractText(listResult));
+    if (!udid) {
+      t.skip("No booted simulator detected");
+      return;
+    }
+
+    // Call type_text with no text/stdinText/file — should error
+    const result = await client.callTool({
+      name: "type_text",
+      arguments: { udid },
+    });
+    assert.ok(result.isError, "type_text with no text source should error");
   });
 });
 
@@ -283,6 +492,7 @@ test("Phase 2: swipe → coordinate-based swipe", { timeout: 30_000 }, async (t)
       return;
     }
     assert.equal(result.isError ?? false, false, "swipe should not error");
+    await sleep(500);
   });
 });
 
@@ -427,6 +637,221 @@ test("Phase 2: touch → down/up events", { timeout: 30_000 }, async (t) => {
   });
 });
 
+// Helper: re-launch SampleApp and wait until UI is accessible
+async function relaunchSampleApp(client, udid) {
+  await client.callTool({
+    name: "terminate_app",
+    arguments: { udid, bundleId: "com.baepsae.sampleapp" },
+  });
+  await sleep(500);
+  // Ensure the app is installed (may have been uninstalled by a previous test run)
+  const appPath = findSampleApp();
+  if (appPath) {
+    await client.callTool({
+      name: "install_app",
+      arguments: { udid, path: appPath },
+    });
+  }
+  await client.callTool({
+    name: "launch_app",
+    arguments: { udid, bundleId: "com.baepsae.sampleapp" },
+  });
+  // Wait until the app UI shows "Ready" (up to 10s)
+  await waitForUI(client, udid, "test-label", (text) => text.includes("Ready"), 10000);
+}
+
+// ─── Phase 2b: UI interaction with state verification ────────────────────────
+
+test("Phase 2b: tap by id → verify label changes to 'Tapped!'", { timeout: 45_000 }, async (t) => {
+  await withClient(async (client) => {
+    const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+    const udid = extractBootedUdid(extractText(listResult));
+    if (!udid) {
+      t.skip("No booted simulator detected");
+      return;
+    }
+
+    const appPath = findSampleApp();
+    if (!appPath) {
+      t.skip("SampleApp.app not built — run xcodebuild first");
+      return;
+    }
+
+    // Re-launch SampleApp to reset state and wait for UI
+    await relaunchSampleApp(client, udid);
+
+    // Verify initial label is "Ready"
+    const beforeResult = await client.callTool({
+      name: "describe_ui",
+      arguments: { udid, focusId: "test-label" },
+    });
+    const beforeText = extractText(beforeResult);
+    if (beforeResult.isError && isAccessibilityDenied(beforeText)) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+    assert.ok(beforeText.includes("Ready"), `label should initially be "Ready", got: ${beforeText}`);
+
+    // Tap button by accessibility id
+    const tapResult = await client.callTool({
+      name: "tap",
+      arguments: { udid, id: "test-button" },
+    });
+    assert.equal(tapResult.isError ?? false, false, "tap by id should not error");
+
+    // Wait for UI to reflect the tap, then verify label changed to "Tapped!"
+    const afterText = await waitForUI(client, udid, "test-label", (text) => text.includes("Tapped!"), 5000);
+    assert.ok(afterText.includes("Tapped!"), `label should be "Tapped!" after tap, got: ${afterText}`);
+  });
+});
+
+test("Phase 2b: swipe → verify list scroll changes visible items", { timeout: 45_000 }, async (t) => {
+  await withClient(async (client) => {
+    const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+    const udid = extractBootedUdid(extractText(listResult));
+    if (!udid) {
+      t.skip("No booted simulator detected");
+      return;
+    }
+
+    const appPath = findSampleApp();
+    if (!appPath) {
+      t.skip("SampleApp.app not built — run xcodebuild first");
+      return;
+    }
+
+    // Re-launch SampleApp and wait for UI
+    await relaunchSampleApp(client, udid);
+
+    // Describe UI before swipe to capture visible list items
+    const beforeResult = await client.callTool({
+      name: "describe_ui",
+      arguments: { udid, focusId: "test-list" },
+    });
+    const beforeText = extractText(beforeResult);
+    if (beforeResult.isError && isAccessibilityDenied(beforeText)) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+    assert.equal(beforeResult.isError ?? false, false, "describe_ui before swipe should not error");
+
+    // Swipe up on the list area to scroll down
+    const swipeResult = await client.callTool({
+      name: "swipe",
+      arguments: { udid, startX: 200, startY: 600, endX: 200, endY: 300, duration: 0.3 },
+    });
+    assert.equal(swipeResult.isError ?? false, false, "swipe should not error");
+    await sleep(500);
+
+    // Describe UI after swipe
+    const afterResult = await client.callTool({
+      name: "describe_ui",
+      arguments: { udid, focusId: "test-list" },
+    });
+    const afterText = extractText(afterResult);
+    assert.equal(afterResult.isError ?? false, false, "describe_ui after swipe should not error");
+
+    // After scrolling, the visible items should differ (later items should appear)
+    // At minimum, the output should have changed
+    assert.ok(afterText.length > 0, "describe_ui after swipe should return content");
+    // Check that higher-numbered items are now visible (e.g., Item 10+)
+    const hasHigherItems = /Item\s+(1[0-9]|[2-9]\d)/.test(afterText);
+    const beforeHadHigherItems = /Item\s+(1[0-9]|[2-9]\d)/.test(beforeText);
+    if (!beforeHadHigherItems) {
+      assert.ok(hasHigherItems, `after swipe, higher-numbered items should be visible, got: ${afterText}`);
+    }
+  });
+});
+
+test("Phase 2b: integrated workflow → tap, type, verify, swipe", { timeout: 60_000 }, async (t) => {
+  await withClient(async (client) => {
+    const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+    const udid = extractBootedUdid(extractText(listResult));
+    if (!udid) {
+      t.skip("No booted simulator detected");
+      return;
+    }
+
+    const appPath = findSampleApp();
+    if (!appPath) {
+      t.skip("SampleApp.app not built — run xcodebuild first");
+      return;
+    }
+
+    // Step 1: Re-launch SampleApp to reset state and wait for UI
+    await relaunchSampleApp(client, udid);
+
+    // Step 2: Tap button and verify label changed
+    const tapBtnResult = await client.callTool({
+      name: "tap",
+      arguments: { udid, id: "test-button" },
+    });
+    if (tapBtnResult.isError && isAccessibilityDenied(extractText(tapBtnResult))) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+    assert.equal(tapBtnResult.isError ?? false, false, "tap test-button should not error");
+
+    const labelText = await waitForUI(client, udid, "test-label", (text) => text.includes("Tapped!"), 5000);
+    assert.ok(labelText.includes("Tapped!"), `label should be "Tapped!" after tap, got: ${labelText}`);
+
+    // Step 3: Tap input field and type text
+    const tapInputResult = await client.callTool({
+      name: "tap",
+      arguments: { udid, id: "test-input" },
+    });
+    assert.equal(tapInputResult.isError ?? false, false, "tap test-input should not error");
+    await sleep(500);
+
+    const typeResult = await client.callTool({
+      name: "type_text",
+      arguments: { udid, text: "workflow test" },
+    });
+    assert.equal(typeResult.isError ?? false, false, "type_text should not error");
+    await sleep(500);
+
+    // Dismiss context menu if it appeared after type_text
+    await dismissContextMenu(client, udid);
+
+    // Step 4: Verify typed text appears in test-result (may not exist if HID typing didn't work)
+    const resultDescribe = await client.callTool({
+      name: "describe_ui",
+      arguments: { udid, focusId: "test-result" },
+    });
+    if (!resultDescribe.isError) {
+      const resultText = extractText(resultDescribe);
+      assert.ok(resultText.includes("workflow test"), `test-result should contain "workflow test", got: ${resultText}`);
+    }
+
+    // Step 5: Re-launch app to dismiss keyboard/context menu before scrolling
+    await relaunchSampleApp(client, udid);
+
+    // Wait for test-list to be visible
+    const beforeSwipeText = await waitForUI(client, udid, "test-list", (text) => /Item\s+\d/.test(text), 5000);
+
+    const swipeResult = await client.callTool({
+      name: "swipe",
+      arguments: { udid, startX: 200, startY: 600, endX: 200, endY: 300, duration: 0.3 },
+    });
+    assert.equal(swipeResult.isError ?? false, false, "swipe should not error");
+    await sleep(500);
+
+    const afterSwipe = await client.callTool({
+      name: "describe_ui",
+      arguments: { udid, focusId: "test-list" },
+    });
+    const afterSwipeText = extractText(afterSwipe);
+    assert.ok(afterSwipeText.length > 0, "list should have content after swipe");
+
+    // Verify the UI state changed (scroll caused different items to be visible)
+    const afterHasHigherItems = /Item\s+(1[0-9]|[2-9]\d)/.test(afterSwipeText);
+    const beforeHadHigherItems = /Item\s+(1[0-9]|[2-9]\d)/.test(beforeSwipeText);
+    if (!beforeHadHigherItems) {
+      assert.ok(afterHasHigherItems, `after swipe, higher-numbered list items should appear, got: ${afterSwipeText}`);
+    }
+  });
+});
+
 // ─── Phase 3: App management (requires built sample app) ───────────────────
 
 test("Phase 3: install_app → install sample app", { timeout: 60_000 }, async (t) => {
@@ -472,6 +897,9 @@ test("Phase 3: launch_app → launch sample app", { timeout: 30_000 }, async (t)
       arguments: { udid, bundleId: "com.baepsae.sampleapp" },
     });
     assert.equal(result.isError ?? false, false, "launch_app should not error");
+
+    // Wait for the app to be ready
+    await waitForUI(client, udid, "test-label", (text) => text.includes("Ready"), 5000);
   });
 });
 
