@@ -37,6 +37,7 @@ let supportedCommands: Set<String> = [
     "screenshot",
     "record-video",
     "describe-ui",
+    "search-ui",
     "tap",
     "type",
     "swipe",
@@ -288,7 +289,15 @@ func ensureAccessibilityTrusted() throws {
         return
     }
     throw NativeError.commandFailed(
-        "Accessibility permission is required. Enable your terminal or Node runtime in System Settings > Privacy & Security > Accessibility."
+        """
+        [Permission Denied] Accessibility access is required to read/control the Simulator UI.
+        
+        Please enable it in macOS System Settings:
+        1. Open 'System Settings' -> 'Privacy & Security' -> 'Accessibility'.
+        2. Find your terminal app (e.g. iTerm, Terminal, VSCode) or 'node'/'openclaw' in the list.
+        3. Turn the switch ON.
+        4. If it's already ON, try turning it OFF and ON again, or restart your terminal.
+        """
     )
 }
 
@@ -577,6 +586,86 @@ func findAccessibilityElement(
     return nil
 }
 
+// DFS search for an element containing text in ID, Label, or Value
+func searchAccessibilityElements(in root: UIElement, query: String, maxNodes: Int = 3000) -> [String] {
+    var results: [String] = []
+    var stack: [(element: UIElement, depth: Int)] = [(root, 0)]
+    var visited = 0
+    let normalizedQuery = normalizeText(query)
+
+    while let current = stack.popLast() {
+        if visited >= maxNodes {
+            results.append("... truncated search after \(maxNodes) nodes")
+            break
+        }
+        visited += 1
+
+        let element = current.element
+        var matchFound = false
+
+        if let id = IdentifierAttribute(element), normalizeText(id).contains(normalizedQuery) {
+            matchFound = true
+        }
+
+        if !matchFound {
+            for text in getElementTextValues(element) {
+                if normalizeText(text).contains(normalizedQuery) {
+                    matchFound = true
+                    break
+                }
+            }
+        }
+
+        if matchFound {
+            if let desc = describeAccessibilityElement(element) {
+                results.append(desc)
+            }
+        }
+
+        let children = Children(element)
+        for child in children.reversed() {
+            stack.append((child, current.depth + 1))
+        }
+    }
+    return results
+}
+
+// Find the main device window and then the content group within it
+func findSimulatorContentGroup(from root: UIElement) -> UIElement {
+    // 1. Try to find a window with 'iPhone' or 'iPad' in title
+    let children = Children(root)
+    for child in children {
+        if let role = StringAttribute(child, kAXRoleAttribute as CFString), role == "AXWindow",
+           let title = StringAttribute(child, kAXTitleAttribute as CFString), (title.contains("iPhone") || title.contains("iPad")) {
+            // 2. Look for iOSContentGroup inside
+            if let contentGroup = findAccessibilityElement(in: child, identifier: nil, label: nil, maxDepth: 5, maxNodes: 100) {
+                 // Optimization: Usually it's close to top.
+                 // But wait, findAccessibilityElement is by ID/Label. We need by subrole.
+                 // Let's implement a quick DFS for subrole.
+            }
+        }
+    }
+    return root // Fallback
+}
+
+func findElementBySubrole(from root: UIElement, subrole: String) -> UIElement? {
+    var stack: [UIElement] = [root]
+    var visited = 0
+    while let current = stack.popLast() {
+        if visited > 500 { break }
+        visited += 1
+        
+        if let sr = StringAttribute(current, kAXSubroleAttribute as CFString), sr == subrole {
+            return current
+        }
+        
+        for child in Children(current).reversed() {
+            stack.append(child)
+        }
+    }
+    return nil
+}
+
 func simulatorAccessibilityRootElement() throws -> UIElement {
     let bundleIdentifier = "com.apple.iphonesimulator"
     guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first else {
@@ -584,15 +673,6 @@ func simulatorAccessibilityRootElement() throws -> UIElement {
     }
 
     let appElement = AXUIElementCreateApplication(app.processIdentifier)
-    if let focusedWindow = ElementAttribute(appElement, kAXFocusedWindowAttribute as CFString) {
-        return focusedWindow
-    }
-
-    if let windowsRef = CopyAttributeValue(appElement, kAXWindowsAttribute as CFString) as? [CFTypeRef],
-       let firstWindow = windowsRef.compactMap(UIElementFromCFType).first {
-        return firstWindow
-    }
-
     return appElement
 }
 
@@ -641,6 +721,8 @@ func printHelp() {
       baepsae-native help
       baepsae-native --version
       baepsae-native list-simulators
+      baepsae-native describe-ui --udid <UDID> [--all] [--focus-id <ID>] [--output <path>]
+      baepsae-native search-ui --udid <UDID> --query <text>
       baepsae-native screenshot --udid <UDID> [--output <path>]
       baepsae-native record-video --udid <UDID> [--output <path>]
     """
@@ -674,8 +756,27 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         let udid = try requiredOption("--udid", from: parsed)
         try ensureAccessibilityTrusted()
         try activateSimulator(udid: udid)
-        let root = try simulatorAccessibilityRootElement()
-        let lines = describeAccessibilityTree(from: root)
+        
+        let appRoot = try simulatorAccessibilityRootElement()
+        var targetRoot = appRoot
+        
+        // Default behavior: Focus on iOSContentGroup unless --all is specified
+        if !parsed.flags.contains("--all") {
+            if let contentGroup = findElementBySubrole(from: appRoot, subrole: "iOSContentGroup") {
+                targetRoot = contentGroup
+            }
+        }
+        
+        // Override focus if --focus-id is provided
+        if let focusId = parsed.options["--focus-id"] {
+            if let found = findAccessibilityElement(in: appRoot, identifier: focusId, label: nil) {
+                targetRoot = found
+            } else {
+                throw NativeError.commandFailed("Could not find element with id: \(focusId)")
+            }
+        }
+
+        let lines = describeAccessibilityTree(from: targetRoot)
         if lines.isEmpty {
             throw NativeError.commandFailed("No accessibility elements found in Simulator window.")
         }
@@ -691,6 +792,27 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         }
 
         print(report)
+        return 0
+
+    case "search-ui":
+        let udid = try requiredOption("--udid", from: parsed)
+        let query = try requiredOption("--query", from: parsed)
+        try ensureAccessibilityTrusted()
+        try activateSimulator(udid: udid)
+        
+        let appRoot = try simulatorAccessibilityRootElement()
+        // Search inside iOSContentGroup to reduce noise
+        var searchRoot = appRoot
+        if let contentGroup = findElementBySubrole(from: appRoot, subrole: "iOSContentGroup") {
+            searchRoot = contentGroup
+        }
+        
+        let results = searchAccessibilityElements(in: searchRoot, query: query)
+        if results.isEmpty {
+            print("No elements found matching query: \(query)")
+        } else {
+            print(results.joined(separator: "\n"))
+        }
         return 0
 
     case "tap":

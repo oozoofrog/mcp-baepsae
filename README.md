@@ -24,6 +24,14 @@ Local MCP server for iOS Simulator automation with a TypeScript MCP layer and a 
 - Node.js 18+
 - Swift 6+
 
+## Permissions
+
+**Accessibility permission is required** for UI automation features (`describe_ui`, `tap` by ID).
+
+1. Open **System Settings** > **Privacy & Security** > **Accessibility**.
+2. Enable your terminal (Terminal, iTerm2, VSCode) or command runner (`node`, `openclaw`).
+3. If the app is missing, click `+` and add it manually.
+
 ## Install
 
 ### Option A) Local repository build (recommended)
