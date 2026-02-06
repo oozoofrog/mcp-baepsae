@@ -1,0 +1,50 @@
+{
+  "name": "mcp-baepsae",
+  "version": "3.1.0",
+  "description": "MCP server with direct iOS simulator implementation",
+  "main": "dist/index.js",
+  "bin": {
+    "mcp-baepsae": "dist/index.js"
+  },
+  "scripts": {
+    "build:ts": "tsc",
+    "build:native": "swift build --package-path native -c release",
+    "build": "npm run build:ts && npm run build:native",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "test": "npm run build && node --test tests/mcp.contract.test.mjs",
+    "test:real": "npm run build && node --test tests/mcp.real.test.mjs",
+    "verify": "npm run test && npm run test:real",
+    "setup:mcp": "bash scripts/install.sh",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "baepsae",
+    "뱁세",
+    "ios",
+    "simulator",
+    "automation",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "files": [
+    "dist",
+    "native",
+    "scripts",
+    "README.md",
+    "README-KR.md",
+    "LICENSE"
+  ]
+}

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+bundled/
+native/.build/
+*.js.map
+*.d.ts.map
+.DS_Store
+.env
+.tmp-test-artifacts/
+.mcp.json
+opencode.json
+.sisyphus/

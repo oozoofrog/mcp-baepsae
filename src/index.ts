@@ -1,0 +1,756 @@
+#!/usr/bin/env node
+
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { spawn } from "node:child_process";
+import { accessSync, constants, existsSync } from "node:fs";
+import { createWriteStream } from "node:fs";
+import { mkdir } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
+import { z } from "zod";
+
+const SERVER_NAME = "mcp-baepsae";
+const SERVER_VERSION = "3.1.0";
+const DEFAULT_TIMEOUT_MS = 30_000;
+const NATIVE_BINARY_ENV = "BAEPSAE_NATIVE_PATH";
+const NATIVE_BINARY_NAME = process.platform === "win32" ? "baepsae-native.exe" : "baepsae-native";
+
+type ToolTextResult = {
+  content: Array<{ type: "text"; text: string }>;
+  isError: boolean;
+};
+
+interface CommandExecutionOptions {
+  timeoutMs?: number;
+  stdinText?: string;
+  stdoutFilePath?: string;
+  captureStdout?: boolean;
+}
+
+interface CommandExecutionResult {
+  executablePath: string;
+  args: string[];
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  timedOut: boolean;
+  durationMs: number;
+}
+
+interface ResponseOptions {
+  timeoutIsExpected?: boolean;
+  extraLines?: string[];
+}
+
+const BUTTON_TYPES = ["apple-pay", "home", "lock", "side-button", "siri"] as const;
+const GESTURE_PRESETS = [
+  "scroll-up",
+  "scroll-down",
+  "scroll-left",
+  "scroll-right",
+  "swipe-from-left-edge",
+  "swipe-from-right-edge",
+  "swipe-from-top-edge",
+  "swipe-from-bottom-edge",
+] as const;
+const STREAM_FORMATS = ["mjpeg", "raw", "ffmpeg", "bgra"] as const;
+const BAEPSAE_SUBCOMMANDS = [
+  "describe-ui",
+  "list-simulators",
+  "tap",
+  "type",
+  "swipe",
+  "button",
+  "key",
+  "key-sequence",
+  "key-combo",
+  "touch",
+  "gesture",
+  "stream-video",
+  "record-video",
+  "screenshot",
+] as const;
+
+const keycodeSchema = z.number().int().min(0).max(255);
+
+function isExecutable(filePath: string): boolean {
+  try {
+    accessSync(filePath, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveNativeBinary(): string {
+  const override = process.env[NATIVE_BINARY_ENV];
+  if (override) {
+    const resolved = resolve(override);
+    if (!isExecutable(resolved)) {
+      throw new Error(`Configured ${NATIVE_BINARY_ENV} is not executable: ${resolved}`);
+    }
+    return resolved;
+  }
+
+  const candidates = [
+    resolve(process.cwd(), "native", ".build", "release", NATIVE_BINARY_NAME),
+    resolve(process.cwd(), "native", ".build", "debug", NATIVE_BINARY_NAME),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate) && isExecutable(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    `Native binary not found. Build it with \"npm run build:native\" or set ${NATIVE_BINARY_ENV}.`
+  );
+}
+
+function pushOption(args: string[], name: string, value: string | number | undefined): void {
+  if (value !== undefined) {
+    args.push(name, String(value));
+  }
+}
+
+function quoteArg(arg: string): string {
+  if (!/[\s"'\\$`]/.test(arg)) {
+    return arg;
+  }
+
+  return `"${arg.replace(/(["\\$`])/g, "\\$1")}"`;
+}
+
+async function ensureOutputPath(filePath: string): Promise<string> {
+  const absolute = resolve(filePath);
+  await mkdir(dirname(absolute), { recursive: true });
+  return absolute;
+}
+
+async function executeCommand(
+  executable: string,
+  args: string[],
+  options: CommandExecutionOptions = {}
+): Promise<CommandExecutionResult> {
+  const startedAt = Date.now();
+  const timeoutMs = Math.max(1, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const captureStdout = options.captureStdout ?? !options.stdoutFilePath;
+
+  const outputPath = options.stdoutFilePath ? await ensureOutputPath(options.stdoutFilePath) : undefined;
+
+  return await new Promise<CommandExecutionResult>((resolvePromise, rejectPromise) => {
+    const child = spawn(executable, args, {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: process.env,
+    });
+
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+    let timedOut = false;
+    let closed = false;
+    let escalationTimer: NodeJS.Timeout | undefined;
+    let outputFinished: Promise<void> | undefined;
+
+    if (outputPath) {
+      const outputStream = createWriteStream(outputPath);
+      outputFinished = new Promise<void>((resolveOutput, rejectOutput) => {
+        outputStream.on("finish", () => resolveOutput());
+        outputStream.on("error", (error) => rejectOutput(error));
+      });
+      child.stdout.pipe(outputStream);
+    } else if (captureStdout) {
+      child.stdout.on("data", (chunk: Buffer | string) => {
+        stdoutChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      });
+    }
+
+    child.stderr.on("data", (chunk: Buffer | string) => {
+      stderrChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+
+    child.on("error", (error) => {
+      rejectPromise(new Error(`Failed to execute command: ${error.message}`));
+    });
+
+    if (options.stdinText !== undefined) {
+      child.stdin.write(options.stdinText);
+    }
+    child.stdin.end();
+
+    const timer = setTimeout(() => {
+      if (closed) {
+        return;
+      }
+
+      timedOut = true;
+      child.kill("SIGINT");
+
+      escalationTimer = setTimeout(() => {
+        if (!closed) {
+          child.kill("SIGTERM");
+        }
+      }, 800);
+    }, timeoutMs);
+
+    child.on("close", async (exitCode, signal) => {
+      closed = true;
+      clearTimeout(timer);
+      if (escalationTimer) {
+        clearTimeout(escalationTimer);
+      }
+
+      try {
+        if (outputFinished) {
+          await outputFinished;
+        }
+
+        resolvePromise({
+          executablePath: executable,
+          args,
+          stdout: captureStdout ? Buffer.concat(stdoutChunks).toString("utf8").trimEnd() : "",
+          stderr: Buffer.concat(stderrChunks).toString("utf8").trimEnd(),
+          exitCode,
+          signal,
+          timedOut,
+          durationMs: Date.now() - startedAt,
+        });
+      } catch (error) {
+        rejectPromise(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  });
+}
+
+function commandToString(executableName: string, args: string[]): string {
+  return `${quoteArg(executableName)} ${args.map((arg) => quoteArg(arg)).join(" ")}`;
+}
+
+function toToolResult(result: CommandExecutionResult, options: ResponseOptions = {}): ToolTextResult {
+  const timeoutIsExpected = options.timeoutIsExpected ?? false;
+  const expectedTimeoutSignal =
+    timeoutIsExpected && result.timedOut && (result.signal === "SIGINT" || result.signal === "SIGTERM");
+  const isError =
+    (result.exitCode !== 0 && result.exitCode !== null) ||
+    (result.timedOut && !timeoutIsExpected) ||
+    (result.signal !== null && !expectedTimeoutSignal);
+
+  const lines: string[] = [
+    `Executable: ${result.executablePath}`,
+    `Command: ${commandToString(basename(result.executablePath), result.args)}`,
+    `Exit code: ${result.exitCode === null ? "null" : String(result.exitCode)}`,
+    `Duration: ${result.durationMs}ms`,
+  ];
+
+  if (result.signal) {
+    lines.push(`Signal: ${result.signal}`);
+  }
+
+  if (result.timedOut) {
+    lines.push(`Timed out: ${timeoutIsExpected ? "expected stop" : "yes"}`);
+  }
+
+  if (options.extraLines && options.extraLines.length > 0) {
+    lines.push(...options.extraLines);
+  }
+
+  if (result.stdout.length > 0) {
+    lines.push("", "STDOUT:", result.stdout);
+  }
+
+  if (result.stderr.length > 0) {
+    lines.push("", "STDERR:", result.stderr);
+  }
+
+  return {
+    content: [{ type: "text", text: lines.join("\n") }],
+    isError,
+  };
+}
+
+async function runCommand(
+  executable: string,
+  args: string[],
+  options?: CommandExecutionOptions,
+  responseOptions?: ResponseOptions
+): Promise<ToolTextResult> {
+  try {
+    const result = await executeCommand(executable, args, options);
+    return toToolResult(result, responseOptions);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      content: [{ type: "text", text: `Error executing ${commandToString(executable, args)}\n${message}` }],
+      isError: true,
+    };
+  }
+}
+
+async function runSimctl(args: string[], options?: CommandExecutionOptions, responseOptions?: ResponseOptions): Promise<ToolTextResult> {
+  return await runCommand("xcrun", ["simctl", ...args], options, responseOptions);
+}
+
+async function runNative(
+  args: string[],
+  options?: CommandExecutionOptions,
+  responseOptions?: ResponseOptions
+): Promise<ToolTextResult> {
+  const binary = resolveNativeBinary();
+  return await runCommand(binary, args, options, responseOptions);
+}
+
+const server = new McpServer({
+  name: SERVER_NAME,
+  version: SERVER_VERSION,
+});
+
+server.tool(
+  "baepsae_help",
+  "Show help. Optionally pass subcommand name for compatibility reference.",
+  {
+    subcommand: z
+      .enum(BAEPSAE_SUBCOMMANDS)
+      .optional()
+      .describe("Optional legacy subcommand name for compatibility reference"),
+  },
+  async (params) => {
+    const lines = [
+      `Server: ${SERVER_NAME} v${SERVER_VERSION}`,
+      "Mode: native-layer + simctl",
+      "",
+      "Supported tools:",
+      "- baepsae_help",
+      "- baepsae_version",
+      "- list_simulators",
+      "- screenshot",
+      "- record_video",
+      "",
+      "Implemented tools:",
+      "- describe_ui, tap, type_text, swipe, button, key, key_sequence, key_combo, touch, gesture, stream_video",
+      "",
+      `Native binary requirement: build native binary or set ${NATIVE_BINARY_ENV}`,
+    ];
+
+    if (params.subcommand) {
+      lines.push("", `Requested legacy subcommand: ${params.subcommand}`);
+    }
+
+    return {
+      content: [{ type: "text", text: lines.join("\n") }],
+      isError: false,
+    };
+  }
+);
+
+server.tool("baepsae_version", "Show server and native binary versions.", {}, async () => {
+  const lines = [
+    `${SERVER_NAME} ${SERVER_VERSION}`,
+    `Node.js: ${process.version}`,
+    `Platform: ${process.platform} ${process.arch}`,
+  ];
+
+  try {
+    const binary = resolveNativeBinary();
+    const result = await executeCommand(binary, ["--version"]);
+    lines.push(`Native: ${result.stdout}`);
+  } catch {
+    lines.push("Native: not built (run npm run build)");
+  }
+
+  return {
+    content: [{ type: "text", text: lines.join("\n") }],
+    isError: false,
+  };
+});
+
+server.tool("list_simulators", "List available simulators using simctl.", {}, async () => {
+  return await runSimctl(["list", "devices", "available"]);
+});
+
+server.tool(
+  "describe_ui",
+  "Describe UI hierarchy from simulator.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    output: z.string().optional().describe("Optional output file path for hierarchy text"),
+  },
+  async (params) => {
+    const args = ["describe-ui", "--udid", params.udid];
+    pushOption(args, "--output", params.output);
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "tap",
+  "Tap coordinates or element by accessibility identifier/label.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    x: z.number().optional().describe("X coordinate"),
+    y: z.number().optional().describe("Y coordinate"),
+    id: z.string().optional().describe("Accessibility identifier"),
+    label: z.string().optional().describe("Accessibility label"),
+    preDelay: z.number().optional().describe("Delay before tap in seconds"),
+    postDelay: z.number().optional().describe("Delay after tap in seconds"),
+  },
+  async (params) => {
+    const hasX = params.x !== undefined;
+    const hasY = params.y !== undefined;
+    const hasSelector = params.id !== undefined || params.label !== undefined;
+
+    if (hasX !== hasY) {
+      return {
+        content: [{ type: "text", text: "Both x and y must be provided together." }],
+        isError: true,
+      };
+    }
+
+    if (hasX && hasSelector) {
+      return {
+        content: [{ type: "text", text: "Provide either x/y coordinates or id/label, not both." }],
+        isError: true,
+      };
+    }
+
+    if (!hasX && !params.id && !params.label) {
+      return {
+        content: [{ type: "text", text: "Provide either x/y coordinates, id, or label." }],
+        isError: true,
+      };
+    }
+
+    const args = ["tap"];
+    pushOption(args, "-x", params.x);
+    pushOption(args, "-y", params.y);
+    pushOption(args, "--id", params.id);
+    pushOption(args, "--label", params.label);
+    pushOption(args, "--pre-delay", params.preDelay);
+    pushOption(args, "--post-delay", params.postDelay);
+    args.push("--udid", params.udid);
+
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "type_text",
+  "Type text on simulator.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    text: z.string().optional().describe("Text argument"),
+    stdinText: z.string().optional().describe("Text piped to stdin mode"),
+    file: z.string().optional().describe("Path for file input"),
+  },
+  async (params) => {
+    const modes = [params.text !== undefined, params.stdinText !== undefined, params.file !== undefined].filter(Boolean)
+      .length;
+
+    if (modes !== 1) {
+      return {
+        content: [{ type: "text", text: "Provide exactly one of text, stdinText, or file." }],
+        isError: true,
+      };
+    }
+
+    const args = ["type"];
+    if (params.text !== undefined) {
+      args.push(params.text);
+    }
+    if (params.stdinText !== undefined) {
+      args.push("--stdin");
+    }
+    if (params.file !== undefined) {
+      args.push("--file", params.file);
+    }
+    args.push("--udid", params.udid);
+
+    return await runNative(args, { stdinText: params.stdinText });
+  }
+);
+
+server.tool(
+  "swipe",
+  "Perform a swipe gesture.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    startX: z.number().describe("Start X"),
+    startY: z.number().describe("Start Y"),
+    endX: z.number().describe("End X"),
+    endY: z.number().describe("End Y"),
+    duration: z.number().optional().describe("Duration in seconds"),
+    delta: z.number().optional().describe("Unsupported in current native mode"),
+    preDelay: z.number().optional().describe("Delay before swipe in seconds"),
+    postDelay: z.number().optional().describe("Delay after swipe in seconds"),
+  },
+  async (params) => {
+    if (params.delta !== undefined) {
+      return {
+        content: [{ type: "text", text: "delta is not supported in current native mode." }],
+        isError: true,
+      };
+    }
+
+    const args = [
+      "swipe",
+      "--start-x",
+      String(params.startX),
+      "--start-y",
+      String(params.startY),
+      "--end-x",
+      String(params.endX),
+      "--end-y",
+      String(params.endY),
+    ];
+
+    pushOption(args, "--duration", params.duration);
+    pushOption(args, "--pre-delay", params.preDelay);
+    pushOption(args, "--post-delay", params.postDelay);
+    args.push("--udid", params.udid);
+
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "button",
+  "Press a simulator hardware button.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    buttonType: z.enum(BUTTON_TYPES).describe("Button type"),
+    duration: z.number().optional().describe("Hold duration in seconds"),
+  },
+  async (params) => {
+    const args = ["button", params.buttonType];
+    pushOption(args, "--duration", params.duration);
+    args.push("--udid", params.udid);
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "key",
+  "Press a single HID keycode.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    keycode: keycodeSchema.describe("HID keycode (0-255)"),
+    duration: z.number().optional().describe("Hold duration in seconds"),
+  },
+  async (params) => {
+    const args = ["key", String(params.keycode)];
+    pushOption(args, "--duration", params.duration);
+    args.push("--udid", params.udid);
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "key_sequence",
+  "Press multiple HID keycodes in sequence.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    keycodes: z
+      .union([
+        z.array(keycodeSchema).min(1).describe("Array of HID keycodes"),
+        z.string().min(1).describe("Comma-separated HID keycodes"),
+      ])
+      .describe("Key sequence"),
+    delay: z.number().optional().describe("Delay between key presses in seconds"),
+  },
+  async (params) => {
+    const keycodes = Array.isArray(params.keycodes) ? params.keycodes.join(",") : params.keycodes;
+    const args = ["key-sequence", "--keycodes", keycodes];
+    pushOption(args, "--delay", params.delay);
+    args.push("--udid", params.udid);
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "key_combo",
+  "Press a key while holding modifier keycodes.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    modifiers: z.array(keycodeSchema).min(1).describe("Modifier keycodes"),
+    key: keycodeSchema.describe("Keycode to press while modifiers are held"),
+  },
+  async (params) => {
+    const args = [
+      "key-combo",
+      "--modifiers",
+      params.modifiers.join(","),
+      "--key",
+      String(params.key),
+      "--udid",
+      params.udid,
+    ];
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "touch",
+  "Perform touch down/up events at specific coordinates.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    x: z.number().describe("X coordinate"),
+    y: z.number().describe("Y coordinate"),
+    down: z.boolean().optional().describe("Send touch down event"),
+    up: z.boolean().optional().describe("Send touch up event"),
+    delay: z.number().optional().describe("Delay between down/up in seconds"),
+  },
+  async (params) => {
+    const args = ["touch", "-x", String(params.x), "-y", String(params.y)];
+    if (params.down === undefined && params.up === undefined) {
+      args.push("--down", "--up");
+    } else {
+      if (params.down) {
+        args.push("--down");
+      }
+      if (params.up) {
+        args.push("--up");
+      }
+    }
+    pushOption(args, "--delay", params.delay);
+    args.push("--udid", params.udid);
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "gesture",
+  "Execute a preset gesture pattern.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    preset: z.enum(GESTURE_PRESETS).describe("Gesture preset"),
+    screenWidth: z.number().optional().describe("Screen width in points"),
+    screenHeight: z.number().optional().describe("Screen height in points"),
+    duration: z.number().optional().describe("Gesture duration in seconds"),
+    delta: z.number().optional().describe("Unsupported in current native mode"),
+    preDelay: z.number().optional().describe("Delay before gesture in seconds"),
+    postDelay: z.number().optional().describe("Delay after gesture in seconds"),
+  },
+  async (params) => {
+    if (params.delta !== undefined) {
+      return {
+        content: [{ type: "text", text: "delta is not supported in current native mode." }],
+        isError: true,
+      };
+    }
+
+    const args = ["gesture", params.preset];
+    pushOption(args, "--screen-width", params.screenWidth);
+    pushOption(args, "--screen-height", params.screenHeight);
+    pushOption(args, "--duration", params.duration);
+    pushOption(args, "--pre-delay", params.preDelay);
+    pushOption(args, "--post-delay", params.postDelay);
+    args.push("--udid", params.udid);
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "stream_video",
+  "Stream simulator frames.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    output: z.string().optional().describe("Destination output path"),
+    format: z.enum(STREAM_FORMATS).optional().describe("Unsupported in current simctl mode"),
+    fps: z.number().int().min(1).max(30).optional().describe("Unsupported in current simctl mode"),
+    quality: z.number().int().min(1).max(100).optional().describe("Unsupported in current simctl mode"),
+    scale: z.number().min(0.1).max(1.0).optional().describe("Unsupported in current simctl mode"),
+    durationSeconds: z.number().positive().optional().describe("Capture duration in seconds"),
+  },
+  async (params) => {
+    if (params.format !== undefined || params.fps !== undefined || params.quality !== undefined || params.scale !== undefined) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "format/fps/quality/scale are not supported in current simctl mode.",
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const args = ["stream-video", "--udid", params.udid];
+
+    const durationSeconds = params.durationSeconds ?? 10;
+    const outputPath = params.output ?? `simulator-stream-${Date.now()}.mov`;
+    const resolvedOutput = await ensureOutputPath(outputPath);
+    pushOption(args, "--duration", durationSeconds);
+    args.push("--output", resolvedOutput);
+
+    return await runNative(
+      args,
+      {
+        timeoutMs: Math.max(15_000, Math.round((durationSeconds + 15) * 1000)),
+      },
+      {
+        extraLines: [`Capture duration: ${durationSeconds}s`, `Output file: ${resolvedOutput}`],
+      }
+    );
+  }
+);
+
+server.tool(
+  "record_video",
+  "Record simulator display.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    fps: z.number().int().min(1).max(30).optional().describe("Ignored in simctl mode"),
+    quality: z.number().int().min(1).max(100).optional().describe("Ignored in simctl mode"),
+    scale: z.number().min(0.1).max(1.0).optional().describe("Ignored in simctl mode"),
+    output: z.string().optional().describe("Output MOV file path"),
+    durationSeconds: z.number().positive().optional().describe("Recording duration in seconds (default: 10)"),
+  },
+  async (params) => {
+    const durationSeconds = params.durationSeconds ?? 10;
+    const outputPath = params.output ?? `simulator-recording-${Date.now()}.mov`;
+    const resolvedOutput = await ensureOutputPath(outputPath);
+
+    const extraLines = [
+      `Recording duration: ${durationSeconds}s`,
+      `Output file: ${resolvedOutput}`,
+    ];
+
+    return await runSimctl(
+      ["io", params.udid, "recordVideo", "--force", resolvedOutput],
+      {
+        timeoutMs: Math.max(1000, Math.round(durationSeconds * 1000)),
+      },
+      {
+        timeoutIsExpected: true,
+        extraLines,
+      }
+    );
+  }
+);
+
+server.tool(
+  "screenshot",
+  "Capture a screenshot from simulator display using simctl screenshot.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    output: z.string().optional().describe("Output PNG file path"),
+  },
+  async (params) => {
+    const outputPath = params.output ?? `simulator-screenshot-${Date.now()}.png`;
+    const resolvedOutput = await ensureOutputPath(outputPath);
+
+    return await runSimctl(["io", params.udid, "screenshot", resolvedOutput], undefined, {
+      extraLines: [`Output file: ${resolvedOutput}`],
+    });
+  }
+);
+
+async function main(): Promise<void> {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+main().catch((error) => {
+  console.error(`Failed to start ${SERVER_NAME} server:`, error);
+  process.exit(1);
+});

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Accessibility Test Page</title>
+  <style>
+    .low-contrast { color: #aaa; background: #fff; }
+  </style>
+</head>
+<body>
+  <h1>Test Page</h1>
+
+  <!-- Violation: image without alt -->
+  <img src="photo.jpg">
+
+  <!-- Violation: low contrast text -->
+  <p class="low-contrast">This text has low contrast</p>
+
+  <!-- Violation: form input without label -->
+  <input type="text" name="email" placeholder="Enter email">
+
+  <!-- Violation: empty button -->
+  <button></button>
+
+  <!-- Violation: missing lang attribute on html -->
+  <!-- (html tag above has no lang) -->
+
+  <!-- Pass: proper heading structure -->
+  <h2>Section Title</h2>
+  <p>Normal paragraph with good contrast.</p>
+
+  <!-- Pass: link with text -->
+  <a href="/about">About page</a>
+</body>
+</html>
