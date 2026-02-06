@@ -319,12 +319,17 @@ server.tool(
       `Server: ${SERVER_NAME} v${SERVER_VERSION}`,
       "Mode: native-layer + simctl",
       "",
-      "Supported tools:",
+      "supported tools:",
       "- baepsae_help",
       "- baepsae_version",
       "- list_simulators",
       "- screenshot",
       "- record_video",
+      "- open_url",
+      "- install_app",
+      "- launch_app",
+      "- terminate_app",
+      "- uninstall_app",
       "",
       "Implemented tools:",
       "- describe_ui, tap, type_text, swipe, button, key, key_sequence, key_combo, touch, gesture, stream_video",
@@ -367,6 +372,79 @@ server.tool("baepsae_version", "Show server and native binary versions.", {}, as
 server.tool("list_simulators", "List available simulators using simctl.", {}, async () => {
   return await runSimctl(["list", "devices", "available"]);
 });
+
+server.tool(
+  "open_url",
+  "Open a URL in the simulator (e.g. Safari or deep link).",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    url: z.string().min(1).describe("URL to open"),
+  },
+  async (params) => {
+    return await runSimctl(["openurl", params.udid, params.url]);
+  }
+);
+
+server.tool(
+  "install_app",
+  "Install an app (.app, .ipa) on the simulator.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    path: z.string().min(1).describe("Path to .app or .ipa file"),
+  },
+  async (params) => {
+    const resolvedPath = resolve(params.path);
+    return await runSimctl(["install", params.udid, resolvedPath]);
+  }
+);
+
+server.tool(
+  "uninstall_app",
+  "Uninstall an app from the simulator.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    bundleId: z.string().min(1).describe("App Bundle Identifier (e.g. com.example.app)"),
+  },
+  async (params) => {
+    return await runSimctl(["uninstall", params.udid, params.bundleId]);
+  }
+);
+
+server.tool(
+  "launch_app",
+  "Launch an installed app on the simulator.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    bundleId: z.string().min(1).describe("App Bundle Identifier"),
+    args: z.array(z.string()).optional().describe("Arguments to pass to the app"),
+    env: z.record(z.string()).optional().describe("Environment variables"),
+  },
+  async (params) => {
+    const args = ["launch"];
+    if (params.env) {
+      for (const [key, value] of Object.entries(params.env)) {
+        args.push(`SIMCTL_CHILD_${key}=${value}`);
+      }
+    }
+    args.push(params.udid, params.bundleId);
+    if (params.args) {
+      args.push(...params.args);
+    }
+    return await runSimctl(args);
+  }
+);
+
+server.tool(
+  "terminate_app",
+  "Terminate a running app on the simulator.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    bundleId: z.string().min(1).describe("App Bundle Identifier"),
+  },
+  async (params) => {
+    return await runSimctl(["terminate", params.udid, params.bundleId]);
+  }
+);
 
 server.tool(
   "describe_ui",
