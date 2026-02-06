@@ -1,7 +1,7 @@
 {
   "name": "mcp-baepsae",
-  "version": "3.1.0",
-  "description": "MCP server with direct iOS simulator implementation",
+  "version": "3.1.1",
+  "description": "Local MCP server for iOS Simulator and macOS app automation with a native Swift bridge",
   "author": "oozoofrog",
   "repository": {
     "type": "git",
