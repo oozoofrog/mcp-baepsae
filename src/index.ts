@@ -59,6 +59,7 @@ const BAEPSAE_SUBCOMMANDS = [
   "describe-ui",
   "search-ui",
   "list-simulators",
+  "list-apps",
   "tap",
   "type",
   "swipe",
@@ -108,6 +109,19 @@ function resolveNativeBinary(): string {
   throw new Error(
     `Native binary not found. Build it with \"npm run build:native\" or set ${NATIVE_BINARY_ENV}.`
   );
+}
+
+function resolveTargetArgs(params: { udid?: string; bundleId?: string; appName?: string }): string[] | ToolTextResult {
+  const modes = [params.udid, params.bundleId, params.appName].filter(Boolean).length;
+  if (modes !== 1) {
+    return {
+      content: [{ type: "text", text: "Provide exactly one of udid, bundleId, or appName." }],
+      isError: true,
+    };
+  }
+  if (params.udid) return ["--udid", params.udid];
+  if (params.bundleId) return ["--bundle-id", params.bundleId];
+  return ["--app-name", params.appName!];
 }
 
 function pushOption(args: string[], name: string, value: string | number | undefined): void {
@@ -324,6 +338,7 @@ server.tool(
       "- baepsae_help",
       "- baepsae_version",
       "- list_simulators",
+      "- list_apps",
       "- screenshot",
       "- record_video",
       "- open_url",
@@ -373,6 +388,15 @@ server.tool("baepsae_version", "Show server and native binary versions.", {}, as
 server.tool("list_simulators", "List available simulators using simctl.", {}, async () => {
   return await runSimctl(["list", "devices", "available"]);
 });
+
+server.tool(
+  "list_apps",
+  "List running macOS applications with their bundle IDs.",
+  {},
+  async () => {
+    return await runNative(["list-apps"]);
+  }
+);
 
 server.tool(
   "open_url",
@@ -446,15 +470,20 @@ server.tool(
 
 server.tool(
   "describe_ui",
-  "Describe UI hierarchy from simulator. Defaults to focused content view unless --all is used.",
+  "Describe UI hierarchy. Works with iOS Simulator (udid) or macOS app (bundleId/appName).",
   {
-    udid: z.string().min(1).describe("Simulator UDID"),
+    udid: z.string().min(1).optional().describe("Simulator UDID"),
+    bundleId: z.string().optional().describe("macOS app bundle ID"),
+    appName: z.string().optional().describe("macOS app name"),
     output: z.string().optional().describe("Optional output file path for hierarchy text"),
     focusId: z.string().optional().describe("Focus on element with specific ID"),
     all: z.boolean().optional().describe("Include all elements (system UI, bezels)"),
   },
   async (params) => {
-    const args = ["describe-ui", "--udid", params.udid];
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+
+    const args = ["describe-ui", ...target];
     pushOption(args, "--output", params.output);
     pushOption(args, "--focus-id", params.focusId);
     if (params.all) {
@@ -466,22 +495,29 @@ server.tool(
 
 server.tool(
   "search_ui",
-  "Search for UI elements by text, identifier, or label.",
+  "Search for UI elements by text, identifier, or label. Works with iOS Simulator (udid) or macOS app (bundleId/appName).",
   {
-    udid: z.string().min(1).describe("Simulator UDID"),
+    udid: z.string().min(1).optional().describe("Simulator UDID"),
+    bundleId: z.string().optional().describe("macOS app bundle ID"),
+    appName: z.string().optional().describe("macOS app name"),
     query: z.string().min(1).describe("Text to search for"),
   },
   async (params) => {
-    const args = ["search-ui", "--udid", params.udid, "--query", params.query];
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+
+    const args = ["search-ui", ...target, "--query", params.query];
     return await runNative(args);
   }
 );
 
 server.tool(
   "tap",
-  "Tap coordinates or element by accessibility identifier/label.",
+  "Tap coordinates or element by accessibility identifier/label. Works with iOS Simulator (udid) or macOS app (bundleId/appName).",
   {
-    udid: z.string().min(1).describe("Simulator UDID"),
+    udid: z.string().min(1).optional().describe("Simulator UDID"),
+    bundleId: z.string().optional().describe("macOS app bundle ID"),
+    appName: z.string().optional().describe("macOS app name"),
     x: z.number().optional().describe("X coordinate"),
     y: z.number().optional().describe("Y coordinate"),
     id: z.string().optional().describe("Accessibility identifier"),
@@ -490,6 +526,9 @@ server.tool(
     postDelay: z.number().optional().describe("Delay after tap in seconds"),
   },
   async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+
     const hasX = params.x !== undefined;
     const hasY = params.y !== undefined;
     const hasSelector = params.id !== undefined || params.label !== undefined;
@@ -522,7 +561,7 @@ server.tool(
     pushOption(args, "--label", params.label);
     pushOption(args, "--pre-delay", params.preDelay);
     pushOption(args, "--post-delay", params.postDelay);
-    args.push("--udid", params.udid);
+    args.push(...target);
 
     return await runNative(args);
   }
@@ -530,14 +569,19 @@ server.tool(
 
 server.tool(
   "type_text",
-  "Type text on simulator.",
+  "Type text. Works with iOS Simulator (udid) or macOS app (bundleId/appName).",
   {
-    udid: z.string().min(1).describe("Simulator UDID"),
+    udid: z.string().min(1).optional().describe("Simulator UDID"),
+    bundleId: z.string().optional().describe("macOS app bundle ID"),
+    appName: z.string().optional().describe("macOS app name"),
     text: z.string().optional().describe("Text argument"),
     stdinText: z.string().optional().describe("Text piped to stdin mode"),
     file: z.string().optional().describe("Path for file input"),
   },
   async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+
     const modes = [params.text !== undefined, params.stdinText !== undefined, params.file !== undefined].filter(Boolean)
       .length;
 
@@ -558,7 +602,7 @@ server.tool(
     if (params.file !== undefined) {
       args.push("--file", params.file);
     }
-    args.push("--udid", params.udid);
+    args.push(...target);
 
     return await runNative(args, { stdinText: params.stdinText });
   }
@@ -566,9 +610,11 @@ server.tool(
 
 server.tool(
   "swipe",
-  "Perform a swipe gesture.",
+  "Perform a swipe gesture. Works with iOS Simulator (udid) or macOS app (bundleId/appName).",
   {
-    udid: z.string().min(1).describe("Simulator UDID"),
+    udid: z.string().min(1).optional().describe("Simulator UDID"),
+    bundleId: z.string().optional().describe("macOS app bundle ID"),
+    appName: z.string().optional().describe("macOS app name"),
     startX: z.number().describe("Start X"),
     startY: z.number().describe("Start Y"),
     endX: z.number().describe("End X"),
@@ -578,6 +624,9 @@ server.tool(
     postDelay: z.number().optional().describe("Delay after swipe in seconds"),
   },
   async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+
     const args = [
       "swipe",
       "--start-x",
@@ -593,7 +642,7 @@ server.tool(
     pushOption(args, "--duration", params.duration);
     pushOption(args, "--pre-delay", params.preDelay);
     pushOption(args, "--post-delay", params.postDelay);
-    args.push("--udid", params.udid);
+    args.push(...target);
 
     return await runNative(args);
   }
@@ -617,25 +666,32 @@ server.tool(
 
 server.tool(
   "key",
-  "Press a single HID keycode.",
+  "Press a single HID keycode. Works with iOS Simulator (udid) or macOS app (bundleId/appName).",
   {
-    udid: z.string().min(1).describe("Simulator UDID"),
+    udid: z.string().min(1).optional().describe("Simulator UDID"),
+    bundleId: z.string().optional().describe("macOS app bundle ID"),
+    appName: z.string().optional().describe("macOS app name"),
     keycode: keycodeSchema.describe("HID keycode (0-255)"),
     duration: z.number().optional().describe("Hold duration in seconds"),
   },
   async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+
     const args = ["key", String(params.keycode)];
     pushOption(args, "--duration", params.duration);
-    args.push("--udid", params.udid);
+    args.push(...target);
     return await runNative(args);
   }
 );
 
 server.tool(
   "key_sequence",
-  "Press multiple HID keycodes in sequence.",
+  "Press multiple HID keycodes in sequence. Works with iOS Simulator (udid) or macOS app (bundleId/appName).",
   {
-    udid: z.string().min(1).describe("Simulator UDID"),
+    udid: z.string().min(1).optional().describe("Simulator UDID"),
+    bundleId: z.string().optional().describe("macOS app bundle ID"),
+    appName: z.string().optional().describe("macOS app name"),
     keycodes: z
       .union([
         z.array(keycodeSchema).min(1).describe("Array of HID keycodes"),
@@ -645,31 +701,38 @@ server.tool(
     delay: z.number().optional().describe("Delay between key presses in seconds"),
   },
   async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+
     const keycodes = Array.isArray(params.keycodes) ? params.keycodes.join(",") : params.keycodes;
     const args = ["key-sequence", "--keycodes", keycodes];
     pushOption(args, "--delay", params.delay);
-    args.push("--udid", params.udid);
+    args.push(...target);
     return await runNative(args);
   }
 );
 
 server.tool(
   "key_combo",
-  "Press a key while holding modifier keycodes.",
+  "Press a key while holding modifier keycodes. Works with iOS Simulator (udid) or macOS app (bundleId/appName).",
   {
-    udid: z.string().min(1).describe("Simulator UDID"),
+    udid: z.string().min(1).optional().describe("Simulator UDID"),
+    bundleId: z.string().optional().describe("macOS app bundle ID"),
+    appName: z.string().optional().describe("macOS app name"),
     modifiers: z.array(keycodeSchema).min(1).describe("Modifier keycodes"),
     key: keycodeSchema.describe("Keycode to press while modifiers are held"),
   },
   async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+
     const args = [
       "key-combo",
       "--modifiers",
       params.modifiers.join(","),
       "--key",
       String(params.key),
-      "--udid",
-      params.udid,
+      ...target,
     ];
     return await runNative(args);
   }
@@ -677,9 +740,11 @@ server.tool(
 
 server.tool(
   "touch",
-  "Perform touch down/up events at specific coordinates.",
+  "Perform touch down/up events at specific coordinates. Works with iOS Simulator (udid) or macOS app (bundleId/appName).",
   {
-    udid: z.string().min(1).describe("Simulator UDID"),
+    udid: z.string().min(1).optional().describe("Simulator UDID"),
+    bundleId: z.string().optional().describe("macOS app bundle ID"),
+    appName: z.string().optional().describe("macOS app name"),
     x: z.number().describe("X coordinate"),
     y: z.number().describe("Y coordinate"),
     down: z.boolean().optional().describe("Send touch down event"),
@@ -687,6 +752,9 @@ server.tool(
     delay: z.number().optional().describe("Delay between down/up in seconds"),
   },
   async (params) => {
+    const target = resolveTargetArgs(params);
+    if (!Array.isArray(target)) return target;
+
     const args = ["touch", "-x", String(params.x), "-y", String(params.y)];
     if (params.down === undefined && params.up === undefined) {
       args.push("--down", "--up");
@@ -699,7 +767,7 @@ server.tool(
       }
     }
     pushOption(args, "--delay", params.delay);
-    args.push("--udid", params.udid);
+    args.push(...target);
     return await runNative(args);
   }
 );

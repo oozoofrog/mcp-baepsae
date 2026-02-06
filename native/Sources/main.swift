@@ -4,6 +4,11 @@ import Foundation
 
 typealias UIElement = AXUIElement
 
+enum TargetApp {
+    case simulator(udid: String)
+    case macApp(pid: pid_t, bundleId: String?, name: String?)
+}
+
 enum NativeError: Error, CustomStringConvertible {
     case invalidArguments(String)
     case unsupported(String)
@@ -48,6 +53,7 @@ let supportedCommands: Set<String> = [
     "touch",
     "gesture",
     "stream-video",
+    "list-apps",
 ]
 
 func parse(arguments: [String]) throws -> ParsedOptions {
@@ -154,6 +160,114 @@ func readStdinText() -> String {
 func readFileText(_ path: String) throws -> String {
     let url = URL(fileURLWithPath: path)
     return try String(contentsOf: url, encoding: .utf8)
+}
+
+func resolveTarget(from parsed: ParsedOptions) throws -> TargetApp {
+    let hasUdid = parsed.options["--udid"] != nil
+    let hasBundleId = parsed.options["--bundle-id"] != nil
+    let hasAppName = parsed.options["--app-name"] != nil
+
+    let macTargetCount = (hasBundleId ? 1 : 0) + (hasAppName ? 1 : 0)
+    if hasUdid && macTargetCount > 0 {
+        throw NativeError.invalidArguments("Cannot use --udid with --bundle-id or --app-name. Choose simulator or macOS app target.")
+    }
+    if macTargetCount > 1 {
+        throw NativeError.invalidArguments("Cannot use both --bundle-id and --app-name. Choose one.")
+    }
+
+    if hasUdid {
+        return .simulator(udid: parsed.options["--udid"]!)
+    }
+
+    if let bundleId = parsed.options["--bundle-id"] {
+        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId)
+        guard let app = apps.first else {
+            throw NativeError.commandFailed("No running application found with bundle ID: \(bundleId)")
+        }
+        return .macApp(pid: app.processIdentifier, bundleId: bundleId, name: app.localizedName)
+    }
+
+    if let appName = parsed.options["--app-name"] {
+        let apps = NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular && $0.localizedName == appName
+        }
+        guard let app = apps.first else {
+            throw NativeError.commandFailed("No running application found with name: \(appName)")
+        }
+        return .macApp(pid: app.processIdentifier, bundleId: app.bundleIdentifier, name: appName)
+    }
+
+    throw NativeError.invalidArguments("Target required: use --udid for simulator, or --bundle-id / --app-name for macOS app.")
+}
+
+func accessibilityRootElement(for target: TargetApp) throws -> UIElement {
+    switch target {
+    case .simulator:
+        return try simulatorAccessibilityRootElement()
+    case .macApp(let pid, _, _):
+        return AXUIElementCreateApplication(pid)
+    }
+}
+
+func windowBounds(for target: TargetApp) -> CGRect? {
+    switch target {
+    case .simulator:
+        return simulatorWindowBounds()
+    case .macApp(let pid, _, _):
+        guard let windowInfo = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] else {
+            return nil
+        }
+        let windows = windowInfo.filter { info in
+            let ownerPid = info[kCGWindowOwnerPID as String] as? pid_t
+            let layer = info[kCGWindowLayer as String] as? Int
+            return ownerPid == pid && (layer ?? 0) == 0
+        }
+        var best: CGRect?
+        var bestArea: CGFloat = 0
+        for info in windows {
+            guard let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
+                  let x = boundsDict["X"] as? CGFloat,
+                  let y = boundsDict["Y"] as? CGFloat,
+                  let width = boundsDict["Width"] as? CGFloat,
+                  let height = boundsDict["Height"] as? CGFloat else {
+                continue
+            }
+            let rect = CGRect(x: x, y: y, width: width, height: height)
+            let area = width * height
+            if area > bestArea {
+                bestArea = area
+                best = rect
+            }
+        }
+        return best
+    }
+}
+
+func pointInWindow(x: Double, y: Double, for target: TargetApp) throws -> CGPoint {
+    switch target {
+    case .simulator:
+        return try pointInSimulatorWindow(x: x, y: y)
+    case .macApp:
+        guard let bounds = windowBounds(for: target) else {
+            throw NativeError.commandFailed("Application window not found. Ensure the app is running and visible.")
+        }
+        let targetX = bounds.origin.x + CGFloat(x)
+        let targetY = bounds.origin.y + CGFloat(y)
+        return CGPoint(x: targetX, y: targetY)
+    }
+}
+
+func activateTarget(_ target: TargetApp) throws {
+    switch target {
+    case .simulator(let udid):
+        try activateSimulator(udid: udid)
+    case .macApp(let pid, _, _):
+        let apps = NSWorkspace.shared.runningApplications.filter { $0.processIdentifier == pid }
+        if let app = apps.first {
+            app.activate(options: [.activateAllWindows])
+        }
+    }
 }
 
 func activateSimulator(udid: String?) throws {
@@ -699,26 +813,47 @@ func printHelp() {
     let help = """
     baepsae-native
 
+    Target: use --udid for simulator, --bundle-id or --app-name for macOS app
+
     Usage:
       baepsae-native help
       baepsae-native --version
       baepsae-native list-simulators
-      baepsae-native describe-ui --udid <UDID> [--all] [--focus-id <ID>] [--output <path>]
-      baepsae-native search-ui --udid <UDID> --query <text>
+      baepsae-native list-apps
+      baepsae-native describe-ui <TARGET> [--all] [--focus-id <ID>] [--output <path>]
+      baepsae-native search-ui <TARGET> --query <text>
       baepsae-native screenshot --udid <UDID> [--output <path>]
       baepsae-native record-video --udid <UDID> [--output <path>]
-      baepsae-native tap --udid <UDID> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--pre-delay <S>] [--post-delay <S>]
-      baepsae-native type --udid <UDID> [<TEXT> | --stdin | --file <PATH>]
-      baepsae-native swipe --udid <UDID> --start-x <X> --start-y <Y> --end-x <X> --end-y <Y> [--duration <S>] [--pre-delay <S>] [--post-delay <S>]
+      baepsae-native tap <TARGET> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--pre-delay <S>] [--post-delay <S>]
+      baepsae-native type <TARGET> [<TEXT> | --stdin | --file <PATH>]
+      baepsae-native swipe <TARGET> --start-x <X> --start-y <Y> --end-x <X> --end-y <Y> [--duration <S>] [--pre-delay <S>] [--post-delay <S>]
       baepsae-native button --udid <UDID> <TYPE> [--duration <S>]
-      baepsae-native key --udid <UDID> <KEYCODE> [--duration <S>]
-      baepsae-native key-sequence --udid <UDID> --keycodes <CODE,...> [--delay <S>]
-      baepsae-native key-combo --udid <UDID> --modifiers <CODE,...> --key <CODE>
-      baepsae-native touch --udid <UDID> -x <X> -y <Y> [--down] [--up] [--delay <S>]
+      baepsae-native key <TARGET> <KEYCODE> [--duration <S>]
+      baepsae-native key-sequence <TARGET> --keycodes <CODE,...> [--delay <S>]
+      baepsae-native key-combo <TARGET> --modifiers <CODE,...> --key <CODE>
+      baepsae-native touch <TARGET> -x <X> -y <Y> [--down] [--up] [--delay <S>]
       baepsae-native gesture --udid <UDID> <PRESET> [--screen-width <W>] [--screen-height <H>] [--duration <S>]
       baepsae-native stream-video --udid <UDID> [--output <PATH>] [--duration <S>]
+
+    Where <TARGET> is one of:
+      --udid <UDID>           iOS Simulator device UDID
+      --bundle-id <ID>        macOS app bundle identifier
+      --app-name <NAME>       macOS app name
     """
     print(help)
+}
+
+func requireSimulatorOnly(_ target: TargetApp) throws {
+    if case .macApp = target {
+        throw NativeError.commandFailed("This command is only available for iOS Simulator.")
+    }
+}
+
+func requireSimulatorUdid(_ target: TargetApp) throws -> String {
+    guard case .simulator(let udid) = target else {
+        throw NativeError.commandFailed("This command is only available for iOS Simulator.")
+    }
+    return udid
 }
 
 func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
@@ -734,6 +869,16 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
     case "list-simulators":
         return try runProcess("/usr/bin/xcrun", ["simctl", "list", "devices", "available"])
 
+    case "list-apps":
+        let apps = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
+        for app in apps {
+            let bundleId = app.bundleIdentifier ?? "unknown"
+            let name = app.localizedName ?? "unknown"
+            let pid = app.processIdentifier
+            print("\(bundleId) | \(name) | \(pid)")
+        }
+        return 0
+
     case "screenshot":
         let udid = try requiredOption("--udid", from: parsed)
         let output = parsed.options["--output"] ?? defaultOutputPath(prefix: "simulator-screenshot", ext: "png")
@@ -745,20 +890,31 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return try runProcess("/usr/bin/xcrun", ["simctl", "io", udid, "recordVideo", "--force", output])
 
     case "describe-ui":
-        let udid = try requiredOption("--udid", from: parsed)
+        let target = try resolveTarget(from: parsed)
         try ensureAccessibilityTrusted()
-        try activateSimulator(udid: udid)
-        
-        let appRoot = try simulatorAccessibilityRootElement()
+        try activateTarget(target)
+
+        let appRoot = try accessibilityRootElement(for: target)
         var targetRoot = appRoot
-        
-        // Default behavior: Focus on iOSContentGroup unless --all is specified
-        if !parsed.flags.contains("--all") {
-            if let contentGroup = findElementBySubrole(from: appRoot, subrole: "iOSContentGroup") {
-                targetRoot = contentGroup
+
+        switch target {
+        case .simulator:
+            // Default behavior: Focus on iOSContentGroup unless --all is specified
+            if !parsed.flags.contains("--all") {
+                if let contentGroup = findElementBySubrole(from: appRoot, subrole: "iOSContentGroup") {
+                    targetRoot = contentGroup
+                }
+            }
+        case .macApp:
+            // For macOS apps, start from window level, no iOSContentGroup filtering
+            if !parsed.flags.contains("--all") {
+                let windows = Children(appRoot)
+                if let firstWindow = windows.first {
+                    targetRoot = firstWindow
+                }
             }
         }
-        
+
         // Override focus if --focus-id is provided
         if let focusId = parsed.options["--focus-id"] {
             if let found = findAccessibilityElement(in: appRoot, identifier: focusId, label: nil) {
@@ -768,9 +924,15 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
             }
         }
 
-        let lines = describeAccessibilityTree(from: targetRoot)
+        let isMacApp: Bool
+        if case .macApp = target { isMacApp = true } else { isMacApp = false }
+        let lines = describeAccessibilityTree(
+            from: targetRoot,
+            maxDepth: isMacApp ? 8 : 12,
+            maxNodes: isMacApp ? 500 : 1500
+        )
         if lines.isEmpty {
-            throw NativeError.commandFailed("No accessibility elements found in Simulator window.")
+            throw NativeError.commandFailed("No accessibility elements found.")
         }
         let report = lines.joined(separator: "\n")
 
@@ -787,19 +949,22 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return 0
 
     case "search-ui":
-        let udid = try requiredOption("--udid", from: parsed)
+        let target = try resolveTarget(from: parsed)
         let query = try requiredOption("--query", from: parsed)
         try ensureAccessibilityTrusted()
-        try activateSimulator(udid: udid)
-        
-        let appRoot = try simulatorAccessibilityRootElement()
-        // Search inside iOSContentGroup to reduce noise
+        try activateTarget(target)
+
+        let appRoot = try accessibilityRootElement(for: target)
         var searchRoot = appRoot
-        if let contentGroup = findElementBySubrole(from: appRoot, subrole: "iOSContentGroup") {
-            searchRoot = contentGroup
+        if case .simulator = target {
+            if let contentGroup = findElementBySubrole(from: appRoot, subrole: "iOSContentGroup") {
+                searchRoot = contentGroup
+            }
         }
-        
-        let results = searchAccessibilityElements(in: searchRoot, query: query)
+
+        let searchIsMacApp: Bool
+        if case .macApp = target { searchIsMacApp = true } else { searchIsMacApp = false }
+        let results = searchAccessibilityElements(in: searchRoot, query: query, maxNodes: searchIsMacApp ? 500 : 3000)
         if results.isEmpty {
             print("No elements found matching query: \(query)")
         } else {
@@ -808,7 +973,7 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return 0
 
     case "tap":
-        let udid = try requiredOption("--udid", from: parsed)
+        let target = try resolveTarget(from: parsed)
         let accessibilityId = parsed.options["--id"]
         let accessibilityLabel = parsed.options["--label"]
         if accessibilityId != nil || accessibilityLabel != nil {
@@ -816,12 +981,12 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
             let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
 
             try ensureAccessibilityTrusted()
-            try activateSimulator(udid: udid)
+            try activateTarget(target)
             if preDelay > 0 {
                 Thread.sleep(forTimeInterval: preDelay)
             }
 
-            let root = try simulatorAccessibilityRootElement()
+            let root = try accessibilityRootElement(for: target)
             guard let matchedElement = findAccessibilityElement(
                 in: root,
                 identifier: accessibilityId,
@@ -864,11 +1029,11 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         let preDelay = try optionalDoubleOption("--pre-delay", from: parsed) ?? 0
         let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
         try ensureAccessibilityTrusted()
-        try activateSimulator(udid: udid)
+        try activateTarget(target)
         if preDelay > 0 {
             Thread.sleep(forTimeInterval: preDelay)
         }
-        let point = try pointInSimulatorWindow(x: x, y: y)
+        let point = try pointInWindow(x: x, y: y, for: target)
         sendClick(at: point)
         if postDelay > 0 {
             Thread.sleep(forTimeInterval: postDelay)
@@ -876,8 +1041,8 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return 0
 
     case "type":
-        let udid = try requiredOption("--udid", from: parsed)
-        try activateSimulator(udid: udid)
+        let target = try resolveTarget(from: parsed)
+        try activateTarget(target)
         let text: String
         if parsed.flags.contains("--stdin") {
             text = readStdinText()
@@ -893,7 +1058,7 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return 0
 
     case "swipe":
-        let udid = try requiredOption("--udid", from: parsed)
+        let target = try resolveTarget(from: parsed)
         let startX = try requiredOption("--start-x", from: parsed)
         let startY = try requiredOption("--start-y", from: parsed)
         let endX = try requiredOption("--end-x", from: parsed)
@@ -907,12 +1072,12 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         let duration = try optionalDoubleOption("--duration", from: parsed)
         let preDelay = try optionalDoubleOption("--pre-delay", from: parsed) ?? 0
         let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
-        try activateSimulator(udid: udid)
+        try activateTarget(target)
         if preDelay > 0 {
             Thread.sleep(forTimeInterval: preDelay)
         }
-        let start = try pointInSimulatorWindow(x: startXValue, y: startYValue)
-        let end = try pointInSimulatorWindow(x: endXValue, y: endYValue)
+        let start = try pointInWindow(x: startXValue, y: startYValue, for: target)
+        let end = try pointInWindow(x: endXValue, y: endYValue, for: target)
         sendSwipe(from: start, to: end, duration: duration)
         if postDelay > 0 {
             Thread.sleep(forTimeInterval: postDelay)
@@ -920,7 +1085,8 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return 0
 
     case "button":
-        let udid = try requiredOption("--udid", from: parsed)
+        let target = try resolveTarget(from: parsed)
+        let udid = try requireSimulatorUdid(target)
         try activateSimulator(udid: udid)
         guard let buttonType = parsed.positionals.first else {
             throw NativeError.invalidArguments("button requires a button type.")
@@ -944,8 +1110,8 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return 0
 
     case "key":
-        let udid = try requiredOption("--udid", from: parsed)
-        try activateSimulator(udid: udid)
+        let target = try resolveTarget(from: parsed)
+        try activateTarget(target)
         guard let keyString = parsed.positionals.first, let keyCode = Int(keyString) else {
             throw NativeError.invalidArguments("key requires a numeric keycode.")
         }
@@ -954,8 +1120,8 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return 0
 
     case "key-sequence":
-        let udid = try requiredOption("--udid", from: parsed)
-        try activateSimulator(udid: udid)
+        let target = try resolveTarget(from: parsed)
+        try activateTarget(target)
         guard let raw = parsed.options["--keycodes"] else {
             throw NativeError.invalidArguments("key-sequence requires --keycodes.")
         }
@@ -970,8 +1136,8 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return 0
 
     case "key-combo":
-        let udid = try requiredOption("--udid", from: parsed)
-        try activateSimulator(udid: udid)
+        let target = try resolveTarget(from: parsed)
+        try activateTarget(target)
         guard let rawModifiers = parsed.options["--modifiers"],
               let rawKey = parsed.options["--key"],
               let key = Int(rawKey) else {
@@ -982,15 +1148,15 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return 0
 
     case "touch":
-        let udid = try requiredOption("--udid", from: parsed)
+        let target = try resolveTarget(from: parsed)
         let xRaw = parsed.options["-x"]
         let yRaw = parsed.options["-y"]
         guard let xRaw, let yRaw, let x = Double(xRaw), let y = Double(yRaw) else {
             throw NativeError.invalidArguments("touch requires -x and -y coordinates.")
         }
         let delay = try optionalDoubleOption("--delay", from: parsed) ?? 0
-        try activateSimulator(udid: udid)
-        let point = try pointInSimulatorWindow(x: x, y: y)
+        try activateTarget(target)
+        let point = try pointInWindow(x: x, y: y, for: target)
         let downRequested = parsed.flags.contains("--down")
         let upRequested = parsed.flags.contains("--up")
         if !downRequested && !upRequested {
@@ -1013,7 +1179,8 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return 0
 
     case "gesture":
-        let udid = try requiredOption("--udid", from: parsed)
+        let target = try resolveTarget(from: parsed)
+        try requireSimulatorOnly(target)
         guard let preset = parsed.positionals.first else {
             throw NativeError.invalidArguments("gesture requires a preset name.")
         }
@@ -1022,7 +1189,7 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         let duration = try optionalDoubleOption("--duration", from: parsed)
         let screenWidth = try optionalDoubleOption("--screen-width", from: parsed)
         let screenHeight = try optionalDoubleOption("--screen-height", from: parsed)
-        try activateSimulator(udid: udid)
+        try activateTarget(target)
         let bounds = simulatorWindowBounds()
         let width = screenWidth ?? Double(bounds?.width ?? 0)
         let height = screenHeight ?? Double(bounds?.height ?? 0)
