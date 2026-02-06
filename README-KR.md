@@ -8,7 +8,7 @@
 
 TypeScript MCP 레이어와 Swift 네이티브 브리지를 사용하는 iOS 시뮬레이터 및 macOS 앱 자동화용 로컬 MCP 서버입니다.
 
-영문 문서는 `README.md`를 참고하세요.
+영문 문서는 [README.md](./README.md)를 참고하세요.
 
 ## 목차
 
@@ -32,19 +32,25 @@ TypeScript MCP 레이어와 Swift 네이티브 브리지를 사용하는 iOS 시
 
 ## 설치
 
-### 옵션 A) 로컬 저장소 빌드 사용 (권장)
+### 옵션 A) npm (가장 간편)
 
 ```bash
-git clone <your-repo-url>
+# 설치 없이 바로 실행
+npx mcp-baepsae
+
+# 또는 전역 설치
+npm install -g mcp-baepsae
+```
+
+> macOS에서는 설치 시 Swift 네이티브 바이너리가 자동 빌드됩니다. Swift가 없어도 simctl 기반 기능은 정상 작동합니다.
+
+### 옵션 B) 소스에서 빌드
+
+```bash
+git clone https://github.com/oozoofrog/mcp-baepsae.git
 cd mcp-baepsae
 npm install
 npm run build
-```
-
-### 옵션 B) 전역 CLI 설치
-
-```bash
-npm install -g .
 ```
 
 ## MCP 설정 (권장)
@@ -70,28 +76,67 @@ bash scripts/install.sh --tool all
 
 ## For LLM
 
-LLM 에이전트가 이 저장소를 설치부터 설정까지 자동으로 구성할 때:
+LLM 에이전트가 이 MCP 서버를 설정할 때 필요한 모든 정보입니다.
+
+### 빠른 시작 (한 줄)
 
 ```bash
+# 지원하는 모든 클라이언트에 baepsae MCP 서버 등록
 bash scripts/install.sh --tool all
 ```
 
-자동화에 유용한 옵션:
+저장소를 클론하지 않고 npm으로 설치한 경우 npx를 사용하세요:
+
+```bash
+# Claude Code
+claude mcp add baepsae -- npx -y mcp-baepsae
+
+# Codex CLI
+codex mcp add baepsae -- npx -y mcp-baepsae
+```
+
+### 자동화 옵션
 
 ```bash
 # 실제 실행 없이 명령만 출력
 bash scripts/install.sh --tool all --dry-run
 
-# 환경/의존성 점검만 수행
+# 환경/의존성 점검
 bash scripts/install.sh --tool all --doctor
 
 # MCP 등록 제거
 bash scripts/install.sh --tool all --uninstall
 ```
 
+### 런타임 옵션
+
+설치 스크립트는 `--runtime` 플래그로 다양한 런타임을 지원합니다:
+
+| 플래그 | 명령어 | 사용 시점 |
+|---|---|---|
+| `--runtime node` (기본값) | `node dist/index.js` | 소스 빌드 |
+| `--runtime npx` | `npx -y mcp-baepsae` | npm 레지스트리, 전역 설치 불필요 |
+| `--runtime bunx` | `bunx mcp-baepsae` | Bun 사용자 |
+| `--runtime global` | `mcp-baepsae` | `npm install -g mcp-baepsae` 이후 |
+
 ## 수동 설정 (대안)
 
 `scripts/install.sh`를 사용하지 않을 때:
+
+### npx 사용 (npm 사용자 권장)
+
+```bash
+# Claude Code
+claude mcp add baepsae -- npx -y mcp-baepsae
+
+# Codex CLI
+codex mcp add baepsae -- npx -y mcp-baepsae
+
+# Gemini CLI
+gemini mcp add --scope user --transport stdio baepsae npx -y mcp-baepsae
+```
+
+### 로컬 빌드 사용
 
 ```bash
 # Claude Code (project)

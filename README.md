@@ -8,7 +8,7 @@
 
 Local MCP server for iOS Simulator and macOS app automation with a TypeScript MCP layer and a Swift native bridge.
 
-한국어 문서는 `README-KR.md`를 참고하세요.
+한국어 문서는 [README-KR.md](./README-KR.md)를 참고하세요.
 
 ## Table of Contents
 
@@ -40,19 +40,25 @@ Local MCP server for iOS Simulator and macOS app automation with a TypeScript MC
 
 ## Install
 
-### Option A) Local repository build (recommended)
+### Option A) npm (easiest)
 
 ```bash
-git clone <your-repo-url>
+# Run directly without installing
+npx mcp-baepsae
+
+# Or install globally
+npm install -g mcp-baepsae
+```
+
+> On macOS, the Swift native binary is built automatically during install. If Swift is not available, the server still works with simctl-based features.
+
+### Option B) From source
+
+```bash
+git clone https://github.com/oozoofrog/mcp-baepsae.git
 cd mcp-baepsae
 npm install
 npm run build
-```
-
-### Option B) Global CLI install
-
-```bash
-npm install -g .
 ```
 
 ## MCP Setup (Recommended)
@@ -78,28 +84,67 @@ bash scripts/install.sh --tool all
 
 ## For LLM
 
-If an LLM agent is provisioning this repository end-to-end:
+If you are an LLM agent setting up this MCP server, here is everything you need:
+
+### Quick start (one command)
 
 ```bash
+# Register baepsae as an MCP server for all supported clients
 bash scripts/install.sh --tool all
 ```
 
-Useful automation flags:
+If you installed via npm instead of cloning the repo, use npx:
 
 ```bash
-# Dry run (print only)
+# Claude Code
+claude mcp add baepsae -- npx -y mcp-baepsae
+
+# Codex CLI
+codex mcp add baepsae -- npx -y mcp-baepsae
+```
+
+### Automation flags
+
+```bash
+# Preview commands without executing
 bash scripts/install.sh --tool all --dry-run
 
-# Health check only
+# Verify environment and dependencies
 bash scripts/install.sh --tool all --doctor
 
-# Remove MCP registrations
+# Unregister from all clients
 bash scripts/install.sh --tool all --uninstall
 ```
+
+### Runtime options
+
+The installer supports multiple runtimes via `--runtime`:
+
+| Flag | Command | When to use |
+|---|---|---|
+| `--runtime node` (default) | `node dist/index.js` | Local source build |
+| `--runtime npx` | `npx -y mcp-baepsae` | npm registry, no global install |
+| `--runtime bunx` | `bunx mcp-baepsae` | Bun users |
+| `--runtime global` | `mcp-baepsae` | After `npm install -g mcp-baepsae` |
 
 ## Manual Setup (Fallback)
 
 Use this when you do not want to run `scripts/install.sh`.
+
+### Using npx (recommended for npm users)
+
+```bash
+# Claude Code
+claude mcp add baepsae -- npx -y mcp-baepsae
+
+# Codex CLI
+codex mcp add baepsae -- npx -y mcp-baepsae
+
+# Gemini CLI
+gemini mcp add --scope user --transport stdio baepsae npx -y mcp-baepsae
+```
+
+### Using local build
 
 ```bash
 # Claude Code (project)
