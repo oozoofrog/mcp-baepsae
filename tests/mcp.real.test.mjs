@@ -48,7 +48,7 @@ function isAccessibilityDenied(text) {
 
 function findSampleApp() {
   const candidates = [
-    path.join(projectRoot, "test-fixtures", "SampleApp", "build", "SampleApp.app"),
+    path.join(projectRoot, "test-fixtures", "SampleApp", "build", "Debug-iphonesimulator", "SampleApp.app"),
     path.join(projectRoot, "test-fixtures", "SampleApp", "Build", "Products", "Debug-iphonesimulator", "SampleApp.app"),
   ];
 

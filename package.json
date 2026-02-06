@@ -25,6 +25,8 @@
     "dev": "tsc --watch",
     "test": "npm run build && node --test tests/mcp.contract.test.mjs",
     "test:real": "npm run build && node --test tests/mcp.real.test.mjs",
+    "build:sample-app": "bash scripts/build-sample-app.sh",
+    "test:e2e": "npm run build:sample-app && npm run test:real",
     "verify": "npm run test && npm run test:real",
     "setup:mcp": "bash scripts/install.sh",
     "prepare": "npm run build"

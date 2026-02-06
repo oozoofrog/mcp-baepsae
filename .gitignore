@@ -10,3 +10,6 @@ native/.build/
 .mcp.json
 opencode.json
 .sisyphus/
+DerivedData/
+*.xcuserstate
+test-fixtures/SampleApp/build/
