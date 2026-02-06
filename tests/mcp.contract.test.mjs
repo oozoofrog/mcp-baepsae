@@ -36,7 +36,13 @@ test("tools/list exposes expected MCP tools", async () => {
       "baepsae_help",
       "baepsae_version",
       "list_simulators",
+      "open_url",
+      "install_app",
+      "launch_app",
+      "terminate_app",
+      "uninstall_app",
       "describe_ui",
+      "search_ui",
       "tap",
       "type_text",
       "swipe",
@@ -170,69 +176,6 @@ test("describe_ui forwards output option to native layer", async () => {
 
     assert.match(text, /describe-ui/);
     assert.match(text, /--output/);
-  });
-});
-
-test("swipe rejects unsupported delta option", async () => {
-  await withClient(async (client) => {
-    const result = await client.callTool({
-      name: "swipe",
-      arguments: {
-        udid: "00000000-0000-0000-0000-000000000000",
-        startX: 10,
-        startY: 10,
-        endX: 20,
-        endY: 20,
-        delta: 4,
-      },
-    });
-
-    assert.equal(result.isError ?? false, true);
-    const text = result.content
-      .filter((item) => item.type === "text")
-      .map((item) => item.text)
-      .join("\n");
-    assert.match(text, /delta is not supported in current native mode\./);
-  });
-});
-
-test("gesture rejects unsupported delta option", async () => {
-  await withClient(async (client) => {
-    const result = await client.callTool({
-      name: "gesture",
-      arguments: {
-        udid: "00000000-0000-0000-0000-000000000000",
-        preset: "scroll-up",
-        delta: 5,
-      },
-    });
-
-    assert.equal(result.isError ?? false, true);
-    const text = result.content
-      .filter((item) => item.type === "text")
-      .map((item) => item.text)
-      .join("\n");
-    assert.match(text, /delta is not supported in current native mode\./);
-  });
-});
-
-test("stream_video rejects unsupported format/fps/quality/scale options", async () => {
-  await withClient(async (client) => {
-    const result = await client.callTool({
-      name: "stream_video",
-      arguments: {
-        udid: "00000000-0000-0000-0000-000000000000",
-        output: ".tmp-test-artifacts/stream.mov",
-        format: "mjpeg",
-      },
-    });
-
-    assert.equal(result.isError ?? false, true);
-    const text = result.content
-      .filter((item) => item.type === "text")
-      .map((item) => item.text)
-      .join("\n");
-    assert.match(text, /format\/fps\/quality\/scale are not supported in current simctl mode\./);
   });
 });
 

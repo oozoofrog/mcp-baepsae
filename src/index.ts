@@ -25,6 +25,7 @@ interface CommandExecutionOptions {
   stdinText?: string;
   stdoutFilePath?: string;
   captureStdout?: boolean;
+  env?: Record<string, string>;
 }
 
 interface CommandExecutionResult {
@@ -54,9 +55,9 @@ const GESTURE_PRESETS = [
   "swipe-from-top-edge",
   "swipe-from-bottom-edge",
 ] as const;
-const STREAM_FORMATS = ["mjpeg", "raw", "ffmpeg", "bgra"] as const;
 const BAEPSAE_SUBCOMMANDS = [
   "describe-ui",
+  "search-ui",
   "list-simulators",
   "tap",
   "type",
@@ -143,7 +144,7 @@ async function executeCommand(
   return await new Promise<CommandExecutionResult>((resolvePromise, rejectPromise) => {
     const child = spawn(executable, args, {
       stdio: ["pipe", "pipe", "pipe"],
-      env: process.env,
+      env: options.env ? { ...process.env, ...options.env } : process.env,
     });
 
     const stdoutChunks: Buffer[] = [];
@@ -332,7 +333,7 @@ server.tool(
       "- uninstall_app",
       "",
       "Implemented tools:",
-      "- describe_ui, tap, type_text, swipe, button, key, key_sequence, key_combo, touch, gesture, stream_video",
+      "- describe_ui, search_ui, tap, type_text, swipe, button, key, key_sequence, key_combo, touch, gesture, stream_video",
       "",
       `Native binary requirement: build native binary or set ${NATIVE_BINARY_ENV}`,
     ];
@@ -420,17 +421,14 @@ server.tool(
     env: z.record(z.string()).optional().describe("Environment variables"),
   },
   async (params) => {
-    const args = ["launch"];
-    if (params.env) {
-      for (const [key, value] of Object.entries(params.env)) {
-        args.push(`SIMCTL_CHILD_${key}=${value}`);
-      }
-    }
-    args.push(params.udid, params.bundleId);
+    const args = ["launch", params.udid, params.bundleId];
     if (params.args) {
       args.push(...params.args);
     }
-    return await runSimctl(args);
+    const env: Record<string, string> | undefined = params.env
+      ? Object.fromEntries(Object.entries(params.env).map(([k, v]) => [`SIMCTL_CHILD_${k}`, v]))
+      : undefined;
+    return await runSimctl(args, { env });
   }
 );
 
@@ -448,14 +446,33 @@ server.tool(
 
 server.tool(
   "describe_ui",
-  "Describe UI hierarchy from simulator.",
+  "Describe UI hierarchy from simulator. Defaults to focused content view unless --all is used.",
   {
     udid: z.string().min(1).describe("Simulator UDID"),
     output: z.string().optional().describe("Optional output file path for hierarchy text"),
+    focusId: z.string().optional().describe("Focus on element with specific ID"),
+    all: z.boolean().optional().describe("Include all elements (system UI, bezels)"),
   },
   async (params) => {
     const args = ["describe-ui", "--udid", params.udid];
     pushOption(args, "--output", params.output);
+    pushOption(args, "--focus-id", params.focusId);
+    if (params.all) {
+      args.push("--all");
+    }
+    return await runNative(args);
+  }
+);
+
+server.tool(
+  "search_ui",
+  "Search for UI elements by text, identifier, or label.",
+  {
+    udid: z.string().min(1).describe("Simulator UDID"),
+    query: z.string().min(1).describe("Text to search for"),
+  },
+  async (params) => {
+    const args = ["search-ui", "--udid", params.udid, "--query", params.query];
     return await runNative(args);
   }
 );
@@ -557,18 +574,10 @@ server.tool(
     endX: z.number().describe("End X"),
     endY: z.number().describe("End Y"),
     duration: z.number().optional().describe("Duration in seconds"),
-    delta: z.number().optional().describe("Unsupported in current native mode"),
     preDelay: z.number().optional().describe("Delay before swipe in seconds"),
     postDelay: z.number().optional().describe("Delay after swipe in seconds"),
   },
   async (params) => {
-    if (params.delta !== undefined) {
-      return {
-        content: [{ type: "text", text: "delta is not supported in current native mode." }],
-        isError: true,
-      };
-    }
-
     const args = [
       "swipe",
       "--start-x",
@@ -704,18 +713,10 @@ server.tool(
     screenWidth: z.number().optional().describe("Screen width in points"),
     screenHeight: z.number().optional().describe("Screen height in points"),
     duration: z.number().optional().describe("Gesture duration in seconds"),
-    delta: z.number().optional().describe("Unsupported in current native mode"),
     preDelay: z.number().optional().describe("Delay before gesture in seconds"),
     postDelay: z.number().optional().describe("Delay after gesture in seconds"),
   },
   async (params) => {
-    if (params.delta !== undefined) {
-      return {
-        content: [{ type: "text", text: "delta is not supported in current native mode." }],
-        isError: true,
-      };
-    }
-
     const args = ["gesture", params.preset];
     pushOption(args, "--screen-width", params.screenWidth);
     pushOption(args, "--screen-height", params.screenHeight);
@@ -733,25 +734,9 @@ server.tool(
   {
     udid: z.string().min(1).describe("Simulator UDID"),
     output: z.string().optional().describe("Destination output path"),
-    format: z.enum(STREAM_FORMATS).optional().describe("Unsupported in current simctl mode"),
-    fps: z.number().int().min(1).max(30).optional().describe("Unsupported in current simctl mode"),
-    quality: z.number().int().min(1).max(100).optional().describe("Unsupported in current simctl mode"),
-    scale: z.number().min(0.1).max(1.0).optional().describe("Unsupported in current simctl mode"),
     durationSeconds: z.number().positive().optional().describe("Capture duration in seconds"),
   },
   async (params) => {
-    if (params.format !== undefined || params.fps !== undefined || params.quality !== undefined || params.scale !== undefined) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "format/fps/quality/scale are not supported in current simctl mode.",
-          },
-        ],
-        isError: true,
-      };
-    }
-
     const args = ["stream-video", "--udid", params.udid];
 
     const durationSeconds = params.durationSeconds ?? 10;
@@ -777,9 +762,6 @@ server.tool(
   "Record simulator display.",
   {
     udid: z.string().min(1).describe("Simulator UDID"),
-    fps: z.number().int().min(1).max(30).optional().describe("Ignored in simctl mode"),
-    quality: z.number().int().min(1).max(100).optional().describe("Ignored in simctl mode"),
-    scale: z.number().min(0.1).max(1.0).optional().describe("Ignored in simctl mode"),
     output: z.string().optional().describe("Output MOV file path"),
     durationSeconds: z.number().positive().optional().describe("Recording duration in seconds (default: 10)"),
   },
@@ -796,7 +778,7 @@ server.tool(
     return await runSimctl(
       ["io", params.udid, "recordVideo", "--force", resolvedOutput],
       {
-        timeoutMs: Math.max(1000, Math.round(durationSeconds * 1000)),
+        timeoutMs: Math.max(15_000, Math.round((durationSeconds + 5) * 1000)),
       },
       {
         timeoutIsExpected: true,

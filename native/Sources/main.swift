@@ -630,24 +630,6 @@ func searchAccessibilityElements(in root: UIElement, query: String, maxNodes: In
     return results
 }
 
-// Find the main device window and then the content group within it
-func findSimulatorContentGroup(from root: UIElement) -> UIElement {
-    // 1. Try to find a window with 'iPhone' or 'iPad' in title
-    let children = Children(root)
-    for child in children {
-        if let role = StringAttribute(child, kAXRoleAttribute as CFString), role == "AXWindow",
-           let title = StringAttribute(child, kAXTitleAttribute as CFString), (title.contains("iPhone") || title.contains("iPad")) {
-            // 2. Look for iOSContentGroup inside
-            if let contentGroup = findAccessibilityElement(in: child, identifier: nil, label: nil, maxDepth: 5, maxNodes: 100) {
-                 // Optimization: Usually it's close to top.
-                 // But wait, findAccessibilityElement is by ID/Label. We need by subrole.
-                 // Let's implement a quick DFS for subrole.
-            }
-        }
-    }
-    return root // Fallback
-}
-
 func findElementBySubrole(from root: UIElement, subrole: String) -> UIElement? {
     var stack: [UIElement] = [root]
     var visited = 0
@@ -871,6 +853,7 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         }
         let preDelay = try optionalDoubleOption("--pre-delay", from: parsed) ?? 0
         let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
+        try ensureAccessibilityTrusted()
         try activateSimulator(udid: udid)
         if preDelay > 0 {
             Thread.sleep(forTimeInterval: preDelay)
