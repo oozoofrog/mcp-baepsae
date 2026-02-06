@@ -2,6 +2,15 @@
   "name": "mcp-baepsae",
   "version": "3.1.0",
   "description": "MCP server with direct iOS simulator implementation",
+  "author": "oozoofrog",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oozoofrog/mcp-baepsae.git"
+  },
+  "homepage": "https://github.com/oozoofrog/mcp-baepsae#readme",
+  "bugs": {
+    "url": "https://github.com/oozoofrog/mcp-baepsae/issues"
+  },
   "main": "dist/index.js",
   "bin": {
     "mcp-baepsae": "dist/index.js"
