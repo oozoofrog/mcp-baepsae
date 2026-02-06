@@ -1,6 +1,6 @@
 {
   "name": "mcp-baepsae",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "description": "Local MCP server for iOS Simulator and macOS app automation with a native Swift bridge",
   "author": "oozoofrog",
   "repository": {
