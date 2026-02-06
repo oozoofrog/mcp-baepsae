@@ -58,3 +58,21 @@ jobs:
 
       - name: Publish to NPM
         run: npm publish --access public --provenance
+
+  publish-mcp-registry:
+    name: Publish to MCP Registry
+    needs: publish-npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz
+          chmod +x mcp-publisher
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish --auth github-oidc
