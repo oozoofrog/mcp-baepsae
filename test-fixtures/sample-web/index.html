@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Baepsae Test Page</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 16px;
+            line-height: 1.5;
+            color: #333;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 { margin-bottom: 20px; }
+        button, input {
+            font-size: 16px;
+            padding: 12px 20px;
+            min-height: 44px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+        button {
+            background: #007aff;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        button:active { background: #005ec4; }
+        #test-result {
+            background: #f0f0f0;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            min-height: 44px;
+        }
+        a { color: #007aff; display: inline-block; margin-bottom: 20px; }
+        .test-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #eee;
+        }
+        #bottom {
+            padding: 20px 0;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1 id="test-heading">Baepsae Test Page</h1>
+
+    <button id="test-button">Click Me</button>
+
+    <input id="test-input" type="text" placeholder="Type here">
+
+    <div id="test-result">Waiting for action...</div>
+
+    <a id="test-link" href="#bottom">Go to bottom</a>
+
+    <div id="test-list">
+        <div class="test-item">Item 1</div>
+        <div class="test-item">Item 2</div>
+        <div class="test-item">Item 3</div>
+        <div class="test-item">Item 4</div>
+        <div class="test-item">Item 5</div>
+        <div class="test-item">Item 6</div>
+        <div class="test-item">Item 7</div>
+        <div class="test-item">Item 8</div>
+        <div class="test-item">Item 9</div>
+        <div class="test-item">Item 10</div>
+        <div class="test-item">Item 11</div>
+        <div class="test-item">Item 12</div>
+        <div class="test-item">Item 13</div>
+        <div class="test-item">Item 14</div>
+        <div class="test-item">Item 15</div>
+        <div class="test-item">Item 16</div>
+        <div class="test-item">Item 17</div>
+        <div class="test-item">Item 18</div>
+        <div class="test-item">Item 19</div>
+        <div class="test-item">Item 20</div>
+        <div class="test-item">Item 21</div>
+        <div class="test-item">Item 22</div>
+        <div class="test-item">Item 23</div>
+        <div class="test-item">Item 24</div>
+        <div class="test-item">Item 25</div>
+    </div>
+
+    <div id="bottom">Bottom of page</div>
+
+    <script>
+        document.getElementById('test-button').addEventListener('click', function() {
+            document.getElementById('test-result').textContent = 'Button Clicked!';
+        });
+        document.getElementById('test-input').addEventListener('input', function(e) {
+            document.getElementById('test-result').textContent = 'Input: ' + e.target.value;
+        });
+    </script>
+</body>
+</html>
