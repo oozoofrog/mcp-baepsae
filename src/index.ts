@@ -14,6 +14,7 @@ const SERVER_VERSION = "3.1.0";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const NATIVE_BINARY_ENV = "BAEPSAE_NATIVE_PATH";
 const NATIVE_BINARY_NAME = process.platform === "win32" ? "baepsae-native.exe" : "baepsae-native";
+const PACKAGE_ROOT = resolve(__dirname, "..");
 
 type ToolTextResult = {
   content: Array<{ type: "text"; text: string }>;
@@ -105,8 +106,8 @@ function resolveNativeBinary(): string {
   }
 
   const candidates = [
-    resolve(process.cwd(), "native", ".build", "release", NATIVE_BINARY_NAME),
-    resolve(process.cwd(), "native", ".build", "debug", NATIVE_BINARY_NAME),
+    resolve(PACKAGE_ROOT, "native", ".build", "release", NATIVE_BINARY_NAME),
+    resolve(PACKAGE_ROOT, "native", ".build", "debug", NATIVE_BINARY_NAME),
   ];
 
   for (const candidate of candidates) {
@@ -320,7 +321,15 @@ async function runNative(
   options?: CommandExecutionOptions,
   responseOptions?: ResponseOptions
 ): Promise<ToolTextResult> {
-  const binary = resolveNativeBinary();
+  let binary: string;
+  try {
+    binary = resolveNativeBinary();
+  } catch (error) {
+    return {
+      content: [{ type: "text" as const, text: error instanceof Error ? error.message : String(error) }],
+      isError: true,
+    };
+  }
   return await runCommand(binary, args, options, responseOptions);
 }
 

@@ -20,7 +20,7 @@
     "build:ts": "tsc",
     "build:native": "swift build --package-path native -c release",
     "build": "npm run build:ts && npm run build:native",
-    "postinstall": "[ \"$(uname)\" = \"Darwin\" ] && npm run build:native || true",
+    "postinstall": "if [ \"$(uname)\" = \"Darwin\" ]; then npm run build:native; fi",
     "prepublishOnly": "npm run build:ts",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
