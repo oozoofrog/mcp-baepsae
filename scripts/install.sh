@@ -293,11 +293,11 @@ resolve_server_runtime_command() {
       ;;
     npx)
       SERVER_CMD="npx"
-      SERVER_CMD_ARGS=(-y "$SERVER_PACKAGE")
+      SERVER_CMD_ARGS=(-y "$SERVER_PACKAGE@latest")
       ;;
     bunx)
       SERVER_CMD="bunx"
-      SERVER_CMD_ARGS=("$SERVER_PACKAGE")
+      SERVER_CMD_ARGS=("$SERVER_PACKAGE@latest")
       ;;
     global)
       SERVER_CMD="$SERVER_PACKAGE"

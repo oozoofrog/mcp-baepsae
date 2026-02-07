@@ -44,7 +44,7 @@ Local MCP server for iOS Simulator and macOS app automation with a TypeScript MC
 
 ```bash
 # Run directly without installing
-npx mcp-baepsae
+npx mcp-baepsae@latest
 
 # Or install globally
 npm install -g mcp-baepsae
@@ -97,10 +97,10 @@ If you installed via npm instead of cloning the repo, use npx:
 
 ```bash
 # Claude Code
-claude mcp add baepsae -- npx -y mcp-baepsae
+claude mcp add baepsae -- npx -y mcp-baepsae@latest
 
 # Codex CLI
-codex mcp add baepsae -- npx -y mcp-baepsae
+codex mcp add baepsae -- npx -y mcp-baepsae@latest
 ```
 
 ### Automation flags
@@ -123,8 +123,8 @@ The installer supports multiple runtimes via `--runtime`:
 | Flag | Command | When to use |
 |---|---|---|
 | `--runtime node` (default) | `node dist/index.js` | Local source build |
-| `--runtime npx` | `npx -y mcp-baepsae` | npm registry, no global install |
-| `--runtime bunx` | `bunx mcp-baepsae` | Bun users |
+| `--runtime npx` | `npx -y mcp-baepsae@latest` | npm registry, no global install |
+| `--runtime bunx` | `bunx mcp-baepsae@latest` | Bun users |
 | `--runtime global` | `mcp-baepsae` | After `npm install -g mcp-baepsae` |
 
 ## Manual Setup (Fallback)
@@ -135,13 +135,13 @@ Use this when you do not want to run `scripts/install.sh`.
 
 ```bash
 # Claude Code
-claude mcp add baepsae -- npx -y mcp-baepsae
+claude mcp add baepsae -- npx -y mcp-baepsae@latest
 
 # Codex CLI
-codex mcp add baepsae -- npx -y mcp-baepsae
+codex mcp add baepsae -- npx -y mcp-baepsae@latest
 
 # Gemini CLI
-gemini mcp add --scope user --transport stdio baepsae npx -y mcp-baepsae
+gemini mcp add --scope user --transport stdio baepsae npx -y mcp-baepsae@latest
 ```
 
 ### Using local build
