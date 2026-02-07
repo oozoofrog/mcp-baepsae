@@ -326,7 +326,7 @@ async function runNative(
     binary = resolveNativeBinary();
   } catch (error) {
     return {
-      content: [{ type: "text" as const, text: error instanceof Error ? error.message : String(error) }],
+      content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }],
       isError: true,
     };
   }
