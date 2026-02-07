@@ -91,7 +91,7 @@ test("baepsae_version returns non-error response", async () => {
       .map((item) => item.text)
       .join("\n");
 
-    assert.match(text, /mcp-baepsae 3\.1\.9/);
+    assert.match(text, /mcp-baepsae 3\.1\.10/);
   });
 });
 
@@ -230,7 +230,7 @@ test("baepsae_version resolves native binary from different cwd (npx scenario)",
       .map((item) => item.text)
       .join("\n");
 
-    assert.match(text, /mcp-baepsae 3\.1\.9/);
+    assert.match(text, /mcp-baepsae 3\.1\.10/);
   });
 });
 

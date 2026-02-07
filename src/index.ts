@@ -10,7 +10,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { z } from "zod";
 
 const SERVER_NAME = "mcp-baepsae";
-const SERVER_VERSION = "3.1.9";
+const SERVER_VERSION = "3.1.10";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const NATIVE_BINARY_ENV = "BAEPSAE_NATIVE_PATH";
 const NATIVE_BINARY_NAME = process.platform === "win32" ? "baepsae-native.exe" : "baepsae-native";
