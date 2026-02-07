@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -16,6 +17,23 @@ async function withClient(run) {
     command: "node",
     args: ["dist/index.js"],
     cwd: projectRoot,
+    stderr: "pipe",
+  });
+
+  await client.connect(transport);
+  try {
+    return await run(client);
+  } finally {
+    await client.close();
+  }
+}
+
+async function withClientFromDir(cwd, run) {
+  const client = new Client({ name: "baepsae-contract-test", version: "1.0.0" });
+  const transport = new StdioClientTransport({
+    command: "node",
+    args: [path.join(projectRoot, "dist/index.js")],
+    cwd,
     stderr: "pipe",
   });
 
@@ -197,5 +215,41 @@ test("stream_video allows omitted output and auto-generates output path", async 
     assert.match(text, /stream-video/);
     assert.match(text, /--output/);
     assert.match(text, /Output file: .*simulator-stream-.*\.mov/);
+  });
+});
+
+// --- npx scenario tests (cwd ≠ package root) ---
+
+test("baepsae_version resolves native binary from different cwd (npx scenario)", async () => {
+  await withClientFromDir(os.tmpdir(), async (client) => {
+    const result = await client.callTool({ name: "baepsae_version", arguments: {} });
+    assert.equal(result.isError ?? false, false);
+
+    const text = result.content
+      .filter((item) => item.type === "text")
+      .map((item) => item.text)
+      .join("\n");
+
+    assert.match(text, /mcp-baepsae 3\.1\.0/);
+  });
+});
+
+test("describe_ui resolves native binary from different cwd (npx scenario)", async () => {
+  await withClientFromDir(os.tmpdir(), async (client) => {
+    const result = await client.callTool({
+      name: "describe_ui",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+      },
+    });
+
+    const text = result.content
+      .filter((item) => item.type === "text")
+      .map((item) => item.text)
+      .join("\n");
+
+    assert.match(text, /Executable:/);
+    assert.match(text, /baepsae-native/);
+    assert.match(text, /describe-ui/);
   });
 });
