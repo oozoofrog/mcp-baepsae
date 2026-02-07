@@ -36,7 +36,7 @@ TypeScript MCP 레이어와 Swift 네이티브 브리지를 사용하는 iOS 시
 
 ```bash
 # 설치 없이 바로 실행
-npx mcp-baepsae
+npx mcp-baepsae@latest
 
 # 또는 전역 설치
 npm install -g mcp-baepsae
@@ -89,10 +89,10 @@ bash scripts/install.sh --tool all
 
 ```bash
 # Claude Code
-claude mcp add baepsae -- npx -y mcp-baepsae
+claude mcp add baepsae -- npx -y mcp-baepsae@latest
 
 # Codex CLI
-codex mcp add baepsae -- npx -y mcp-baepsae
+codex mcp add baepsae -- npx -y mcp-baepsae@latest
 ```
 
 ### 자동화 옵션
@@ -115,8 +115,8 @@ bash scripts/install.sh --tool all --uninstall
 | 플래그 | 명령어 | 사용 시점 |
 |---|---|---|
 | `--runtime node` (기본값) | `node dist/index.js` | 소스 빌드 |
-| `--runtime npx` | `npx -y mcp-baepsae` | npm 레지스트리, 전역 설치 불필요 |
-| `--runtime bunx` | `bunx mcp-baepsae` | Bun 사용자 |
+| `--runtime npx` | `npx -y mcp-baepsae@latest` | npm 레지스트리, 전역 설치 불필요 |
+| `--runtime bunx` | `bunx mcp-baepsae@latest` | Bun 사용자 |
 | `--runtime global` | `mcp-baepsae` | `npm install -g mcp-baepsae` 이후 |
 
 ## 수동 설정 (대안)
@@ -127,13 +127,13 @@ bash scripts/install.sh --tool all --uninstall
 
 ```bash
 # Claude Code
-claude mcp add baepsae -- npx -y mcp-baepsae
+claude mcp add baepsae -- npx -y mcp-baepsae@latest
 
 # Codex CLI
-codex mcp add baepsae -- npx -y mcp-baepsae
+codex mcp add baepsae -- npx -y mcp-baepsae@latest
 
 # Gemini CLI
-gemini mcp add --scope user --transport stdio baepsae npx -y mcp-baepsae
+gemini mcp add --scope user --transport stdio baepsae npx -y mcp-baepsae@latest
 ```
 
 ### 로컬 빌드 사용
