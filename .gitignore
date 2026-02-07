@@ -13,3 +13,5 @@ opencode.json
 DerivedData/
 *.xcuserstate
 test-fixtures/SampleApp/build/
+mcp-publisher
+.mcpregistry_*
