@@ -5,12 +5,16 @@ import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 
+import { createRequire } from "node:module";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
+
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
 
 async function withClient(run) {
   const client = new Client({ name: "baepsae-contract-test", version: "1.0.0" });
@@ -92,7 +96,8 @@ test("baepsae_version returns non-error response", async () => {
       .map((item) => item.text)
       .join("\n");
 
-    assert.match(text, /mcp-baepsae 3\.1\.10/);
+    const escapedVersion = version.replace(/\./g, "\\.");
+    assert.match(text, new RegExp(`mcp-baepsae ${escapedVersion}`));
   });
 });
 
@@ -231,7 +236,8 @@ test("baepsae_version resolves native binary from different cwd (npx scenario)",
       .map((item) => item.text)
       .join("\n");
 
-    assert.match(text, /mcp-baepsae 3\.1\.10/);
+    const escapedVersion = version.replace(/\./g, "\\.");
+    assert.match(text, new RegExp(`mcp-baepsae ${escapedVersion}`));
   });
 });
 
