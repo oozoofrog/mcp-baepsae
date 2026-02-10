@@ -13,6 +13,7 @@ TypeScript MCP 레이어와 Swift 네이티브 브리지를 사용하는 iOS 시
 ## 목차
 
 - [사전 요구 사항](#사전-요구-사항)
+- [플랫폼 지원](#플랫폼-지원)
 - [설치](#설치)
 - [MCP 설정 (권장)](#mcp-설정-권장)
 - [클라이언트 매트릭스](#클라이언트-매트릭스)
@@ -29,6 +30,24 @@ TypeScript MCP 레이어와 Swift 네이티브 브리지를 사용하는 iOS 시
 - Xcode + iOS Simulator
 - Node.js 18+
 - Swift 6+
+
+## 플랫폼 지원
+
+| 플랫폼 | 지원 여부 | 비고 |
+|---|---|---|
+| macOS | 지원 | 기본 플랫폼. iOS 시뮬레이터 및 접근성 API에 필수. |
+| Linux | 미지원 | 네이티브 바이너리가 AppKit, CoreGraphics, Accessibility 프레임워크에 의존. |
+| Windows | 미지원 | 네이티브 바이너리가 AppKit, CoreGraphics, Accessibility 프레임워크에 의존. |
+
+**macOS 전용인 이유**
+
+Swift 네이티브 브리지(`baepsae-native`)는 iOS 시뮬레이터 및 macOS 애플리케이션과 상호작용하기 위해 macOS 전용 프레임워크(AppKit, CoreGraphics, Accessibility)를 사용합니다. 이 프레임워크들은 Linux나 Windows에서 사용할 수 없습니다. TypeScript MCP 레이어 또한 Xcode Command Line Tools에 포함된 `xcrun simctl`에 의존하며, 이는 macOS에서만 사용 가능합니다.
+
+**요구 사항 요약:**
+
+- **macOS 14 이상** -- iOS 시뮬레이터 자동화 및 접근성 API 접근에 필요합니다.
+- **Xcode 또는 Xcode Command Line Tools** -- 네이티브 바이너리의 Swift 6+ 컴파일 및 `xcrun simctl` 명령어 실행에 필요합니다.
+- **Node.js >= 18.0.0** -- TypeScript MCP 서버 실행에 필요합니다.
 
 ## 설치
 

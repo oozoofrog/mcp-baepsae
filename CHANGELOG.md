@@ -1,0 +1,124 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [3.1.10] - 2026-02-08
+
+### Changed
+
+- Use `@latest` tag for npx/bunx commands to ensure latest version is always used
+
+### Fixed
+
+- CI: Add develop branch trigger (closes #10)
+
+## [3.1.9] - 2026-02-08
+
+### Added
+
+- CLAUDE.md for Claude Code guidance
+- npx scenario tests for native binary path resolution
+
+### Fixed
+
+- Resolve native binary from package root instead of cwd (#3, #4)
+
+### Changed
+
+- Add mcp-publisher and token files to .gitignore
+
+## [3.1.8] - 2026-02-07
+
+### Fixed
+
+- CI: Auto-update server.json version from git tag
+
+## [3.1.7] - 2026-02-07
+
+### Fixed
+
+- CI: Split mcp-publisher login and publish steps
+
+## [3.1.6] - 2026-02-07
+
+### Added
+
+- MCP Registry auto-publish workflow
+
+## [3.1.5] - 2026-02-07
+
+### Added
+
+- mcpName field for MCP Registry
+
+## [3.1.4] - 2026-02-07
+
+### Changed
+
+- Version bump (no functional changes)
+
+## [3.1.3] - 2026-02-07
+
+### Fixed
+
+- CI: Add npm@latest for Trusted Publishing OIDC support
+
+### Changed
+
+- Split CI workflow into CI (main/PR) and Release (tags)
+
+## [3.1.2] - 2026-02-07
+
+### Changed
+
+- Improve Install and For LLM sections in README with npm support
+
+## [3.1.1] - 2026-02-07
+
+### Added
+
+- macOS app support (`--bundle-id`, `--app-name`, `list-apps`)
+- 9 new macOS tools with AX batch optimization, double-click, and macOS gesture support
+- Pagination, subtree, filter, and summary options for `describe_ui` (removed maxNodes truncation)
+- E2E real test suite with sample app and web fixtures
+- UI commands in help text with enhanced E2E accessibility waiting
+- GitHub Actions workflow for CI and NPM publishing
+- npm distribution support (`.npmignore`, `postinstall` script, npm metadata)
+- Baepsae logo and bird introduction to READMEs
+
+### Fixed
+
+- CI: Update Swift version to 6.0 to match Package.swift requirement (#1)
+- Optimize npm package size and improve install scripts
+- Address code review findings across TS, Swift, and tests
+
+### Changed
+
+- Switch to npm Trusted Publishing with OIDC
+- Update READMEs to reflect full iOS Simulator + macOS support
+- Update description
+
+## [3.1.0] - 2026-02-06
+
+### Added
+
+- Initial release of mcp-baepsae
+- TypeScript MCP layer with Zod validation
+- Swift native bridge for AppKit/CoreGraphics/Accessibility APIs
+- iOS Simulator tools: `list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`
+- UI automation tools: `describe_ui`, `tap`, `type_text`, `swipe`, `key`, `key_sequence`, `key_combo`, `touch`
+- Contract and integration tests
+
+[3.1.10]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.9...v3.1.10
+[3.1.9]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.8...v3.1.9
+[3.1.8]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.7...v3.1.8
+[3.1.7]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.6...v3.1.7
+[3.1.6]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.5...v3.1.6
+[3.1.5]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.4...v3.1.5
+[3.1.4]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.3...v3.1.4
+[3.1.3]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.2...v3.1.3
+[3.1.2]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.1...v3.1.2
+[3.1.1]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.0...v3.1.1
+[3.1.0]: https://github.com/oozoofrog/mcp-baepsae/releases/tag/v3.1.0

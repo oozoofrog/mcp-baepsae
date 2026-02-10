@@ -13,6 +13,7 @@ Local MCP server for iOS Simulator and macOS app automation with a TypeScript MC
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
+- [Platform Support](#platform-support)
 - [Install](#install)
 - [MCP Setup (Recommended)](#mcp-setup-recommended)
 - [Client Matrix](#client-matrix)
@@ -29,6 +30,24 @@ Local MCP server for iOS Simulator and macOS app automation with a TypeScript MC
 - Xcode + iOS Simulator
 - Node.js 18+
 - Swift 6+
+
+## Platform Support
+
+| Platform | Supported | Notes |
+|---|---|---|
+| macOS | Yes | Primary platform. Required for iOS Simulator and Accessibility APIs. |
+| Linux | No | Native binary depends on AppKit, CoreGraphics, and Accessibility frameworks. |
+| Windows | No | Native binary depends on AppKit, CoreGraphics, and Accessibility frameworks. |
+
+**Why macOS only?**
+
+The Swift native bridge (`baepsae-native`) uses macOS-specific frameworks (AppKit, CoreGraphics, Accessibility) to interact with iOS Simulator and macOS applications. These frameworks are not available on Linux or Windows. The TypeScript MCP layer also relies on `xcrun simctl`, which is part of Xcode Command Line Tools and only available on macOS.
+
+**Requirements summary:**
+
+- **macOS 14 or later** -- required for iOS Simulator automation and Accessibility API access.
+- **Xcode or Xcode Command Line Tools** -- required for Swift 6+ compilation of the native binary and `xcrun simctl` commands.
+- **Node.js >= 18.0.0** -- required to run the TypeScript MCP server.
 
 ## Permissions
 
