@@ -8,7 +8,7 @@ import { z } from "zod";
 import type { ToolTextResult, CommandExecutionOptions, CommandExecutionResult, ResponseOptions } from "./types.js";
 
 export const SERVER_NAME = "mcp-baepsae";
-export const SERVER_VERSION = "3.2.0";
+export const SERVER_VERSION = "3.2.1";
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
 export const NATIVE_BINARY_ENV = "BAEPSAE_NATIVE_PATH";

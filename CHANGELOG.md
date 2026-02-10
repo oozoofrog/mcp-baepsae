@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.2.1] - 2026-02-11
+
+### Fixed
+
+- Contract tests no longer hardcode version — read from package.json dynamically
+
 ## [3.2.0] - 2026-02-10
 
 ### Added
@@ -128,6 +134,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - UI automation tools: `describe_ui`, `tap`, `type_text`, `swipe`, `key`, `key_sequence`, `key_combo`, `touch`
 - Contract and integration tests
 
+[3.2.1]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.2.0...v3.2.1
 [3.2.0]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.10...v3.2.0
 [3.1.10]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.9...v3.1.10
 [3.1.9]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.8...v3.1.9
