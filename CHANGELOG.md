@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.2.0] - 2026-02-10
+
+### Added
+
+- CLI `--version` / `-v` flag support (#17)
+- TypeScript unit tests: 69 tests covering edge cases, validation, and parameter forwarding (#11)
+- Swift XCTest target: 43 tests for native binary argument parsing and error handling (#12)
+- CHANGELOG.md (#14)
+- Platform support section in README.md and README-KR.md (#19)
+
+### Changed
+
+- Refactored `src/index.ts` (1,100 lines) into 8 modular files (#8)
+- Refactored `native/Sources/main.swift` (1,829 lines) into 8 modular files (#9)
+- Improved native binary build failure error messages with platform-aware guidance (#18)
+- CI: Added develop branch trigger (#10)
+
 ## [3.1.10] - 2026-02-08
 
 ### Changed
@@ -111,6 +128,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - UI automation tools: `describe_ui`, `tap`, `type_text`, `swipe`, `key`, `key_sequence`, `key_combo`, `touch`
 - Contract and integration tests
 
+[3.2.0]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.10...v3.2.0
 [3.1.10]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.9...v3.1.10
 [3.1.9]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.8...v3.1.9
 [3.1.8]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.7...v3.1.8
