@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -252,4 +253,26 @@ test("describe_ui resolves native binary from different cwd (npx scenario)", asy
     assert.match(text, /baepsae-native/);
     assert.match(text, /describe-ui/);
   });
+});
+
+// --- CLI --version flag tests (Issue #17) ---
+
+test("--version flag prints version and exits", () => {
+  const output = execFileSync("node", ["dist/index.js", "--version"], {
+    cwd: projectRoot,
+    encoding: "utf8",
+    timeout: 5000,
+  }).trim();
+
+  assert.match(output, /^mcp-baepsae \d+\.\d+\.\d+$/);
+});
+
+test("-v flag prints version and exits", () => {
+  const output = execFileSync("node", ["dist/index.js", "-v"], {
+    cwd: projectRoot,
+    encoding: "utf8",
+    timeout: 5000,
+  }).trim();
+
+  assert.match(output, /^mcp-baepsae \d+\.\d+\.\d+$/);
 });
