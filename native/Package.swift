@@ -12,5 +12,10 @@ let package = Package(
             name: "baepsae-native",
             path: "Sources"
         ),
+        .testTarget(
+            name: "BaepsaeNativeTests",
+            dependencies: [],
+            path: "Tests/BaepsaeNativeTests"
+        ),
     ]
 )
