@@ -2,8 +2,8 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { spawn } from "node:child_process";
-import { accessSync, constants, existsSync } from "node:fs";
+import { spawn, execFileSync } from "node:child_process";
+import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { createWriteStream } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
@@ -11,6 +11,19 @@ import { z } from "zod";
 
 const SERVER_NAME = "mcp-baepsae";
 const SERVER_VERSION = "3.1.10";
+
+// --- Issue #17: CLI --version flag ---
+if (process.argv.includes("--version") || process.argv.includes("-v")) {
+  try {
+    const packageJsonPath = resolve(__dirname, "..", "package.json");
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+    console.log(`${packageJson.name} ${packageJson.version}`);
+  } catch {
+    console.log(`${SERVER_NAME} ${SERVER_VERSION}`);
+  }
+  process.exit(0);
+}
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 const NATIVE_BINARY_ENV = "BAEPSAE_NATIVE_PATH";
 const NATIVE_BINARY_NAME = process.platform === "win32" ? "baepsae-native.exe" : "baepsae-native";
@@ -116,9 +129,35 @@ function resolveNativeBinary(): string {
     }
   }
 
-  throw new Error(
-    `Native binary not found. Build it with \"npm run build:native\" or set ${NATIVE_BINARY_ENV}.`
-  );
+  // Issue #18: Provide a clearer error message depending on the environment
+  const messages: string[] = ["Native binary not found."];
+
+  if (process.platform !== "darwin") {
+    messages.push(
+      `Native features require macOS. Current platform: ${process.platform}.`
+    );
+  } else {
+    // Check if Swift toolchain is available
+    let swiftAvailable = false;
+    try {
+      execFileSync("swift", ["--version"], { stdio: "ignore" });
+      swiftAvailable = true;
+    } catch {
+      // swift not found or failed
+    }
+
+    if (!swiftAvailable) {
+      messages.push(
+        "Swift toolchain not found. Install Xcode or Xcode Command Line Tools (xcode-select --install) to enable native features."
+      );
+    } else {
+      messages.push(
+        `Build it with "npm run build:native" or set ${NATIVE_BINARY_ENV}.`
+      );
+    }
+  }
+
+  throw new Error(messages.join(" "));
 }
 
 function resolveTargetArgs(params: { udid?: string; bundleId?: string; appName?: string }): string[] | ToolTextResult {
