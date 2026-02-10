@@ -178,10 +178,14 @@ gemini mcp add --scope user --transport stdio -e BAEPSAE_NATIVE_PATH=/ABS/PATH/n
 
 ## Project Structure
 
-- MCP server: `src/index.ts`
-- Native binary project: `native/`
+- MCP server entry point: `src/index.ts`
+- Tool modules: `src/tools/` (info, simulator, ui, input, media, system)
+- Shared utilities: `src/utils.ts`, `src/types.ts`
+- Native binary entry point: `native/Sources/main.swift`
+- Native command handlers: `native/Sources/Commands/`
 - Native binary output: `native/.build/release/baepsae-native`
-- Tests: `tests/mcp.contract.test.mjs`, `tests/mcp.real.test.mjs`
+- TS tests: `tests/mcp.contract.test.mjs`, `tests/unit.test.mjs`, `tests/mcp.real.test.mjs`
+- Swift tests: `native/Tests/BaepsaeNativeTests/`
 
 ## Commands
 

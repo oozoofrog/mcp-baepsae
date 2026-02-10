@@ -170,10 +170,14 @@ gemini mcp add --scope user --transport stdio -e BAEPSAE_NATIVE_PATH=/ABS/PATH/n
 
 ## 프로젝트 구조
 
-- MCP 서버: `src/index.ts`
-- 네이티브 바이너리 프로젝트: `native/`
+- MCP 서버 진입점: `src/index.ts`
+- 도구 모듈: `src/tools/` (info, simulator, ui, input, media, system)
+- 공유 유틸리티: `src/utils.ts`, `src/types.ts`
+- 네이티브 바이너리 진입점: `native/Sources/main.swift`
+- 네이티브 커맨드 핸들러: `native/Sources/Commands/`
 - 네이티브 바이너리 출력: `native/.build/release/baepsae-native`
-- 테스트: `tests/mcp.contract.test.mjs`, `tests/mcp.real.test.mjs`
+- TS 테스트: `tests/mcp.contract.test.mjs`, `tests/unit.test.mjs`, `tests/mcp.real.test.mjs`
+- Swift 테스트: `native/Tests/BaepsaeNativeTests/`
 
 ## 명령어
 
