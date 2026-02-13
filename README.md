@@ -54,7 +54,7 @@ The Swift native bridge (`baepsae-native`) uses macOS-specific frameworks (AppKi
 **Accessibility permission is required** for UI automation features (`describe_ui`, `tap` by ID).
 
 1. Open **System Settings** > **Privacy & Security** > **Accessibility**.
-2. Enable your terminal (Terminal, iTerm2, VSCode) or command runner (`node`, `openclaw`).
+2. Enable the MCP client app and terminal you actually use, and also the runtime process (`node`) if listed.
 3. If the app is missing, click `+` and add it manually.
 
 ## Install
