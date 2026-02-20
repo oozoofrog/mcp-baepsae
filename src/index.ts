@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import type { McpServer as McpServerType } from "@modelcontextprotocol/sdk/server/mcp.js";
 
+import { PACKAGE_NAME, PACKAGE_VERSION } from "./version.js";
+
 const VERSION_FLAG_ARGS = new Set(["--version", "-v"]);
-const VERSION_FALLBACK = "mcp-baepsae 4.0.1";
 
 function hasVersionFlag(argv: string[]): boolean {
   return argv.some((arg) => VERSION_FLAG_ARGS.has(arg));
@@ -14,22 +12,7 @@ function hasVersionFlag(argv: string[]): boolean {
 
 // Fast path: avoid loading MCP SDK/tool modules when only version output is needed.
 if (hasVersionFlag(process.argv)) {
-  try {
-    const packageJsonPath = resolve(__dirname, "..", "package.json");
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
-      name?: unknown;
-      version?: unknown;
-    };
-
-    if (typeof packageJson.name === "string" && typeof packageJson.version === "string") {
-      console.log(`${packageJson.name} ${packageJson.version}`);
-      process.exit(0);
-    }
-  } catch {
-    // fall through to fallback
-  }
-
-  console.log(VERSION_FALLBACK);
+  console.log(`${PACKAGE_NAME} ${PACKAGE_VERSION}`);
   process.exit(0);
 }
 

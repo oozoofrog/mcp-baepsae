@@ -17,8 +17,9 @@
     "mcp-baepsae": "dist/index.js"
   },
   "scripts": {
-    "build:ts": "tsc",
-    "build:native": "swift build --package-path native -c release",
+    "version:sync": "node -e \"var p=require('./package.json'),fs=require('fs');fs.writeFileSync('src/version.ts','export const PACKAGE_NAME = \\\"'+p.name+'\\\";\\nexport const PACKAGE_VERSION = \\\"'+p.version+'\\\";\\n');fs.writeFileSync('native/Sources/Version.swift','let BAEPSAE_VERSION = \\\"'+p.version+'\\\"\\n')\"",
+    "build:ts": "npm run version:sync && tsc",
+    "build:native": "npm run version:sync && swift build --package-path native -c release",
     "build": "npm run build:ts && npm run build:native",
     "postinstall": "if [ \"$(uname)\" = \"Darwin\" ] && command -v swift >/dev/null 2>&1; then npm run build:native; fi",
     "prepublishOnly": "npm run build:ts",
