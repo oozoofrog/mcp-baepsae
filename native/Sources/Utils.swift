@@ -241,13 +241,16 @@ func ensureAccessibilityTrusted() throws {
     if AXIsProcessTrusted() {
         return
     }
+
     throw NativeError.commandFailed(
         """
         [Permission Denied] Accessibility access is required to read/control Simulator UI (including apps running inside it) and send input events.
 
+        Most commonly this happens because either the MCP client app or the terminal app running mcp-baepsae does not have Accessibility permission.
+
         Please enable it in macOS System Settings:
         1. Open 'System Settings' -> 'Privacy & Security' -> 'Accessibility'.
-        2. Find your terminal app (e.g. iTerm, Terminal, VSCode) or 'node'/'openclaw' in the list.
+        2. Find both the MCP client app and terminal app you used, and also the Node.js runtime ('node') in the list.
         3. Turn the switch ON.
         4. If it's already ON, try turning it OFF and ON again, or restart your terminal.
         """

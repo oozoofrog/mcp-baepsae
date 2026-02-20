@@ -56,7 +56,7 @@ The Swift native bridge (`baepsae-native`) uses macOS-specific frameworks (AppKi
 **Accessibility permission is required** for UI inspection and input automation features (use `sim_*` / `mac_*` scoped tools such as `sim_describe_ui`, `mac_tap`, `sim_right_click`).
 
 1. Open **System Settings** > **Privacy & Security** > **Accessibility**.
-2. Enable your terminal (Terminal, iTerm2, VSCode) or command runner (`node`, `openclaw`).
+2. Enable the MCP client app and terminal you actually use, and also the runtime process (`node`) if listed.
 3. If the app is missing, click `+` and add it manually.
 
 For simulator targets, selector-based actions (`sim_tap` / `sim_right_click` with `id` or `label`) search **in-app content** by default. Set `all: true` to include Simulator chrome UI.
