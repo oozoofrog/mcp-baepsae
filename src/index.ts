@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import type { McpServer as McpServerType } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 const VERSION_FLAG_ARGS = new Set(["--version", "-v"]);
-const VERSION_FALLBACK = "mcp-baepsae 4.0.0";
+const VERSION_FALLBACK = "mcp-baepsae 4.0.1";
 
 function hasVersionFlag(argv: string[]): boolean {
   return argv.some((arg) => VERSION_FLAG_ARGS.has(arg));

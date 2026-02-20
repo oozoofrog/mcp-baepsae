@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [4.0.1] - 2026-02-20
+
+### Fixed
+
+- Include `native/Tests` in npm `files` field — fixes `postinstall` Swift build failure caused by missing `BaepsaeNativeTests` target path
+- Sync hardcoded version fallbacks in `src/index.ts` and `src/utils.ts` to 4.0.1
+- Update `server.json` version from 3.1.6 to 4.0.1
+
 ## [4.0.0] - 2026-02-20
 
 ### Removed (Breaking)
@@ -162,6 +170,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - UI automation tools: `describe_ui`, `tap`, `type_text`, `swipe`, `key`, `key_sequence`, `key_combo`, `touch`
 - Contract and integration tests
 
+[4.0.1]: https://github.com/oozoofrog/mcp-baepsae/compare/v4.0.0...v4.0.1
 [4.0.0]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.2.1...v4.0.0
 [3.2.1]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.2.0...v3.2.1
 [3.2.0]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.10...v3.2.0
