@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import type { ToolTextResult } from "../types.js";
 import {
-  resolveTargetArgs,
   resolveSimulatorTargetArgs,
   resolveMacTargetArgs,
   pushOption,
@@ -26,12 +25,6 @@ type RightClickParams = {
   id?: string;
   label?: string;
   all?: boolean;
-};
-
-const mixedTargetSchema = {
-  udid: z.string().min(1).optional(),
-  bundleId: z.string().optional(),
-  appName: z.string().optional(),
 };
 
 const simTargetSchema = {
@@ -131,32 +124,6 @@ export function registerSystemTools(server: McpServer): void {
       return await runNative(buildRightClickArgs(target, params as RightClickParams));
     });
   };
-
-  registerListWindowsTool(
-    "list_windows",
-    "[DEPRECATED: use sim_list_windows or mac_list_windows] List windows of a macOS app or simulator.",
-    mixedTargetSchema,
-    resolveTargetArgs
-  );
-  registerActivateAppTool(
-    "activate_app",
-    "[DEPRECATED: use sim_activate_app or mac_activate_app] Bring a macOS app or simulator to foreground.",
-    mixedTargetSchema,
-    resolveTargetArgs
-  );
-  registerScreenshotAppTool(
-    "screenshot_app",
-    "[DEPRECATED: use sim_screenshot_app or mac_screenshot_app] Take a screenshot of a target app window.",
-    mixedTargetSchema,
-    resolveTargetArgs
-  );
-  registerRightClickTool(
-    "right_click",
-    "[DEPRECATED: use sim_right_click or mac_right_click] Right-click on an app element or coordinate.",
-    mixedTargetSchema,
-    rightClickSchema,
-    resolveTargetArgs
-  );
 
   registerListWindowsTool("sim_list_windows", "List windows in Simulator target.", simTargetSchema, resolveSimulatorTargetArgs);
   registerListWindowsTool("mac_list_windows", "List windows in macOS app target.", macTargetSchema, resolveMacTargetArgs);

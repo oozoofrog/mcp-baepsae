@@ -53,13 +53,13 @@ The Swift native bridge (`baepsae-native`) uses macOS-specific frameworks (AppKi
 
 ## Permissions
 
-**Accessibility permission is required** for UI inspection and input automation features (recommended: `sim_*` / `mac_*` scoped tools such as `sim_describe_ui`, `mac_tap`, `sim_right_click`; legacy mixed tools like `describe_ui`, `tap`, `right_click` are still supported but deprecated).
+**Accessibility permission is required** for UI inspection and input automation features (use `sim_*` / `mac_*` scoped tools such as `sim_describe_ui`, `mac_tap`, `sim_right_click`).
 
 1. Open **System Settings** > **Privacy & Security** > **Accessibility**.
 2. Enable your terminal (Terminal, iTerm2, VSCode) or command runner (`node`, `openclaw`).
 3. If the app is missing, click `+` and add it manually.
 
-For simulator targets, selector-based actions (`sim_tap` / `sim_right_click` or legacy `tap` / `right_click` with `id` or `label`) search **in-app content** by default. Set `all: true` to include Simulator chrome UI.
+For simulator targets, selector-based actions (`sim_tap` / `sim_right_click` with `id` or `label`) search **in-app content** by default. Set `all: true` to include Simulator chrome UI.
 
 ## Install
 
@@ -203,7 +203,7 @@ npm run setup:mcp   # Alias for scripts/install.sh
 
 ## MCP Tool Status
 
-62 tools implemented end-to-end.
+47 tools implemented end-to-end.
 
 ### Explicit target-scoped tools (30, recommended)
 
@@ -226,12 +226,6 @@ Use these first to avoid simulator/macOS target ambiguity.
 | `sim_list_windows` | `mac_list_windows` |
 | `sim_activate_app` | `mac_activate_app` |
 | `sim_screenshot_app` | `mac_screenshot_app` |
-
-### Legacy mixed-target tools (15, deprecated)
-
-These remain for compatibility but should be migrated to `sim_*` / `mac_*`.
-
-`describe_ui`, `search_ui`, `tap`, `type_text`, `swipe`, `key`, `key_sequence`, `key_combo`, `touch`, `right_click`, `scroll`, `drag_drop`, `list_windows`, `activate_app`, `screenshot_app`
 
 ### iOS Simulator Only (11)
 
@@ -262,8 +256,6 @@ sim_tap({ udid: "...", id: "login-button" })
 // Optional: include Simulator chrome/system UI in selector lookup
 sim_tap({ udid: "...", label: "Home", all: true })
 ```
-
-> Legacy mixed tools (`describe_ui`, `tap`, etc.) still work but are deprecated. Prefer scoped `sim_*` / `mac_*` tools.
 
 **Open a URL (iOS Simulator):**
 ```javascript

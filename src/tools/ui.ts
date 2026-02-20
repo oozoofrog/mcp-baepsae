@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import type { ToolTextResult } from "../types.js";
 import {
-  resolveTargetArgs,
   resolveSimulatorTargetArgs,
   resolveMacTargetArgs,
   pushOption,
@@ -76,12 +75,6 @@ type DragDropParams = {
   endX: number;
   endY: number;
   duration?: number;
-};
-
-const mixedTargetSchema = {
-  udid: z.string().min(1).optional().describe("Simulator UDID"),
-  bundleId: z.string().optional().describe("macOS app bundle ID"),
-  appName: z.string().optional().describe("macOS app name"),
 };
 
 const simTargetSchema = {
@@ -405,51 +398,6 @@ export function registerUITools(server: McpServer): void {
       return await runNative(buildDragDropArgs(target, params as DragDropParams));
     });
   };
-
-  // Legacy mixed-target tools (kept for compatibility)
-  registerDescribeTool(
-    "describe_ui",
-    "[DEPRECATED: use sim_describe_ui or mac_describe_ui] Describe UI hierarchy. Works with iOS Simulator (udid) or macOS app (bundleId/appName).",
-    mixedTargetSchema,
-    resolveTargetArgs
-  );
-  registerSearchTool(
-    "search_ui",
-    "[DEPRECATED: use sim_search_ui or mac_search_ui] Search for UI elements by text, identifier, or label.",
-    mixedTargetSchema,
-    resolveTargetArgs
-  );
-  registerTapTool(
-    "tap",
-    "[DEPRECATED: use sim_tap or mac_tap] Tap coordinates or element by accessibility identifier/label.",
-    mixedTargetSchema,
-    tapSchema,
-    resolveTargetArgs
-  );
-  registerTypeTool(
-    "type_text",
-    "[DEPRECATED: use sim_type_text or mac_type_text] Type text.",
-    mixedTargetSchema,
-    resolveTargetArgs
-  );
-  registerSwipeTool(
-    "swipe",
-    "[DEPRECATED: use sim_swipe or mac_swipe] Perform a swipe gesture.",
-    mixedTargetSchema,
-    resolveTargetArgs
-  );
-  registerScrollTool(
-    "scroll",
-    "[DEPRECATED: use sim_scroll or mac_scroll] Send scroll wheel events.",
-    mixedTargetSchema,
-    resolveTargetArgs
-  );
-  registerDragDropTool(
-    "drag_drop",
-    "[DEPRECATED: use sim_drag_drop or mac_drag_drop] Drag and drop between two points.",
-    mixedTargetSchema,
-    resolveTargetArgs
-  );
 
   // Explicit simulator/macOS split tools
   registerDescribeTool(

@@ -68,35 +68,50 @@ test("tools/list exposes expected MCP tools", async () => {
       "baepsae_help",
       "baepsae_version",
       "list_simulators",
+      "list_apps",
       "open_url",
       "install_app",
       "launch_app",
       "terminate_app",
       "uninstall_app",
-      "describe_ui",
-      "search_ui",
-      "tap",
-      "type_text",
-      "swipe",
       "button",
-      "key",
-      "key_sequence",
-      "key_combo",
-      "touch",
       "gesture",
       "stream_video",
       "record_video",
       "screenshot",
       "sim_describe_ui",
       "mac_describe_ui",
+      "sim_search_ui",
+      "mac_search_ui",
       "sim_tap",
       "mac_tap",
+      "sim_type_text",
+      "mac_type_text",
+      "sim_swipe",
+      "mac_swipe",
       "sim_key",
       "mac_key",
+      "sim_key_sequence",
+      "mac_key_sequence",
+      "sim_key_combo",
+      "mac_key_combo",
+      "sim_touch",
+      "mac_touch",
       "sim_right_click",
       "mac_right_click",
+      "sim_scroll",
+      "mac_scroll",
+      "sim_drag_drop",
+      "mac_drag_drop",
       "sim_list_windows",
       "mac_list_windows",
+      "sim_activate_app",
+      "mac_activate_app",
+      "sim_screenshot_app",
+      "mac_screenshot_app",
+      "menu_action",
+      "get_focused_app",
+      "clipboard",
     ];
 
     for (const name of expected) {
@@ -120,10 +135,10 @@ test("baepsae_version returns non-error response", async () => {
   });
 });
 
-test("tap validates coordinate pair before native invocation", async () => {
+test("sim_tap validates coordinate pair before native invocation", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "tap",
+      name: "sim_tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         x: 10,
@@ -139,10 +154,10 @@ test("tap validates coordinate pair before native invocation", async () => {
   });
 });
 
-test("describe_ui call is routed to native layer", async () => {
+test("sim_describe_ui call is routed to native layer", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "describe_ui",
+      name: "sim_describe_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
       },
@@ -197,10 +212,10 @@ test("mac_describe_ui routes with macOS target", async () => {
   });
 });
 
-test("tap id/label call is routed to native layer", async () => {
+test("sim_tap id/label call is routed to native layer", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "tap",
+      name: "sim_tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         id: "com.example.button",
@@ -219,10 +234,10 @@ test("tap id/label call is routed to native layer", async () => {
   });
 });
 
-test("tap forwards all=true to native --all", async () => {
+test("sim_tap forwards all=true to native --all", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "tap",
+      name: "sim_tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         id: "com.example.button",
@@ -262,10 +277,10 @@ test("sim_tap forwards simulator-scoped args", async () => {
   });
 });
 
-test("tap rejects mixing coordinate and selector inputs", async () => {
+test("sim_tap rejects mixing coordinate and selector inputs", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "tap",
+      name: "sim_tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         x: 10,
@@ -283,10 +298,10 @@ test("tap rejects mixing coordinate and selector inputs", async () => {
   });
 });
 
-test("describe_ui forwards output option to native layer", async () => {
+test("sim_describe_ui forwards output option to native layer", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "describe_ui",
+      name: "sim_describe_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         output: ".tmp-test-artifacts/describe-ui.txt",
@@ -341,10 +356,10 @@ test("baepsae_version resolves native binary from different cwd (npx scenario)",
   });
 });
 
-test("describe_ui resolves native binary from different cwd (npx scenario)", async () => {
+test("sim_describe_ui resolves native binary from different cwd (npx scenario)", async () => {
   await withClientFromDir(os.tmpdir(), async (client) => {
     const result = await client.callTool({
-      name: "describe_ui",
+      name: "sim_describe_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
       },

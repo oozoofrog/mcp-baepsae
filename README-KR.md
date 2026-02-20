@@ -53,13 +53,13 @@ Swift 네이티브 브리지(`baepsae-native`)는 iOS 시뮬레이터 및 macOS 
 
 ## 권한
 
-**접근성(Accessibility) 권한이 필요합니다.** UI 조회/입력 자동화 도구(권장: `sim_*` / `mac_*` 스코프 도구, 예: `sim_describe_ui`, `mac_tap`, `sim_right_click`)를 사용할 때 필수입니다. 기존 혼합 도구(`describe_ui`, `tap`, `right_click` 등)는 호환을 위해 유지되지만 deprecated 상태입니다.
+**접근성(Accessibility) 권한이 필요합니다.** UI 조회/입력 자동화 도구(`sim_*` / `mac_*` 스코프 도구, 예: `sim_describe_ui`, `mac_tap`, `sim_right_click`)를 사용할 때 필수입니다.
 
 1. **시스템 설정** > **개인정보 보호 및 보안** > **손쉬운 사용(Accessibility)** 로 이동합니다.
 2. 사용 중인 터미널/실행기(Terminal, iTerm2, VSCode, `node`, `openclaw`)를 허용합니다.
 3. 목록에 없으면 `+` 버튼으로 수동 추가합니다.
 
-시뮬레이터 타깃에서 선택자 기반 액션(`sim_tap`/`sim_right_click` 또는 레거시 `tap`/`right_click`의 `id`/`label`)은 기본적으로 **앱 내부 콘텐츠**를 탐색합니다. Simulator 크롬/시스템 UI까지 포함하려면 `all: true`를 사용하세요.
+시뮬레이터 타깃에서 선택자 기반 액션(`sim_tap`/`sim_right_click`의 `id`/`label`)은 기본적으로 **앱 내부 콘텐츠**를 탐색합니다. Simulator 크롬/시스템 UI까지 포함하려면 `all: true`를 사용하세요.
 
 ## 설치
 
@@ -203,7 +203,7 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 
 ## MCP 도구 구현 상태
 
-총 62개 도구가 end-to-end 구현 완료되었습니다.
+총 47개 도구가 end-to-end 구현 완료되었습니다.
 
 ### 타깃 분리 스코프 도구 (30개, 권장)
 
@@ -226,12 +226,6 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 | `sim_list_windows` | `mac_list_windows` |
 | `sim_activate_app` | `mac_activate_app` |
 | `sim_screenshot_app` | `mac_screenshot_app` |
-
-### 레거시 혼합 타깃 도구 (15개, deprecated)
-
-호환성 유지를 위해 남아 있지만 `sim_*` / `mac_*`로 마이그레이션을 권장합니다.
-
-`describe_ui`, `search_ui`, `tap`, `type_text`, `swipe`, `key`, `key_sequence`, `key_combo`, `touch`, `right_click`, `scroll`, `drag_drop`, `list_windows`, `activate_app`, `screenshot_app`
 
 ### iOS 시뮬레이터 전용 (11개)
 
@@ -262,8 +256,6 @@ sim_tap({ udid: "...", id: "login-button" })
 // 선택: Simulator 크롬/시스템 UI까지 탐색하려면
 sim_tap({ udid: "...", label: "Home", all: true })
 ```
-
-> 기존 혼합 도구(`describe_ui`, `tap` 등)는 여전히 동작하지만 deprecated 상태입니다. 새 코드에서는 `sim_*` / `mac_*` 사용을 권장합니다.
 
 ## 트러블슈팅
 

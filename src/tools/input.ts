@@ -6,7 +6,6 @@ import {
   keycodeSchema,
   BUTTON_TYPES,
   GESTURE_PRESETS,
-  resolveTargetArgs,
   resolveSimulatorTargetArgs,
   resolveMacTargetArgs,
   pushOption,
@@ -40,12 +39,6 @@ type TouchParams = {
   down?: boolean;
   up?: boolean;
   delay?: number;
-};
-
-const mixedTargetSchema = {
-  udid: z.string().min(1).optional().describe("Simulator UDID"),
-  bundleId: z.string().optional().describe("macOS app bundle ID"),
-  appName: z.string().optional().describe("macOS app name"),
 };
 
 const simTargetSchema = {
@@ -195,31 +188,6 @@ export function registerInputTools(server: McpServer): void {
       args.push("--udid", params.udid);
       return await runNative(args);
     }
-  );
-
-  registerKeyTool(
-    "key",
-    "[DEPRECATED: use sim_key or mac_key] Press a single HID keycode.",
-    mixedTargetSchema,
-    resolveTargetArgs
-  );
-  registerKeySequenceTool(
-    "key_sequence",
-    "[DEPRECATED: use sim_key_sequence or mac_key_sequence] Press multiple HID keycodes in sequence.",
-    mixedTargetSchema,
-    resolveTargetArgs
-  );
-  registerKeyComboTool(
-    "key_combo",
-    "[DEPRECATED: use sim_key_combo or mac_key_combo] Press a key while holding modifiers.",
-    mixedTargetSchema,
-    resolveTargetArgs
-  );
-  registerTouchTool(
-    "touch",
-    "[DEPRECATED: use sim_touch or mac_touch] Perform touch down/up events at coordinates.",
-    mixedTargetSchema,
-    resolveTargetArgs
   );
 
   registerKeyTool("sim_key", "Press a single HID keycode in Simulator target.", simTargetSchema, resolveSimulatorTargetArgs);
