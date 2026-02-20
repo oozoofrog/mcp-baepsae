@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tool inventory reduced from 62 to 47 after legacy removal
 - Updated help output, README, README-KR, and tests for scoped-only tool surface
 - CI/test reliability improvements for slow runners (version flag timeout + MCP request timeout)
+- Fast-path `--version`/`-v` flag: version output no longer loads MCP SDK or tool modules (dynamic import refactor)
 
 ### Migration
 
