@@ -18,7 +18,7 @@ export const SERVER_VERSION = (() => {
   } catch {
     // fall through to static fallback
   }
-  return "3.2.1";
+  return "4.0.0";
 })();
 
 export const DEFAULT_TIMEOUT_MS = 30_000;

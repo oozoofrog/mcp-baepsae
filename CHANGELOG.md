@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [4.0.0] - 2026-02-20
+
+### Removed (Breaking)
+
+- Removed 15 legacy mixed-target MCP tools:
+  - `describe_ui`, `search_ui`, `tap`, `type_text`, `swipe`, `key`, `key_sequence`, `key_combo`, `touch`, `right_click`, `scroll`, `drag_drop`, `list_windows`, `activate_app`, `screenshot_app`
+- Removed mixed-target resolver/schema path (`resolveTargetArgs`, `mixedTargetSchema`) from TypeScript tool layer
+
+### Added / Changed
+
+- Target-scoped API is now mandatory for cross-target actions:
+  - Simulator: `sim_*` (requires `udid`)
+  - macOS: `mac_*` (requires `bundleId` or `appName`)
+- Tool inventory reduced from 62 to 47 after legacy removal
+- Updated help output, README, README-KR, and tests for scoped-only tool surface
+- CI/test reliability improvements for slow runners (version flag timeout + MCP request timeout)
+
+### Migration
+
+```diff
+- describe_ui({ udid: "..." })
++ sim_describe_ui({ udid: "..." })
+
+- tap({ bundleId: "com.example.app", id: "login" })
++ mac_tap({ bundleId: "com.example.app", id: "login" })
+```
+
 ## [3.2.1] - 2026-02-11
 
 ### Fixed
@@ -134,6 +161,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - UI automation tools: `describe_ui`, `tap`, `type_text`, `swipe`, `key`, `key_sequence`, `key_combo`, `touch`
 - Contract and integration tests
 
+[4.0.0]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.2.1...v4.0.0
 [3.2.1]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.2.0...v3.2.1
 [3.2.0]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.10...v3.2.0
 [3.1.10]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.9...v3.1.10

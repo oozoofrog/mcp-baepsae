@@ -54,7 +54,7 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return 0
 
     case "--version":
-        print("baepsae-native 3.2.1")
+        print("baepsae-native 4.0.0")
         return 0
 
     case "list-simulators":
