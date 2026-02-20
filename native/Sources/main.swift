@@ -19,7 +19,7 @@ func printHelp() {
       baepsae-native search-ui <TARGET> --query <text> [--max-depth <N>] [--role <ROLE>] [--visible-only]
       baepsae-native screenshot --udid <UDID> [--output <path>]
       baepsae-native record-video --udid <UDID> [--output <path>]
-      baepsae-native tap <TARGET> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--double] [--pre-delay <S>] [--post-delay <S>]
+      baepsae-native tap <TARGET> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--all] [--double] [--pre-delay <S>] [--post-delay <S>]
       baepsae-native type <TARGET> [<TEXT> | --stdin | --file <PATH>]
       baepsae-native swipe <TARGET> --start-x <X> --start-y <Y> --end-x <X> --end-y <Y> [--duration <S>] [--pre-delay <S>] [--post-delay <S>]
       baepsae-native button --udid <UDID> <TYPE> [--duration <S>]
@@ -32,7 +32,7 @@ func printHelp() {
       baepsae-native list-windows <TARGET>
       baepsae-native activate-app <TARGET>
       baepsae-native screenshot-app <TARGET> [--output <path>]
-      baepsae-native right-click <TARGET> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--pre-delay <S>] [--post-delay <S>]
+      baepsae-native right-click <TARGET> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--all] [--pre-delay <S>] [--post-delay <S>]
       baepsae-native scroll <TARGET> [--delta-x <N>] [--delta-y <N>] [-x <X> -y <Y>]
       baepsae-native drag-drop <TARGET> --start-x <X> --start-y <Y> --end-x <X> --end-y <Y> [--duration <S>] [--pre-delay <S>] [--post-delay <S>]
       baepsae-native menu-action --bundle-id <ID> | --app-name <NAME> --menu <MENU> --item <ITEM>
@@ -54,7 +54,7 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
         return 0
 
     case "--version":
-        print("baepsae-native 3.1.10")
+        print("baepsae-native 4.0.0")
         return 0
 
     case "list-simulators":

@@ -1,19 +1,29 @@
 import { spawn, execFileSync } from "node:child_process";
-import { accessSync, constants, existsSync } from "node:fs";
-import { createWriteStream } from "node:fs";
+import { accessSync, constants, existsSync, createWriteStream, readFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { z } from "zod";
 
 import type { ToolTextResult, CommandExecutionOptions, CommandExecutionResult, ResponseOptions } from "./types.js";
 
+export const PACKAGE_ROOT = resolve(__dirname, "..");
 export const SERVER_NAME = "mcp-baepsae";
-export const SERVER_VERSION = "3.2.1";
+export const SERVER_VERSION = (() => {
+  try {
+    const packageJsonPath = resolve(PACKAGE_ROOT, "package.json");
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { version?: unknown };
+    if (typeof packageJson.version === "string" && packageJson.version.length > 0) {
+      return packageJson.version;
+    }
+  } catch {
+    // fall through to static fallback
+  }
+  return "4.0.0";
+})();
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
 export const NATIVE_BINARY_ENV = "BAEPSAE_NATIVE_PATH";
 export const NATIVE_BINARY_NAME = process.platform === "win32" ? "baepsae-native.exe" : "baepsae-native";
-export const PACKAGE_ROOT = resolve(__dirname, "..");
 
 export const BUTTON_TYPES = ["apple-pay", "home", "lock", "side-button", "siri"] as const;
 export const GESTURE_PRESETS = [
@@ -117,16 +127,27 @@ export function resolveNativeBinary(): string {
   throw new Error(messages.join(" "));
 }
 
-export function resolveTargetArgs(params: { udid?: string; bundleId?: string; appName?: string }): string[] | ToolTextResult {
-  const modes = [params.udid, params.bundleId, params.appName].filter(Boolean).length;
-  if (modes !== 1) {
+export function resolveSimulatorTargetArgs(params: { udid?: string }): string[] | ToolTextResult {
+  if (!params.udid) {
     return {
-      content: [{ type: "text", text: "Provide exactly one of udid, bundleId, or appName." }],
+      content: [{ type: "text", text: "Provide udid." }],
       isError: true,
     };
   }
-  if (params.udid) return ["--udid", params.udid];
-  if (params.bundleId) return ["--bundle-id", params.bundleId];
+  return ["--udid", params.udid];
+}
+
+export function resolveMacTargetArgs(params: { bundleId?: string; appName?: string }): string[] | ToolTextResult {
+  const modes = [params.bundleId, params.appName].filter(Boolean).length;
+  if (modes !== 1) {
+    return {
+      content: [{ type: "text", text: "Provide exactly one of bundleId or appName." }],
+      isError: true,
+    };
+  }
+  if (params.bundleId) {
+    return ["--bundle-id", params.bundleId];
+  }
   return ["--app-name", params.appName!];
 }
 

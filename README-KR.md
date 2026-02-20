@@ -15,6 +15,7 @@ TypeScript MCP 레이어와 Swift 네이티브 브리지를 사용하는 iOS 시
 - [사전 요구 사항](#사전-요구-사항)
 - [플랫폼 지원](#플랫폼-지원)
 - [설치](#설치)
+- [권한](#권한)
 - [MCP 설정 (권장)](#mcp-설정-권장)
 - [클라이언트 매트릭스](#클라이언트-매트릭스)
 - [For LLM](#for-llm)
@@ -22,6 +23,7 @@ TypeScript MCP 레이어와 Swift 네이티브 브리지를 사용하는 iOS 시
 - [프로젝트 구조](#프로젝트-구조)
 - [명령어](#명령어)
 - [MCP 도구 구현 상태](#mcp-도구-구현-상태)
+- [사용 예시](#사용-예시)
 - [트러블슈팅](#트러블슈팅)
 
 ## 사전 요구 사항
@@ -48,6 +50,16 @@ Swift 네이티브 브리지(`baepsae-native`)는 iOS 시뮬레이터 및 macOS 
 - **macOS 14 이상** -- iOS 시뮬레이터 자동화 및 접근성 API 접근에 필요합니다.
 - **Xcode 또는 Xcode Command Line Tools** -- 네이티브 바이너리의 Swift 6+ 컴파일 및 `xcrun simctl` 명령어 실행에 필요합니다.
 - **Node.js >= 18.0.0** -- TypeScript MCP 서버 실행에 필요합니다.
+
+## 권한
+
+**접근성(Accessibility) 권한이 필요합니다.** UI 조회/입력 자동화 도구(`sim_*` / `mac_*` 스코프 도구, 예: `sim_describe_ui`, `mac_tap`, `sim_right_click`)를 사용할 때 필수입니다.
+
+1. **시스템 설정** > **개인정보 보호 및 보안** > **손쉬운 사용(Accessibility)** 로 이동합니다.
+2. 사용 중인 터미널/실행기(Terminal, iTerm2, VSCode, `node`, `openclaw`)를 허용합니다.
+3. 목록에 없으면 `+` 버튼으로 수동 추가합니다.
+
+시뮬레이터 타깃에서 선택자 기반 액션(`sim_tap`/`sim_right_click`의 `id`/`label`)은 기본적으로 **앱 내부 콘텐츠**를 탐색합니다. Simulator 크롬/시스템 UI까지 포함하려면 `all: true`를 사용하세요.
 
 ## 설치
 
@@ -191,59 +203,59 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 
 ## MCP 도구 구현 상태
 
-총 32개 도구가 end-to-end 구현 완료되었습니다.
+총 47개 도구가 end-to-end 구현 완료되었습니다.
+
+### 타깃 분리 스코프 도구 (30개, 권장)
+
+시뮬레이터/맥 타깃 혼동을 줄이려면 아래 `sim_*` / `mac_*` 도구를 우선 사용하세요.
+
+| 시뮬레이터 스코프 | macOS 스코프 |
+|---|---|
+| `sim_describe_ui` | `mac_describe_ui` |
+| `sim_search_ui` | `mac_search_ui` |
+| `sim_tap` | `mac_tap` |
+| `sim_type_text` | `mac_type_text` |
+| `sim_swipe` | `mac_swipe` |
+| `sim_key` | `mac_key` |
+| `sim_key_sequence` | `mac_key_sequence` |
+| `sim_key_combo` | `mac_key_combo` |
+| `sim_touch` | `mac_touch` |
+| `sim_right_click` | `mac_right_click` |
+| `sim_scroll` | `mac_scroll` |
+| `sim_drag_drop` | `mac_drag_drop` |
+| `sim_list_windows` | `mac_list_windows` |
+| `sim_activate_app` | `mac_activate_app` |
+| `sim_screenshot_app` | `mac_screenshot_app` |
 
 ### iOS 시뮬레이터 전용 (11개)
 
-| 도구 | 설명 |
-|---|---|
-| `list_simulators` | iOS 시뮬레이터 목록 조회 |
-| `screenshot` | 시뮬레이터 스크린샷 캡처 |
-| `record_video` | 시뮬레이터 화면 녹화 |
-| `stream_video` | 비디오 프레임 스트리밍 |
-| `open_url` | 시뮬레이터에서 URL 열기 (Safari/딥링크) |
-| `install_app` | .app/.ipa 설치 |
-| `launch_app` | Bundle ID로 앱 실행 |
-| `terminate_app` | 실행 중인 앱 종료 |
-| `uninstall_app` | 앱 제거 |
-| `button` | 하드웨어 버튼 (home/lock/side/siri/apple-pay) |
-| `gesture` | 프리셋 제스처 (scroll/swipe-edge) |
+`list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture`
 
-### macOS 전용 (4개)
+### macOS / 시스템 전용 (4개)
 
-| 도구 | 설명 |
-|---|---|
-| `list_apps` | 실행 중인 macOS 앱 목록 조회 |
-| `scroll` | 스크롤 휠 이벤트 |
-| `menu_action` | 메뉴 바 액션 실행 |
-| `get_focused_app` | 포커스된 앱 정보 조회 |
-
-### 공통 — iOS 시뮬레이터 + macOS (15개)
-
-| 도구 | 설명 |
-|---|---|
-| `describe_ui` | 접근성 트리 조회 (페이지네이션, 필터, 서브트리, 요약 지원) |
-| `search_ui` | UI 요소 검색 (텍스트/ID/라벨) |
-| `tap` | 좌표 또는 ID/라벨로 탭 (더블클릭 지원) |
-| `type_text` | 텍스트 입력 |
-| `swipe` | 스와이프 제스처 |
-| `key` | HID 키코드 입력 |
-| `key_sequence` | 연속 키코드 입력 |
-| `key_combo` | 수정키 + 키 조합 |
-| `touch` | 터치 다운/업 이벤트 |
-| `right_click` | 우클릭 (ID/라벨 또는 좌표) |
-| `drag_drop` | 드래그 앤 드롭 |
-| `clipboard` | 클립보드 읽기/쓰기 |
-| `list_windows` | 앱 윈도우 목록 |
-| `activate_app` | 앱을 포그라운드로 전환 |
-| `screenshot_app` | 앱 윈도우 스크린샷 |
+`list_apps`, `menu_action`, `get_focused_app`, `clipboard`
 
 ### 유틸리티 (2개)
 
-| 도구 | 설명 |
-|---|---|
-| `baepsae_help` | 도움말 표시 |
-| `baepsae_version` | 버전 정보 표시 |
+`baepsae_help`, `baepsae_version`
+
+## 사용 예시
+
+**시뮬레이터 내부 앱 접근성 퀵스타트:**
+```javascript
+// 1) 대상 시뮬레이터에서 앱 실행
+launch_app({ udid: "...", bundleId: "com.example.app" })
+
+// 2) 접근성 트리 조회/검색 (기본: 앱 내부 콘텐츠 스코프)
+sim_describe_ui({ udid: "..." })
+sim_search_ui({ udid: "...", query: "로그인" })
+
+// 3) 접근성 ID/라벨로 상호작용
+sim_tap({ udid: "...", id: "login-button" })
+
+// 선택: Simulator 크롬/시스템 UI까지 탐색하려면
+sim_tap({ udid: "...", label: "Home", all: true })
+```
 
 ## 트러블슈팅
 

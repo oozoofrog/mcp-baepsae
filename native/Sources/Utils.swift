@@ -244,7 +244,7 @@ func ensureAccessibilityTrusted() throws {
 
     throw NativeError.commandFailed(
         """
-        [Permission Denied] Accessibility access is required to read/control the Simulator UI.
+        [Permission Denied] Accessibility access is required to read/control Simulator UI (including apps running inside it) and send input events.
 
         Most commonly this happens because either the MCP client app or the terminal app running mcp-baepsae does not have Accessibility permission.
 
@@ -808,6 +808,10 @@ func findElementBySubrole(from root: UIElement, subrole: String) -> UIElement? {
     return nil
 }
 
+func simulatorContentRootElement(from appRoot: UIElement) -> UIElement? {
+    return findElementBySubrole(from: appRoot, subrole: "iOSContentGroup")
+}
+
 // MARK: - Window / Coordinate Helpers
 
 func windowBounds(for target: TargetApp) -> CGRect? {
@@ -916,18 +920,23 @@ func activateTarget(_ target: TargetApp) throws {
 
 func activateSimulator(udid: String?) throws {
     let bundleIdentifier = "com.apple.iphonesimulator"
-    let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
-    if running.isEmpty {
-        var args = ["-a", "Simulator"]
-        if let udid, !udid.isEmpty {
-            args += ["--args", "-CurrentDeviceUDID", udid]
-        }
-        _ = try runProcess("/usr/bin/open", args)
+
+    // When UDID is provided, always pass it to Simulator so the intended device
+    // becomes current even if Simulator is already running.
+    if let udid, !udid.isEmpty {
+        _ = try runProcess("/usr/bin/open", ["-a", "Simulator", "--args", "-CurrentDeviceUDID", udid])
         Thread.sleep(forTimeInterval: 0.4)
     } else {
-        for app in running {
-            app.activate(options: [.activateAllWindows])
+        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+        if running.isEmpty {
+            _ = try runProcess("/usr/bin/open", ["-a", "Simulator"])
+            Thread.sleep(forTimeInterval: 0.4)
         }
+    }
+
+    let runningNow = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+    for app in runningNow {
+        app.activate(options: [.activateAllWindows])
     }
 }
 

@@ -4,6 +4,7 @@ import Foundation
 
 func handleKey(_ parsed: ParsedOptions) throws -> Int32 {
     let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
     try activateTarget(target)
     guard let keyString = parsed.positionals.first, let keyCode = Int(keyString) else {
         throw NativeError.invalidArguments("key requires a numeric keycode.")
@@ -15,6 +16,7 @@ func handleKey(_ parsed: ParsedOptions) throws -> Int32 {
 
 func handleKeySequence(_ parsed: ParsedOptions) throws -> Int32 {
     let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
     try activateTarget(target)
     guard let raw = parsed.options["--keycodes"] else {
         throw NativeError.invalidArguments("key-sequence requires --keycodes.")
@@ -32,6 +34,7 @@ func handleKeySequence(_ parsed: ParsedOptions) throws -> Int32 {
 
 func handleKeyCombo(_ parsed: ParsedOptions) throws -> Int32 {
     let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
     try activateTarget(target)
     guard let rawModifiers = parsed.options["--modifiers"],
           let rawKey = parsed.options["--key"],
@@ -46,6 +49,7 @@ func handleKeyCombo(_ parsed: ParsedOptions) throws -> Int32 {
 func handleButton(_ parsed: ParsedOptions) throws -> Int32 {
     let target = try resolveTarget(from: parsed)
     let udid = try requireSimulatorUdid(target)
+    try ensureAccessibilityTrusted()
     try activateSimulator(udid: udid)
     guard let buttonType = parsed.positionals.first else {
         throw NativeError.invalidArguments("button requires a button type.")
@@ -71,6 +75,7 @@ func handleButton(_ parsed: ParsedOptions) throws -> Int32 {
 
 func handleTouch(_ parsed: ParsedOptions) throws -> Int32 {
     let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
     let xRaw = parsed.options["-x"]
     let yRaw = parsed.options["-y"]
     guard let xRaw, let yRaw, let x = Double(xRaw), let y = Double(yRaw) else {
@@ -112,6 +117,7 @@ func handleGesture(_ parsed: ParsedOptions) throws -> Int32 {
     let duration = try optionalDoubleOption("--duration", from: parsed)
     let screenWidth = try optionalDoubleOption("--screen-width", from: parsed)
     let screenHeight = try optionalDoubleOption("--screen-height", from: parsed)
+    try ensureAccessibilityTrusted()
     try activateTarget(target)
     let bounds = simulatorWindowBounds()
     let width = screenWidth ?? Double(bounds?.width ?? 0)

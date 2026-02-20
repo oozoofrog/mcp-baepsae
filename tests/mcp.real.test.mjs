@@ -50,8 +50,8 @@ function isAccessibilityDenied(text) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Poll describe_ui until check(text) returns true or timeout.
- * Returns the last describe_ui text.
+ * Poll sim_describe_ui until check(text) returns true or timeout.
+ * Returns the last sim_describe_ui text.
  */
 async function waitForUI(client, udid, focusId, check, timeoutMs = 5000) {
   const interval = 500;
@@ -60,7 +60,7 @@ async function waitForUI(client, udid, focusId, check, timeoutMs = 5000) {
   while (Date.now() < deadline) {
     const args = { udid };
     if (focusId) args.focusId = focusId;
-    const result = await client.callTool({ name: "describe_ui", arguments: args });
+    const result = await client.callTool({ name: "sim_describe_ui", arguments: args });
     lastText = extractText(result);
     if (!result.isError && check(lastText)) return lastText;
     await sleep(interval);
@@ -72,7 +72,7 @@ async function waitForUI(client, udid, focusId, check, timeoutMs = 5000) {
  * Detect if a context menu (Cut/Copy/Paste) is visible in the UI.
  */
 async function hasContextMenu(client, udid) {
-  const result = await client.callTool({ name: "describe_ui", arguments: { udid } });
+  const result = await client.callTool({ name: "sim_describe_ui", arguments: { udid } });
   const text = extractText(result);
   return /\b(Cut|Copy|Paste|Select All|Select)\b/.test(text);
 }
@@ -84,11 +84,11 @@ async function hasContextMenu(client, udid) {
 async function dismissContextMenu(client, udid) {
   if (!(await hasContextMenu(client, udid))) return false;
   // Send Escape key (keycode 41 in HID) to dismiss
-  await client.callTool({ name: "key", arguments: { udid, keycode: 41 } });
+  await client.callTool({ name: "sim_key", arguments: { udid, keycode: 41 } });
   await sleep(500);
   // If still present, tap an empty area
   if (await hasContextMenu(client, udid)) {
-    await client.callTool({ name: "tap", arguments: { udid, x: 200, y: 50 } });
+    await client.callTool({ name: "sim_tap", arguments: { udid, x: 200, y: 50 } });
     await sleep(500);
   }
   return true;
@@ -263,7 +263,7 @@ test("Phase 1: stream_video → 2s stream, file created", { timeout: 60_000 }, a
 
 // ─── Phase 2: Accessibility (requires permissions) ──────────────────────────
 
-test("Phase 2: describe_ui → contains page elements", { timeout: 30_000 }, async (t) => {
+test("Phase 2: sim_describe_ui → contains page elements", { timeout: 30_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -273,7 +273,7 @@ test("Phase 2: describe_ui → contains page elements", { timeout: 30_000 }, asy
     }
 
     const result = await client.callTool({
-      name: "describe_ui",
+      name: "sim_describe_ui",
       arguments: { udid },
     });
     const text = extractText(result);
@@ -282,12 +282,12 @@ test("Phase 2: describe_ui → contains page elements", { timeout: 30_000 }, asy
       t.skip("Accessibility permission denied");
       return;
     }
-    assert.equal(result.isError ?? false, false, "describe_ui should not error");
+    assert.equal(result.isError ?? false, false, "sim_describe_ui should not error");
     assert.ok(text.length > 0, "describe_ui should return non-empty output");
   });
 });
 
-test("Phase 2: search_ui → find 'Baepsae' on page", { timeout: 30_000 }, async (t) => {
+test("Phase 2: sim_search_ui → find 'Baepsae' on page", { timeout: 30_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -297,7 +297,7 @@ test("Phase 2: search_ui → find 'Baepsae' on page", { timeout: 30_000 }, async
     }
 
     const result = await client.callTool({
-      name: "search_ui",
+      name: "sim_search_ui",
       arguments: { udid, query: "Baepsae" },
     });
     const text = extractText(result);
@@ -306,12 +306,12 @@ test("Phase 2: search_ui → find 'Baepsae' on page", { timeout: 30_000 }, async
       t.skip("Accessibility permission denied");
       return;
     }
-    assert.equal(result.isError ?? false, false, "search_ui should not error");
+    assert.equal(result.isError ?? false, false, "sim_search_ui should not error");
     assert.ok(text.length > 0, "search_ui should return results");
   });
 });
 
-test("Phase 2: tap → tap by label 'Tap Me'", { timeout: 45_000 }, async (t) => {
+test("Phase 2: sim_tap → tap by label 'Tap Me'", { timeout: 45_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -330,7 +330,7 @@ test("Phase 2: tap → tap by label 'Tap Me'", { timeout: 45_000 }, async (t) =>
     await relaunchSampleApp(client, udid);
 
     const result = await client.callTool({
-      name: "tap",
+      name: "sim_tap",
       arguments: { udid, label: "Tap Me" },
     });
     const text = extractText(result);
@@ -339,14 +339,14 @@ test("Phase 2: tap → tap by label 'Tap Me'", { timeout: 45_000 }, async (t) =>
       t.skip("Accessibility permission denied");
       return;
     }
-    assert.equal(result.isError ?? false, false, "tap should not error");
+    assert.equal(result.isError ?? false, false, "sim_tap should not error");
 
     // Wait for UI to settle after tap
     await sleep(500);
   });
 });
 
-test("Phase 2: type_text → tap input, type text, verify result", { timeout: 45_000 }, async (t) => {
+test("Phase 2: sim_type_text → tap input, type text, verify result", { timeout: 45_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -366,7 +366,7 @@ test("Phase 2: type_text → tap input, type text, verify result", { timeout: 45
 
     // Tap on the text input field to give it focus
     const tapResult = await client.callTool({
-      name: "tap",
+      name: "sim_tap",
       arguments: { udid, id: "test-input" },
     });
     if (tapResult.isError && isAccessibilityDenied(extractText(tapResult))) {
@@ -378,10 +378,10 @@ test("Phase 2: type_text → tap input, type text, verify result", { timeout: 45
 
     // Type text into the focused input
     const typeResult = await client.callTool({
-      name: "type_text",
+      name: "sim_type_text",
       arguments: { udid, text: "Hello Baepsae" },
     });
-    assert.equal(typeResult.isError ?? false, false, "type_text should not error");
+    assert.equal(typeResult.isError ?? false, false, "sim_type_text should not error");
     await sleep(500);
 
     // Dismiss context menu if it appeared after type_text
@@ -391,7 +391,7 @@ test("Phase 2: type_text → tap input, type text, verify result", { timeout: 45
     // HID typing via CGEvent may not produce exact text depending on simulator
     // keyboard language/focus state, so we only check that some text was entered.
     const describeResult = await client.callTool({
-      name: "describe_ui",
+      name: "sim_describe_ui",
       arguments: { udid, focusId: "test-result" },
     });
     if (!describeResult.isError) {
@@ -401,7 +401,7 @@ test("Phase 2: type_text → tap input, type text, verify result", { timeout: 45
   });
 });
 
-test("Phase 2: type_text → stdinText mode", { timeout: 45_000 }, async (t) => {
+test("Phase 2: sim_type_text → stdinText mode", { timeout: 45_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -421,7 +421,7 @@ test("Phase 2: type_text → stdinText mode", { timeout: 45_000 }, async (t) => 
 
     // Tap on input to focus
     const tapResult = await client.callTool({
-      name: "tap",
+      name: "sim_tap",
       arguments: { udid, id: "test-input" },
     });
     if (tapResult.isError && isAccessibilityDenied(extractText(tapResult))) {
@@ -432,10 +432,10 @@ test("Phase 2: type_text → stdinText mode", { timeout: 45_000 }, async (t) => 
 
     // Type via stdinText mode
     const typeResult = await client.callTool({
-      name: "type_text",
+      name: "sim_type_text",
       arguments: { udid, stdinText: "stdin mode test" },
     });
-    assert.equal(typeResult.isError ?? false, false, "type_text with stdinText should not error");
+    assert.equal(typeResult.isError ?? false, false, "sim_type_text with stdinText should not error");
     await sleep(500);
 
     // Dismiss context menu if it appeared after type_text
@@ -443,7 +443,7 @@ test("Phase 2: type_text → stdinText mode", { timeout: 45_000 }, async (t) => 
 
     // Verify that test-result has some text (stdinText may not inject all characters via HID)
     const describeResult = await client.callTool({
-      name: "describe_ui",
+      name: "sim_describe_ui",
       arguments: { udid, focusId: "test-result" },
     });
     if (!describeResult.isError) {
@@ -454,7 +454,7 @@ test("Phase 2: type_text → stdinText mode", { timeout: 45_000 }, async (t) => 
   });
 });
 
-test("Phase 2: type_text → empty text should error", { timeout: 30_000 }, async (t) => {
+test("Phase 2: sim_type_text → empty text should error", { timeout: 30_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -465,14 +465,14 @@ test("Phase 2: type_text → empty text should error", { timeout: 30_000 }, asyn
 
     // Call type_text with no text/stdinText/file — should error
     const result = await client.callTool({
-      name: "type_text",
+      name: "sim_type_text",
       arguments: { udid },
     });
-    assert.ok(result.isError, "type_text with no text source should error");
+    assert.ok(result.isError, "sim_type_text with no text source should error");
   });
 });
 
-test("Phase 2: swipe → coordinate-based swipe", { timeout: 30_000 }, async (t) => {
+test("Phase 2: sim_swipe → coordinate-based swipe", { timeout: 30_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -482,7 +482,7 @@ test("Phase 2: swipe → coordinate-based swipe", { timeout: 30_000 }, async (t)
     }
 
     const result = await client.callTool({
-      name: "swipe",
+      name: "sim_swipe",
       arguments: { udid, startX: 200, startY: 400, endX: 200, endY: 200, duration: 0.5 },
     });
     const text = extractText(result);
@@ -491,7 +491,7 @@ test("Phase 2: swipe → coordinate-based swipe", { timeout: 30_000 }, async (t)
       t.skip("Accessibility permission denied");
       return;
     }
-    assert.equal(result.isError ?? false, false, "swipe should not error");
+    assert.equal(result.isError ?? false, false, "sim_swipe should not error");
     await sleep(500);
   });
 });
@@ -519,7 +519,7 @@ test("Phase 2: gesture → scroll-down preset", { timeout: 30_000 }, async (t) =
   });
 });
 
-test("Phase 2: key → send keycode", { timeout: 30_000 }, async (t) => {
+test("Phase 2: sim_key → send keycode", { timeout: 30_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -530,7 +530,7 @@ test("Phase 2: key → send keycode", { timeout: 30_000 }, async (t) => {
 
     // keycode 4 = 'a' in HID
     const result = await client.callTool({
-      name: "key",
+      name: "sim_key",
       arguments: { udid, keycode: 4 },
     });
     const text = extractText(result);
@@ -539,11 +539,11 @@ test("Phase 2: key → send keycode", { timeout: 30_000 }, async (t) => {
       t.skip("Accessibility permission denied");
       return;
     }
-    assert.equal(result.isError ?? false, false, "key should not error");
+    assert.equal(result.isError ?? false, false, "sim_key should not error");
   });
 });
 
-test("Phase 2: key_sequence → send multiple keycodes", { timeout: 30_000 }, async (t) => {
+test("Phase 2: sim_key_sequence → send multiple keycodes", { timeout: 30_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -554,7 +554,7 @@ test("Phase 2: key_sequence → send multiple keycodes", { timeout: 30_000 }, as
 
     // keycodes 4,5,6 = 'a','b','c'
     const result = await client.callTool({
-      name: "key_sequence",
+      name: "sim_key_sequence",
       arguments: { udid, keycodes: [4, 5, 6] },
     });
     const text = extractText(result);
@@ -563,11 +563,11 @@ test("Phase 2: key_sequence → send multiple keycodes", { timeout: 30_000 }, as
       t.skip("Accessibility permission denied");
       return;
     }
-    assert.equal(result.isError ?? false, false, "key_sequence should not error");
+    assert.equal(result.isError ?? false, false, "sim_key_sequence should not error");
   });
 });
 
-test("Phase 2: key_combo → modifier + key", { timeout: 30_000 }, async (t) => {
+test("Phase 2: sim_key_combo → modifier + key", { timeout: 30_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -578,7 +578,7 @@ test("Phase 2: key_combo → modifier + key", { timeout: 30_000 }, async (t) => 
 
     // modifier 224 = left ctrl, key 4 = 'a' (Ctrl+A)
     const result = await client.callTool({
-      name: "key_combo",
+      name: "sim_key_combo",
       arguments: { udid, modifiers: [224], key: 4 },
     });
     const text = extractText(result);
@@ -587,7 +587,7 @@ test("Phase 2: key_combo → modifier + key", { timeout: 30_000 }, async (t) => 
       t.skip("Accessibility permission denied");
       return;
     }
-    assert.equal(result.isError ?? false, false, "key_combo should not error");
+    assert.equal(result.isError ?? false, false, "sim_key_combo should not error");
   });
 });
 
@@ -614,7 +614,7 @@ test("Phase 2: button → home button", { timeout: 30_000 }, async (t) => {
   });
 });
 
-test("Phase 2: touch → down/up events", { timeout: 30_000 }, async (t) => {
+test("Phase 2: sim_touch → down/up events", { timeout: 30_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -624,7 +624,7 @@ test("Phase 2: touch → down/up events", { timeout: 30_000 }, async (t) => {
     }
 
     const result = await client.callTool({
-      name: "touch",
+      name: "sim_touch",
       arguments: { udid, x: 200, y: 300, down: true, up: true },
     });
     const text = extractText(result);
@@ -633,7 +633,7 @@ test("Phase 2: touch → down/up events", { timeout: 30_000 }, async (t) => {
       t.skip("Accessibility permission denied");
       return;
     }
-    assert.equal(result.isError ?? false, false, "touch should not error");
+    assert.equal(result.isError ?? false, false, "sim_touch should not error");
   });
 });
 
@@ -662,7 +662,7 @@ async function relaunchSampleApp(client, udid) {
 
 // ─── Phase 2b: UI interaction with state verification ────────────────────────
 
-test("Phase 2b: tap by id → verify label changes to 'Tapped!'", { timeout: 45_000 }, async (t) => {
+test("Phase 2b: sim_tap by id → verify label changes to 'Tapped!'", { timeout: 45_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -682,7 +682,7 @@ test("Phase 2b: tap by id → verify label changes to 'Tapped!'", { timeout: 45_
 
     // Verify initial label is "Ready"
     const beforeResult = await client.callTool({
-      name: "describe_ui",
+      name: "sim_describe_ui",
       arguments: { udid, focusId: "test-label" },
     });
     const beforeText = extractText(beforeResult);
@@ -694,10 +694,10 @@ test("Phase 2b: tap by id → verify label changes to 'Tapped!'", { timeout: 45_
 
     // Tap button by accessibility id
     const tapResult = await client.callTool({
-      name: "tap",
+      name: "sim_tap",
       arguments: { udid, id: "test-button" },
     });
-    assert.equal(tapResult.isError ?? false, false, "tap by id should not error");
+    assert.equal(tapResult.isError ?? false, false, "sim_tap by id should not error");
 
     // Wait for UI to reflect the tap, then verify label changed to "Tapped!"
     const afterText = await waitForUI(client, udid, "test-label", (text) => text.includes("Tapped!"), 5000);
@@ -705,7 +705,7 @@ test("Phase 2b: tap by id → verify label changes to 'Tapped!'", { timeout: 45_
   });
 });
 
-test("Phase 2b: swipe → verify list scroll changes visible items", { timeout: 45_000 }, async (t) => {
+test("Phase 2b: sim_swipe → verify list scroll changes visible items", { timeout: 45_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
@@ -725,7 +725,7 @@ test("Phase 2b: swipe → verify list scroll changes visible items", { timeout: 
 
     // Describe UI before swipe to capture visible list items
     const beforeResult = await client.callTool({
-      name: "describe_ui",
+      name: "sim_describe_ui",
       arguments: { udid, focusId: "test-list" },
     });
     const beforeText = extractText(beforeResult);
@@ -733,23 +733,23 @@ test("Phase 2b: swipe → verify list scroll changes visible items", { timeout: 
       t.skip("Accessibility permission denied");
       return;
     }
-    assert.equal(beforeResult.isError ?? false, false, "describe_ui before swipe should not error");
+    assert.equal(beforeResult.isError ?? false, false, "sim_describe_ui before swipe should not error");
 
     // Swipe up on the list area to scroll down
     const swipeResult = await client.callTool({
-      name: "swipe",
+      name: "sim_swipe",
       arguments: { udid, startX: 200, startY: 600, endX: 200, endY: 300, duration: 0.3 },
     });
-    assert.equal(swipeResult.isError ?? false, false, "swipe should not error");
+    assert.equal(swipeResult.isError ?? false, false, "sim_swipe should not error");
     await sleep(500);
 
     // Describe UI after swipe
     const afterResult = await client.callTool({
-      name: "describe_ui",
+      name: "sim_describe_ui",
       arguments: { udid, focusId: "test-list" },
     });
     const afterText = extractText(afterResult);
-    assert.equal(afterResult.isError ?? false, false, "describe_ui after swipe should not error");
+    assert.equal(afterResult.isError ?? false, false, "sim_describe_ui after swipe should not error");
 
     // After scrolling, the visible items should differ (later items should appear)
     // At minimum, the output should have changed
@@ -783,7 +783,7 @@ test("Phase 2b: integrated workflow → tap, type, verify, swipe", { timeout: 60
 
     // Step 2: Tap button and verify label changed
     const tapBtnResult = await client.callTool({
-      name: "tap",
+      name: "sim_tap",
       arguments: { udid, id: "test-button" },
     });
     if (tapBtnResult.isError && isAccessibilityDenied(extractText(tapBtnResult))) {
@@ -797,17 +797,17 @@ test("Phase 2b: integrated workflow → tap, type, verify, swipe", { timeout: 60
 
     // Step 3: Tap input field and type text
     const tapInputResult = await client.callTool({
-      name: "tap",
+      name: "sim_tap",
       arguments: { udid, id: "test-input" },
     });
     assert.equal(tapInputResult.isError ?? false, false, "tap test-input should not error");
     await sleep(500);
 
     const typeResult = await client.callTool({
-      name: "type_text",
+      name: "sim_type_text",
       arguments: { udid, text: "workflow test" },
     });
-    assert.equal(typeResult.isError ?? false, false, "type_text should not error");
+    assert.equal(typeResult.isError ?? false, false, "sim_type_text should not error");
     await sleep(500);
 
     // Dismiss context menu if it appeared after type_text
@@ -815,7 +815,7 @@ test("Phase 2b: integrated workflow → tap, type, verify, swipe", { timeout: 60
 
     // Step 4: Verify typed text appears in test-result (may not exist if HID typing didn't work)
     const resultDescribe = await client.callTool({
-      name: "describe_ui",
+      name: "sim_describe_ui",
       arguments: { udid, focusId: "test-result" },
     });
     if (!resultDescribe.isError) {
@@ -830,14 +830,14 @@ test("Phase 2b: integrated workflow → tap, type, verify, swipe", { timeout: 60
     const beforeSwipeText = await waitForUI(client, udid, "test-list", (text) => /Item\s+\d/.test(text), 5000);
 
     const swipeResult = await client.callTool({
-      name: "swipe",
+      name: "sim_swipe",
       arguments: { udid, startX: 200, startY: 600, endX: 200, endY: 300, duration: 0.3 },
     });
-    assert.equal(swipeResult.isError ?? false, false, "swipe should not error");
+    assert.equal(swipeResult.isError ?? false, false, "sim_swipe should not error");
     await sleep(500);
 
     const afterSwipe = await client.callTool({
-      name: "describe_ui",
+      name: "sim_describe_ui",
       arguments: { udid, focusId: "test-list" },
     });
     const afterSwipeText = extractText(afterSwipe);
@@ -983,7 +983,7 @@ async function isSafariAvailable() {
 }
 
 /**
- * Poll search_ui for a macOS app until check(text) returns true or timeout.
+ * Poll mac_search_ui for a macOS app until check(text) returns true or timeout.
  */
 async function waitForMacUI(client, bundleId, query, check, timeoutMs = 5000) {
   const interval = 500;
@@ -991,7 +991,7 @@ async function waitForMacUI(client, bundleId, query, check, timeoutMs = 5000) {
   let lastText = "";
   while (Date.now() < deadline) {
     const result = await client.callTool({
-      name: "search_ui",
+      name: "mac_search_ui",
       arguments: { bundleId, query },
     });
     lastText = extractText(result);
@@ -1026,7 +1026,7 @@ test("Phase 4: macOS Safari → list_apps includes Safari", { timeout: 30_000 },
   });
 });
 
-test("Phase 4: macOS Safari → search_ui finds Ready status", { timeout: 30_000 }, async (t) => {
+test("Phase 4: macOS Safari → mac_search_ui finds Ready status", { timeout: 30_000 }, async (t) => {
   if (!isMacOS() || isCI()) {
     t.skip("macOS-only test, skipped in CI");
     return;
@@ -1051,11 +1051,11 @@ test("Phase 4: macOS Safari → search_ui finds Ready status", { timeout: 30_000
       t.skip("Accessibility permission denied");
       return;
     }
-    assert.ok(text.includes("Ready"), `search_ui should find 'Ready' status, got: ${text}`);
+    assert.ok(text.includes("Ready"), `mac_search_ui should find 'Ready' status, got: ${text}`);
   });
 });
 
-test("Phase 4: macOS Safari → tap button and verify state change", { timeout: 45_000 }, async (t) => {
+test("Phase 4: macOS Safari → mac_tap button and verify state change", { timeout: 45_000 }, async (t) => {
   if (!isMacOS() || isCI()) {
     t.skip("macOS-only test, skipped in CI");
     return;
@@ -1070,7 +1070,7 @@ test("Phase 4: macOS Safari → tap button and verify state change", { timeout: 
 
     // Reset state first
     const resetResult = await client.callTool({
-      name: "tap",
+      name: "mac_tap",
       arguments: { bundleId: "com.apple.Safari", label: "Reset All" },
     });
     if (resetResult.isError && isAccessibilityDenied(extractText(resetResult))) {
@@ -1091,10 +1091,10 @@ test("Phase 4: macOS Safari → tap button and verify state change", { timeout: 
 
     // Tap Click Me button
     const tapResult = await client.callTool({
-      name: "tap",
+      name: "mac_tap",
       arguments: { bundleId: "com.apple.Safari", label: "Click Me" },
     });
-    assert.equal(tapResult.isError ?? false, false, "tap Click Me should not error");
+    assert.equal(tapResult.isError ?? false, false, "mac_tap Click Me should not error");
     await sleep(500);
 
     // Verify state changed
@@ -1109,7 +1109,7 @@ test("Phase 4: macOS Safari → tap button and verify state change", { timeout: 
   });
 });
 
-test("Phase 4: macOS Safari → describe_ui returns window hierarchy", { timeout: 30_000 }, async (t) => {
+test("Phase 4: macOS Safari → mac_describe_ui returns window hierarchy", { timeout: 30_000 }, async (t) => {
   if (!isMacOS() || isCI()) {
     t.skip("macOS-only test, skipped in CI");
     return;
@@ -1123,7 +1123,7 @@ test("Phase 4: macOS Safari → describe_ui returns window hierarchy", { timeout
     }
 
     const result = await client.callTool({
-      name: "describe_ui",
+      name: "mac_describe_ui",
       arguments: { bundleId: "com.apple.Safari" },
     });
     const text = extractText(result);
@@ -1132,13 +1132,13 @@ test("Phase 4: macOS Safari → describe_ui returns window hierarchy", { timeout
       t.skip("Accessibility permission denied");
       return;
     }
-    assert.equal(result.isError ?? false, false, "describe_ui should not error");
-    assert.ok(text.includes("AXWindow"), "describe_ui should include AXWindow element");
-    assert.ok(text.includes("AXToolbar"), "describe_ui should include AXToolbar element");
+    assert.equal(result.isError ?? false, false, "mac_describe_ui should not error");
+    assert.ok(text.includes("AXWindow"), "mac_describe_ui should include AXWindow element");
+    assert.ok(text.includes("AXToolbar"), "mac_describe_ui should include AXToolbar element");
   });
 });
 
-test("Phase 4: macOS Safari → tap Reset All restores Ready state", { timeout: 45_000 }, async (t) => {
+test("Phase 4: macOS Safari → mac_tap Reset All restores Ready state", { timeout: 45_000 }, async (t) => {
   if (!isMacOS() || isCI()) {
     t.skip("macOS-only test, skipped in CI");
     return;
@@ -1153,7 +1153,7 @@ test("Phase 4: macOS Safari → tap Reset All restores Ready state", { timeout: 
 
     // Tap Click Me to change state
     const tapResult = await client.callTool({
-      name: "tap",
+      name: "mac_tap",
       arguments: { bundleId: "com.apple.Safari", label: "Click Me" },
     });
     if (tapResult.isError && isAccessibilityDenied(extractText(tapResult))) {
@@ -1174,10 +1174,10 @@ test("Phase 4: macOS Safari → tap Reset All restores Ready state", { timeout: 
 
     // Tap Reset All
     const resetResult = await client.callTool({
-      name: "tap",
+      name: "mac_tap",
       arguments: { bundleId: "com.apple.Safari", label: "Reset All" },
     });
-    assert.equal(resetResult.isError ?? false, false, "tap Reset All should not error");
+    assert.equal(resetResult.isError ?? false, false, "mac_tap Reset All should not error");
     await sleep(500);
 
     // Verify state restored to Ready

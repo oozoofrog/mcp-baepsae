@@ -12,9 +12,9 @@ func handleDescribeUI(_ parsed: ParsedOptions) throws -> Int32 {
 
     switch target {
     case .simulator:
-        // Default behavior: Focus on iOSContentGroup unless --all is specified
+        // Default behavior: Focus on in-app content group unless --all is specified
         if !parsed.flags.contains("--all") {
-            if let contentGroup = findElementBySubrole(from: appRoot, subrole: "iOSContentGroup") {
+            if let contentGroup = simulatorContentRootElement(from: appRoot) {
                 targetRoot = contentGroup
             }
         }
@@ -96,7 +96,7 @@ func handleSearchUI(_ parsed: ParsedOptions) throws -> Int32 {
     let appRoot = try accessibilityRootElement(for: target)
     var searchRoot = appRoot
     if case .simulator = target {
-        if let contentGroup = findElementBySubrole(from: appRoot, subrole: "iOSContentGroup") {
+        if let contentGroup = simulatorContentRootElement(from: appRoot) {
             searchRoot = contentGroup
         }
     }
@@ -130,6 +130,7 @@ func handleTap(_ parsed: ParsedOptions) throws -> Int32 {
     let accessibilityId = parsed.options["--id"]
     let accessibilityLabel = parsed.options["--label"]
     let isDouble = parsed.flags.contains("--double")
+    let includeAll = parsed.flags.contains("--all")
     if accessibilityId != nil || accessibilityLabel != nil {
         let preDelay = try optionalDoubleOption("--pre-delay", from: parsed) ?? 0
         let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
@@ -141,8 +142,15 @@ func handleTap(_ parsed: ParsedOptions) throws -> Int32 {
         }
 
         let root = try accessibilityRootElement(for: target)
+        let searchRoot: UIElement
+        if case .simulator = target, !includeAll {
+            searchRoot = simulatorContentRootElement(from: root) ?? root
+        } else {
+            searchRoot = root
+        }
+
         guard let matchedElement = findAccessibilityElement(
-            in: root,
+            in: searchRoot,
             identifier: accessibilityId,
             label: accessibilityLabel
         ) else {
@@ -153,7 +161,11 @@ func handleTap(_ parsed: ParsedOptions) throws -> Int32 {
             if let accessibilityLabel {
                 selectors.append("label='\(accessibilityLabel)'")
             }
-            throw NativeError.commandFailed("No accessibility element matched \(selectors.joined(separator: " and ")).")
+            let selectorText = selectors.joined(separator: " and ")
+            if case .simulator = target, !includeAll {
+                throw NativeError.commandFailed("No accessibility element matched \(selectorText) in simulator app content. Try --all to include Simulator chrome UI.")
+            }
+            throw NativeError.commandFailed("No accessibility element matched \(selectorText).")
         }
 
         if isDouble {
@@ -208,6 +220,7 @@ func handleTap(_ parsed: ParsedOptions) throws -> Int32 {
 
 func handleType(_ parsed: ParsedOptions) throws -> Int32 {
     let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
     try activateTarget(target)
     let text: String
     if parsed.flags.contains("--stdin") {
@@ -239,6 +252,7 @@ func handleSwipe(_ parsed: ParsedOptions) throws -> Int32 {
     let duration = try optionalDoubleOption("--duration", from: parsed)
     let preDelay = try optionalDoubleOption("--pre-delay", from: parsed) ?? 0
     let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
+    try ensureAccessibilityTrusted()
     try activateTarget(target)
     if preDelay > 0 {
         Thread.sleep(forTimeInterval: preDelay)
@@ -254,6 +268,7 @@ func handleSwipe(_ parsed: ParsedOptions) throws -> Int32 {
 
 func handleScroll(_ parsed: ParsedOptions) throws -> Int32 {
     let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
     try activateTarget(target)
     let deltaX = try optionalDoubleOption("--delta-x", from: parsed) ?? 0
     let deltaY = try optionalDoubleOption("--delta-y", from: parsed) ?? 0

@@ -15,3 +15,7 @@ DerivedData/
 test-fixtures/SampleApp/build/
 mcp-publisher
 .mcpregistry_*
+
+# Local/personal AI tool settings
+.claude/
+.entire/
