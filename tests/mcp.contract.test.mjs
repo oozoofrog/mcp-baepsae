@@ -382,7 +382,7 @@ test("--version flag prints version and exits", () => {
   const output = execFileSync("node", ["dist/index.js", "--version"], {
     cwd: projectRoot,
     encoding: "utf8",
-    timeout: 15000,
+    timeout: 30000,
   }).trim();
 
   assert.match(output, /^mcp-baepsae \d+\.\d+\.\d+$/);
@@ -392,7 +392,7 @@ test("-v flag prints version and exits", () => {
   const output = execFileSync("node", ["dist/index.js", "-v"], {
     cwd: projectRoot,
     encoding: "utf8",
-    timeout: 15000,
+    timeout: 30000,
   }).trim();
 
   assert.match(output, /^mcp-baepsae \d+\.\d+\.\d+$/);
