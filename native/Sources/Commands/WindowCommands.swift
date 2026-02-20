@@ -4,10 +4,11 @@ import Foundation
 
 func handleRightClick(_ parsed: ParsedOptions) throws -> Int32 {
     let target = try resolveTarget(from: parsed)
-    try activateTarget(target)
     try ensureAccessibilityTrusted()
+    try activateTarget(target)
     let accessibilityId = parsed.options["--id"]
     let accessibilityLabel = parsed.options["--label"]
+    let includeAll = parsed.flags.contains("--all")
     let preDelay = try optionalDoubleOption("--pre-delay", from: parsed) ?? 0
     let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
     if preDelay > 0 {
@@ -15,15 +16,26 @@ func handleRightClick(_ parsed: ParsedOptions) throws -> Int32 {
     }
     if accessibilityId != nil || accessibilityLabel != nil {
         let root = try accessibilityRootElement(for: target)
+        let searchRoot: UIElement
+        if case .simulator = target, !includeAll {
+            searchRoot = simulatorContentRootElement(from: root) ?? root
+        } else {
+            searchRoot = root
+        }
+
         guard let matchedElement = findAccessibilityElement(
-            in: root,
+            in: searchRoot,
             identifier: accessibilityId,
             label: accessibilityLabel
         ) else {
             var selectors: [String] = []
             if let accessibilityId { selectors.append("id='\(accessibilityId)'") }
             if let accessibilityLabel { selectors.append("label='\(accessibilityLabel)'") }
-            throw NativeError.commandFailed("No accessibility element matched \(selectors.joined(separator: " and ")).")
+            let selectorText = selectors.joined(separator: " and ")
+            if case .simulator = target, !includeAll {
+                throw NativeError.commandFailed("No accessibility element matched \(selectorText) in simulator app content. Try --all to include Simulator chrome UI.")
+            }
+            throw NativeError.commandFailed("No accessibility element matched \(selectorText).")
         }
         guard let frame = FrameAttribute(matchedElement) else {
             throw NativeError.commandFailed("Matched element has no frame for right-click.")
@@ -46,6 +58,7 @@ func handleRightClick(_ parsed: ParsedOptions) throws -> Int32 {
 
 func handleDragDrop(_ parsed: ParsedOptions) throws -> Int32 {
     let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
     try activateTarget(target)
     let startX = try requiredOption("--start-x", from: parsed)
     let startY = try requiredOption("--start-y", from: parsed)

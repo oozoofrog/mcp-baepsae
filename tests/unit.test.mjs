@@ -15,6 +15,7 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { writeFileSync, chmodSync, mkdirSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -22,6 +23,8 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -56,7 +59,7 @@ async function withClient(run, envOverrides = {}) {
 // Section 1: Tool registry completeness
 // ===========================================================================
 
-test("tool registry lists all 32 expected MCP tools", async () => {
+test("tool registry lists all 62 expected MCP tools", async () => {
   await withClient(async (client) => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((t) => t.name));
@@ -94,6 +97,36 @@ test("tool registry lists all 32 expected MCP tools", async () => {
       "menu_action",
       "get_focused_app",
       "clipboard",
+      "sim_describe_ui",
+      "mac_describe_ui",
+      "sim_search_ui",
+      "mac_search_ui",
+      "sim_tap",
+      "mac_tap",
+      "sim_type_text",
+      "mac_type_text",
+      "sim_swipe",
+      "mac_swipe",
+      "sim_scroll",
+      "mac_scroll",
+      "sim_drag_drop",
+      "mac_drag_drop",
+      "sim_key",
+      "mac_key",
+      "sim_key_sequence",
+      "mac_key_sequence",
+      "sim_key_combo",
+      "mac_key_combo",
+      "sim_touch",
+      "mac_touch",
+      "sim_list_windows",
+      "mac_list_windows",
+      "sim_activate_app",
+      "mac_activate_app",
+      "sim_screenshot_app",
+      "mac_screenshot_app",
+      "sim_right_click",
+      "mac_right_click",
     ];
 
     for (const name of allExpected) {
@@ -139,7 +172,8 @@ test("baepsae_help includes version string", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({ name: "baepsae_help", arguments: {} });
     const text = extractText(result);
-    assert.match(text, /v3\.1\.10/);
+    const escaped = version.replace(/\./g, "\\.");
+    assert.match(text, new RegExp(`v${escaped}`));
   });
 });
 
@@ -280,6 +314,24 @@ test("activate_app errors when no target is provided", async () => {
   });
 });
 
+test("sim_list_windows requires udid", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({ name: "sim_list_windows", arguments: {} });
+    const text = extractText(result);
+    // Zod schema enforces udid as required — MCP SDK returns validation error
+    assert.match(text, /udid/);
+  });
+});
+
+test("mac_list_windows requires exactly one mac target", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({ name: "mac_list_windows", arguments: {} });
+    assert.equal(result.isError ?? false, true);
+    const text = extractText(result);
+    assert.match(text, /Provide exactly one of bundleId or appName\./);
+  });
+});
+
 // ===========================================================================
 // Section 5: tap tool input validation edge cases
 // ===========================================================================
@@ -375,6 +427,46 @@ test("tap with --double flag is forwarded", async () => {
     });
     const text = extractText(result);
     assert.match(text, /--double/);
+  });
+});
+
+test("tap with all=true forwards --all", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "tap",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        id: "test-button",
+        all: true,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /--all/);
+  });
+});
+
+test("sim_tap requires udid", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({ name: "sim_tap", arguments: { id: "test-button" } });
+    const text = extractText(result);
+    // Zod schema enforces udid as required — MCP SDK returns validation error
+    assert.match(text, /udid/);
+  });
+});
+
+test("mac_tap forwards mac target args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "mac_tap",
+      arguments: {
+        bundleId: "com.example.app",
+        id: "test-button",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /tap/);
+    assert.match(text, /--bundle-id/);
+    assert.doesNotMatch(text, /--udid/);
   });
 });
 
@@ -953,6 +1045,55 @@ test("right_click forwards coordinate and selector options", async () => {
   });
 });
 
+test("right_click with all=true forwards --all", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "right_click",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        id: "test-button",
+        all: true,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /right-click/);
+    assert.match(text, /--all/);
+  });
+});
+
+test("sim_right_click with all=true forwards --all", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "sim_right_click",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        id: "test-button",
+        all: true,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /right-click/);
+    assert.match(text, /--all/);
+    assert.match(text, /--udid/);
+  });
+});
+
+test("mac_right_click routes with mac target", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "mac_right_click",
+      arguments: {
+        bundleId: "com.example.app",
+        id: "test-button",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /right-click/);
+    assert.match(text, /--bundle-id/);
+    assert.doesNotMatch(text, /--udid/);
+  });
+});
+
 // ===========================================================================
 // Section 21: screenshot_app output option
 // ===========================================================================
@@ -1085,16 +1226,15 @@ test("BAEPSAE_NATIVE_PATH with non-executable file returns error", async () => {
 // ===========================================================================
 
 test("native command shows non-zero exit code as error", async () => {
-  // Calling describe-ui with an invalid UDID will cause the native binary to fail
+  // Use a guaranteed-missing macOS app name so native target resolution fails.
   await withClient(async (client) => {
+    const missingAppName = `__baepsae_missing_app_${Date.now()}__`;
     const result = await client.callTool({
       name: "describe_ui",
-      arguments: { udid: "INVALID-UDID-FORMAT" },
+      arguments: { appName: missingAppName },
     });
-    // The native binary should fail and return non-zero exit code
     const text = extractText(result);
     assert.match(text, /Exit code:/, "Should show exit code in output");
-    // This should be an error result (non-zero exit code)
     assert.equal(result.isError ?? false, true);
   });
 });

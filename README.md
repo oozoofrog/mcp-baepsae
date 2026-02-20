@@ -15,6 +15,7 @@ Local MCP server for iOS Simulator and macOS app automation with a TypeScript MC
 - [Prerequisites](#prerequisites)
 - [Platform Support](#platform-support)
 - [Install](#install)
+- [Permissions](#permissions)
 - [MCP Setup (Recommended)](#mcp-setup-recommended)
 - [Client Matrix](#client-matrix)
 - [For LLM](#for-llm)
@@ -22,6 +23,7 @@ Local MCP server for iOS Simulator and macOS app automation with a TypeScript MC
 - [Project Structure](#project-structure)
 - [Commands](#commands)
 - [MCP Tool Status](#mcp-tool-status)
+- [Usage Examples](#usage-examples)
 - [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
@@ -51,11 +53,13 @@ The Swift native bridge (`baepsae-native`) uses macOS-specific frameworks (AppKi
 
 ## Permissions
 
-**Accessibility permission is required** for UI automation features (`describe_ui`, `tap` by ID).
+**Accessibility permission is required** for UI inspection and input automation features (recommended: `sim_*` / `mac_*` scoped tools such as `sim_describe_ui`, `mac_tap`, `sim_right_click`; legacy mixed tools like `describe_ui`, `tap`, `right_click` are still supported but deprecated).
 
 1. Open **System Settings** > **Privacy & Security** > **Accessibility**.
 2. Enable your terminal (Terminal, iTerm2, VSCode) or command runner (`node`, `openclaw`).
 3. If the app is missing, click `+` and add it manually.
+
+For simulator targets, selector-based actions (`sim_tap` / `sim_right_click` or legacy `tap` / `right_click` with `id` or `label`) search **in-app content** by default. Set `all: true` to include Simulator chrome UI.
 
 ## Install
 
@@ -199,61 +203,67 @@ npm run setup:mcp   # Alias for scripts/install.sh
 
 ## MCP Tool Status
 
-32 tools implemented end-to-end, organized by platform:
+62 tools implemented end-to-end.
+
+### Explicit target-scoped tools (30, recommended)
+
+Use these first to avoid simulator/macOS target ambiguity.
+
+| Simulator-scoped | macOS-scoped |
+|---|---|
+| `sim_describe_ui` | `mac_describe_ui` |
+| `sim_search_ui` | `mac_search_ui` |
+| `sim_tap` | `mac_tap` |
+| `sim_type_text` | `mac_type_text` |
+| `sim_swipe` | `mac_swipe` |
+| `sim_key` | `mac_key` |
+| `sim_key_sequence` | `mac_key_sequence` |
+| `sim_key_combo` | `mac_key_combo` |
+| `sim_touch` | `mac_touch` |
+| `sim_right_click` | `mac_right_click` |
+| `sim_scroll` | `mac_scroll` |
+| `sim_drag_drop` | `mac_drag_drop` |
+| `sim_list_windows` | `mac_list_windows` |
+| `sim_activate_app` | `mac_activate_app` |
+| `sim_screenshot_app` | `mac_screenshot_app` |
+
+### Legacy mixed-target tools (15, deprecated)
+
+These remain for compatibility but should be migrated to `sim_*` / `mac_*`.
+
+`describe_ui`, `search_ui`, `tap`, `type_text`, `swipe`, `key`, `key_sequence`, `key_combo`, `touch`, `right_click`, `scroll`, `drag_drop`, `list_windows`, `activate_app`, `screenshot_app`
 
 ### iOS Simulator Only (11)
 
-| Tool | Description |
-|---|---|
-| `list_simulators` | List available iOS simulators |
-| `screenshot` | Capture simulator screen |
-| `record_video` | Record simulator screen |
-| `stream_video` | Stream video frames |
-| `open_url` | Open URL in simulator (Safari/Deep Link) |
-| `install_app` | Install .app or .ipa |
-| `launch_app` | Launch app by Bundle ID |
-| `terminate_app` | Terminate running app |
-| `uninstall_app` | Uninstall app |
-| `button` | Hardware buttons (home, lock, side, siri, apple-pay) |
-| `gesture` | Preset gestures (scroll, swipe-edge) |
+`list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture`
 
-### macOS Only (4)
+### macOS / System Only (4)
 
-| Tool | Description |
-|---|---|
-| `list_apps` | List running macOS apps |
-| `scroll` | Scroll wheel events |
-| `menu_action` | Execute menu bar actions |
-| `get_focused_app` | Get focused app info |
-
-### Cross-Platform — iOS Simulator + macOS (15)
-
-| Tool | Description |
-|---|---|
-| `describe_ui` | Accessibility tree (pagination, filter, subtree, summary) |
-| `search_ui` | Search UI elements by text/ID/label |
-| `tap` | Tap by coordinates or element ID/label (supports double-click) |
-| `type_text` | Type text input |
-| `swipe` | Swipe gesture |
-| `key` | HID keycode input |
-| `key_sequence` | Sequential keycode input |
-| `key_combo` | Modifier + key combination |
-| `touch` | Touch down/up events |
-| `right_click` | Right-click by ID/label or coordinates |
-| `drag_drop` | Drag and drop |
-| `clipboard` | Read/write clipboard |
-| `list_windows` | List app windows |
-| `activate_app` | Bring app to foreground |
-| `screenshot_app` | Capture app window screenshot |
+`list_apps`, `menu_action`, `get_focused_app`, `clipboard`
 
 ### Utility (2)
 
-| Tool | Description |
-|---|---|
-| `baepsae_help` | Show help info |
-| `baepsae_version` | Show version info |
+`baepsae_help`, `baepsae_version`
 
 ## Usage Examples
+
+**Simulator app accessibility quickstart (inside app UI):**
+```javascript
+// 1) Launch your app in the target simulator
+launch_app({ udid: "...", bundleId: "com.example.app" })
+
+// 2) Inspect or search accessibility tree (in-app content scope by default)
+sim_describe_ui({ udid: "..." })
+sim_search_ui({ udid: "...", query: "Login" })
+
+// 3) Interact by accessibility identifier/label
+sim_tap({ udid: "...", id: "login-button" })
+
+// Optional: include Simulator chrome/system UI in selector lookup
+sim_tap({ udid: "...", label: "Home", all: true })
+```
+
+> Legacy mixed tools (`describe_ui`, `tap`, etc.) still work but are deprecated. Prefer scoped `sim_*` / `mac_*` tools.
 
 **Open a URL (iOS Simulator):**
 ```javascript
@@ -279,7 +289,7 @@ terminate_app({ udid: "...", bundleId: "com.apple.mobilesafari" })
 list_apps({})
 
 // Take screenshot of a macOS app
-screenshot_app({ bundleId: "com.apple.Safari" })
+mac_screenshot_app({ bundleId: "com.apple.Safari" })
 ```
 
 ## Troubleshooting

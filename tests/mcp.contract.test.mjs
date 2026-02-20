@@ -78,6 +78,16 @@ test("tools/list exposes expected MCP tools", async () => {
       "stream_video",
       "record_video",
       "screenshot",
+      "sim_describe_ui",
+      "mac_describe_ui",
+      "sim_tap",
+      "mac_tap",
+      "sim_key",
+      "mac_key",
+      "sim_right_click",
+      "mac_right_click",
+      "sim_list_windows",
+      "mac_list_windows",
     ];
 
     for (const name of expected) {
@@ -140,6 +150,44 @@ test("describe_ui call is routed to native layer", async () => {
   });
 });
 
+test("sim_describe_ui routes with simulator target", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "sim_describe_ui",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+      },
+    });
+
+    const text = result.content
+      .filter((item) => item.type === "text")
+      .map((item) => item.text)
+      .join("\n");
+
+    assert.match(text, /describe-ui/);
+    assert.match(text, /--udid/);
+  });
+});
+
+test("mac_describe_ui routes with macOS target", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "mac_describe_ui",
+      arguments: {
+        bundleId: "com.example.app",
+      },
+    });
+
+    const text = result.content
+      .filter((item) => item.type === "text")
+      .map((item) => item.text)
+      .join("\n");
+
+    assert.match(text, /describe-ui/);
+    assert.match(text, /--bundle-id/);
+  });
+});
+
 test("tap id/label call is routed to native layer", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
@@ -159,6 +207,49 @@ test("tap id/label call is routed to native layer", async () => {
     assert.match(text, /baepsae-native/);
     assert.match(text, /tap/);
     assert.match(text, /--id/);
+  });
+});
+
+test("tap forwards all=true to native --all", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "tap",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        id: "com.example.button",
+        all: true,
+      },
+    });
+
+    const text = result.content
+      .filter((item) => item.type === "text")
+      .map((item) => item.text)
+      .join("\n");
+
+    assert.match(text, /tap/);
+    assert.match(text, /--all/);
+  });
+});
+
+test("sim_tap forwards simulator-scoped args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "sim_tap",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        id: "com.example.button",
+        all: true,
+      },
+    });
+
+    const text = result.content
+      .filter((item) => item.type === "text")
+      .map((item) => item.text)
+      .join("\n");
+
+    assert.match(text, /tap/);
+    assert.match(text, /--udid/);
+    assert.match(text, /--all/);
   });
 });
 

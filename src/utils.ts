@@ -130,6 +130,30 @@ export function resolveTargetArgs(params: { udid?: string; bundleId?: string; ap
   return ["--app-name", params.appName!];
 }
 
+export function resolveSimulatorTargetArgs(params: { udid?: string }): string[] | ToolTextResult {
+  if (!params.udid) {
+    return {
+      content: [{ type: "text", text: "Provide udid." }],
+      isError: true,
+    };
+  }
+  return ["--udid", params.udid];
+}
+
+export function resolveMacTargetArgs(params: { bundleId?: string; appName?: string }): string[] | ToolTextResult {
+  const modes = [params.bundleId, params.appName].filter(Boolean).length;
+  if (modes !== 1) {
+    return {
+      content: [{ type: "text", text: "Provide exactly one of bundleId or appName." }],
+      isError: true,
+    };
+  }
+  if (params.bundleId) {
+    return ["--bundle-id", params.bundleId];
+  }
+  return ["--app-name", params.appName!];
+}
+
 export function pushOption(args: string[], name: string, value: string | number | undefined): void {
   if (value !== undefined) {
     args.push(name, String(value));
