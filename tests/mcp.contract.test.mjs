@@ -16,8 +16,14 @@ const projectRoot = path.resolve(__dirname, "..");
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
 
+// CI runners can be very slow; use a generous request timeout
+const REQUEST_TIMEOUT_MS = 120_000;
+
 async function withClient(run) {
-  const client = new Client({ name: "baepsae-contract-test", version: "1.0.0" });
+  const client = new Client(
+    { name: "baepsae-contract-test", version: "1.0.0" },
+    { capabilities: {}, requestTimeoutMs: REQUEST_TIMEOUT_MS },
+  );
   const transport = new StdioClientTransport({
     command: "node",
     args: ["dist/index.js"],
@@ -34,7 +40,10 @@ async function withClient(run) {
 }
 
 async function withClientFromDir(cwd, run) {
-  const client = new Client({ name: "baepsae-contract-test", version: "1.0.0" });
+  const client = new Client(
+    { name: "baepsae-contract-test", version: "1.0.0" },
+    { capabilities: {}, requestTimeoutMs: REQUEST_TIMEOUT_MS },
+  );
   const transport = new StdioClientTransport({
     command: "node",
     args: [path.join(projectRoot, "dist/index.js")],
