@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "890bd3d1e0af",
+  "strategy": "auto-commit",
+  "branch": "feat/bundled-native-binary",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "package.json",
+    "scripts/bundle-native.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/89/0bd3d1e0af/0/metadata.json",
+      "transcript": "/89/0bd3d1e0af/0/full.jsonl",
+      "context": "",
+      "content_hash": "/89/0bd3d1e0af/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 9,
+    "cache_creation_tokens": 62627,
+    "cache_read_tokens": 425266,
+    "output_tokens": 1350,
+    "api_call_count": 7
+  }
+}

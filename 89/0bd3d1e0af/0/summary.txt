@@ -1,0 +1,17 @@
+구현 완료입니다. 요약하면:
+
+### 변경 사항
+
+1. **`scripts/bundle-native.sh`** (신규) — Swift release 빌드 후 `bundled/baepsae-native`로 복사하는 스크립트
+2. **`package.json`** — `"bundle:native"` npm 스크립트 등록
+
+### 사용법
+
+```bash
+npm run bundle:native
+```
+
+`★ Insight ─────────────────────────────────────`
+- `npm run build:native --prefix "$PROJECT_ROOT"` 를 사용해 스크립트가 어디서 실행되든 프로젝트 루트 기준으로 빌드를 실행합니다. `--prefix`는 npm이 해당 디렉토리의 `package.json`을 기준으로 스크립트를 찾게 해줍니다.
+- `build:native` 스크립트 내부에서 `version:sync`도 함께 실행되므로, 번들된 바이너리에는 항상 최신 버전 정보가 포함됩니다.
+`─────────────────────────────────────────────────`
