@@ -25,5 +25,11 @@ mkdir -p "$BUNDLED_DIR"
 cp "$NATIVE_BUILD" "$BUNDLED_DIR/baepsae-native"
 chmod +x "$BUNDLED_DIR/baepsae-native"
 
+echo "Verifying bundled binary..."
+if ! "$BUNDLED_DIR/baepsae-native" --version; then
+  echo "Error: bundled binary failed verification (--version check failed)"
+  exit 1
+fi
+
 echo "Bundled: $BUNDLED_DIR/baepsae-native"
 ls -lh "$BUNDLED_DIR/baepsae-native"

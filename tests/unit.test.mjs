@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { writeFileSync, chmodSync, mkdirSync, rmSync } from "node:fs";
+import { writeFileSync, chmodSync, mkdirSync, rmSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -1177,9 +1177,7 @@ test("bundled binary is preferred over release build", async () => {
   // Save and remove existing bundled binary if present
   let existingContent = null;
   try {
-    existingContent = await import("node:fs").then((fs) =>
-      fs.readFileSync(bundledBinary)
-    );
+    existingContent = readFileSync(bundledBinary);
   } catch {
     // no existing bundled binary
   }
@@ -1213,7 +1211,7 @@ test("bundled binary is preferred over release build", async () => {
       rmSync(bundledBinary, { force: true });
       // Only remove dir if we created it and it's empty
       try {
-        rmSync(bundledDir, { force: true });
+        rmSync(bundledDir, { recursive: true, force: true });
       } catch {
         // directory not empty or other issue, leave it
       }
@@ -1229,9 +1227,7 @@ test("BAEPSAE_NATIVE_PATH takes priority over bundled binary", async () => {
   // Save existing bundled binary if present
   let existingContent = null;
   try {
-    existingContent = await import("node:fs").then((fs) =>
-      fs.readFileSync(bundledBinary)
-    );
+    existingContent = readFileSync(bundledBinary);
   } catch {
     // no existing bundled binary
   }
@@ -1274,7 +1270,56 @@ test("BAEPSAE_NATIVE_PATH takes priority over bundled binary", async () => {
     } else {
       rmSync(bundledBinary, { force: true });
       try {
-        rmSync(bundledDir, { force: true });
+        rmSync(bundledDir, { recursive: true, force: true });
+      } catch {
+        // directory not empty or other issue, leave it
+      }
+    }
+  }
+});
+
+test("non-executable bundled binary falls back to release build", async () => {
+  const bundledDir = path.join(projectRoot, "bundled");
+  const bundledBinary = path.join(bundledDir, "baepsae-native");
+
+  // Save existing bundled binary if present
+  let existingContent = null;
+  try {
+    existingContent = readFileSync(bundledBinary);
+  } catch {
+    // no existing bundled binary
+  }
+
+  mkdirSync(bundledDir, { recursive: true });
+  writeFileSync(bundledBinary, '#!/bin/sh\necho "SHOULD_NOT_RUN"\n');
+  chmodSync(bundledBinary, 0o644); // not executable
+
+  try {
+    await withClient(async (client) => {
+      const result = await client.callTool({
+        name: "list_apps",
+        arguments: {},
+      });
+      const text = extractText(result);
+      // Should fall back to the release build, not the bundled binary
+      assert.match(
+        text,
+        /native\/\.build\/release\/baepsae-native/,
+        "Should fall back to release build path"
+      );
+      assert.ok(
+        !text.includes("SHOULD_NOT_RUN"),
+        "Should not contain output from non-executable bundled binary"
+      );
+    });
+  } finally {
+    if (existingContent !== null) {
+      writeFileSync(bundledBinary, existingContent);
+      chmodSync(bundledBinary, 0o755);
+    } else {
+      rmSync(bundledBinary, { force: true });
+      try {
+        rmSync(bundledDir, { recursive: true, force: true });
       } catch {
         // directory not empty or other issue, leave it
       }
