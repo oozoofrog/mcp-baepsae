@@ -32,6 +32,12 @@ jobs:
       - name: Run Tests
         run: npm test
 
+      - name: Upload native binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: baepsae-native
+          path: native/.build/release/baepsae-native
+
   publish-npm:
     name: Publish to NPM
     needs: build-and-test
@@ -50,6 +56,15 @@ jobs:
 
       - name: Update npm
         run: npm install -g npm@latest
+
+      - name: Download native binary
+        uses: actions/download-artifact@v4
+        with:
+          name: baepsae-native
+          path: bundled
+
+      - name: Make binary executable
+        run: chmod +x bundled/baepsae-native
 
       - name: Install & Build TypeScript
         run: |
