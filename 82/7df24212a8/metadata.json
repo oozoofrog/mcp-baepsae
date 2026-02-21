@@ -1,0 +1,17 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "827df24212a8",
+  "strategy": "auto-commit",
+  "branch": "feat/bundled-native-binary",
+  "checkpoints_count": 0,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/82/7df24212a8/0/metadata.json",
+      "transcript": "/82/7df24212a8/0/full.jsonl",
+      "context": "",
+      "content_hash": "/82/7df24212a8/0/content_hash.txt",
+      "prompt": ""
+    }
+  ]
+}
