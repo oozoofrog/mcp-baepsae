@@ -19,3 +19,4 @@ mcp-publisher
 # Local/personal AI tool settings
 .claude/
 .entire/
+.moai/
