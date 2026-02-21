@@ -76,7 +76,9 @@ export function resolveNativeBinary(): string {
   }
 
   const candidates = [
-    resolve(PACKAGE_ROOT, "bundled", NATIVE_BINARY_NAME),
+    ...(process.platform === "darwin"
+      ? [resolve(PACKAGE_ROOT, "bundled", NATIVE_BINARY_NAME)]
+      : []),
     resolve(PACKAGE_ROOT, "native", ".build", "release", NATIVE_BINARY_NAME),
     resolve(PACKAGE_ROOT, "native", ".build", "debug", NATIVE_BINARY_NAME),
   ];

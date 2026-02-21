@@ -7,7 +7,14 @@ BUNDLED_DIR="$PROJECT_ROOT/bundled"
 NATIVE_BUILD="$PROJECT_ROOT/native/.build/release/baepsae-native"
 
 echo "Building baepsae-native (release)..."
-npm run build:native --prefix "$PROJECT_ROOT"
+if ! npm run build:native --prefix "$PROJECT_ROOT"; then
+  echo ""
+  echo "Error: Swift build failed."
+  echo "Ensure Swift toolchain is installed:"
+  echo "  - macOS: Install Xcode or run 'xcode-select --install'"
+  echo "  - See https://www.swift.org/install/ for other platforms"
+  exit 1
+fi
 
 if [ ! -f "$NATIVE_BUILD" ]; then
   echo "Error: baepsae-native binary not found at $NATIVE_BUILD"

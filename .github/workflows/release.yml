@@ -37,6 +37,7 @@ jobs:
         with:
           name: baepsae-native
           path: native/.build/release/baepsae-native
+          if-no-files-found: error
 
   publish-npm:
     name: Publish to NPM
@@ -65,6 +66,11 @@ jobs:
 
       - name: Make binary executable
         run: chmod +x bundled/baepsae-native
+
+      - name: Verify native binary
+        run: |
+          file bundled/baepsae-native
+          file bundled/baepsae-native | grep -q 'Mach-O' || { echo "ERROR: not a Mach-O binary"; exit 1; }
 
       - name: Install & Build TypeScript
         run: |
