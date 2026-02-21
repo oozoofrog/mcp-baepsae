@@ -852,6 +852,170 @@ test("Phase 2b: integrated workflow → tap, type, verify, swipe", { timeout: 60
   });
 });
 
+// ─── Phase 2c: scroll / drag_drop tool validation ───────────────────────────
+
+test("Phase 2c: scroll → verify scroll-position text changes in ScrollTab", { timeout: 60_000 }, async (t) => {
+  await withClient(async (client) => {
+    const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+    const udid = extractBootedUdid(extractText(listResult));
+    if (!udid) {
+      t.skip("No booted simulator detected");
+      return;
+    }
+
+    const appPath = findSampleApp();
+    if (!appPath) {
+      t.skip("SampleApp.app not built — run xcodebuild first");
+      return;
+    }
+
+    // Re-launch SampleApp (starts on Basic tab with test-label="Ready")
+    await relaunchSampleApp(client, udid);
+
+    // Navigate to Scroll tab
+    const tapScrollTab = await client.callTool({
+      name: "tap",
+      arguments: { udid, label: "Scroll" },
+    });
+    if (tapScrollTab.isError && isAccessibilityDenied(extractText(tapScrollTab))) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+    assert.equal(tapScrollTab.isError ?? false, false, "tap Scroll tab should not error");
+    await sleep(800);
+
+    // Capture initial scroll-position text
+    const beforeResult = await client.callTool({
+      name: "analyze_ui",
+      arguments: { udid, focusId: "scroll-position" },
+    });
+    const beforeText = extractText(beforeResult);
+    if (beforeResult.isError && isAccessibilityDenied(beforeText)) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+
+    // Perform scroll down (negative deltaY = content moves up = higher items appear)
+    const scrollResult = await client.callTool({
+      name: "scroll",
+      arguments: { udid, x: 195, y: 400, deltaX: 0, deltaY: -5 },
+    });
+    assert.equal(scrollResult.isError ?? false, false, "scroll should not error");
+    await sleep(800);
+
+    // Verify scroll-position reflects new visible range
+    const afterText = await waitForUI(
+      client,
+      udid,
+      "scroll-position",
+      (text) => {
+        // Check if max visible item number is > 19 (scrolled past initial view)
+        const match = text.match(/Item\s+(\d+)\s*~\s*Item\s+(\d+)/);
+        return match ? parseInt(match[2]) > 19 : false;
+      },
+      5000,
+    );
+
+    assert.ok(
+      afterText.includes("Visible:"),
+      `scroll-position should contain "Visible:", got: ${afterText}`,
+    );
+  });
+});
+
+test("Phase 2c: drag_drop → drag item to drop zone and verify drop-result", { timeout: 60_000 }, async (t) => {
+  await withClient(async (client) => {
+    const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+    const udid = extractBootedUdid(extractText(listResult));
+    if (!udid) {
+      t.skip("No booted simulator detected");
+      return;
+    }
+
+    const appPath = findSampleApp();
+    if (!appPath) {
+      t.skip("SampleApp.app not built — run xcodebuild first");
+      return;
+    }
+
+    // Re-launch SampleApp (starts on Basic tab)
+    await relaunchSampleApp(client, udid);
+
+    // Navigate to Drag tab
+    const tapDragTab = await client.callTool({
+      name: "tap",
+      arguments: { udid, label: "Drag" },
+    });
+    if (tapDragTab.isError && isAccessibilityDenied(extractText(tapDragTab))) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+    assert.equal(tapDragTab.isError ?? false, false, "tap Drag tab should not error");
+
+    // Wait for DragDropTab to appear (drop-result shows "No item dropped")
+    await waitForUI(client, udid, "drop-result", (text) => text.includes("No item dropped"), 5000);
+
+    // Get coordinates of drag-item-0 and drop-zone via analyze_ui
+    const item0Result = await client.callTool({
+      name: "analyze_ui",
+      arguments: { udid, focusId: "drag-item-0" },
+    });
+    if (item0Result.isError && isAccessibilityDenied(extractText(item0Result))) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
+
+    const dropZoneResult = await client.callTool({
+      name: "analyze_ui",
+      arguments: { udid, focusId: "drop-zone" },
+    });
+
+    // Extract CGRect frame coordinates from analyze_ui text output.
+    // Format: {{x, y}, {w, h}} or "frame: (x, y, w, h)"
+    function parseCenterFromText(text) {
+      const match = text.match(/\{\{([\d.]+),\s*([\d.]+)\},\s*\{([\d.]+),\s*([\d.]+)\}\}/);
+      if (match) {
+        return {
+          x: parseFloat(match[1]) + parseFloat(match[3]) / 2,
+          y: parseFloat(match[2]) + parseFloat(match[4]) / 2,
+        };
+      }
+      return null;
+    }
+
+    const item0Center = parseCenterFromText(extractText(item0Result)) ?? { x: 195, y: 220 };
+    const dropZoneCenter = parseCenterFromText(extractText(dropZoneResult)) ?? { x: 195, y: 480 };
+
+    // Perform drag from item-0 to drop-zone
+    const dragResult = await client.callTool({
+      name: "drag_drop",
+      arguments: {
+        udid,
+        fromX: Math.round(item0Center.x),
+        fromY: Math.round(item0Center.y),
+        toX: Math.round(dropZoneCenter.x),
+        toY: Math.round(dropZoneCenter.y),
+        duration: 0.5,
+      },
+    });
+    assert.equal(dragResult.isError ?? false, false, "drag_drop should not error");
+    await sleep(800);
+
+    // Verify drop-result changed to show the dropped item
+    const dropText = await waitForUI(
+      client,
+      udid,
+      "drop-result",
+      (text) => text.includes("Dropped:"),
+      5000,
+    );
+    assert.ok(
+      dropText.includes("Dropped: Item 0"),
+      `drop-result should show "Dropped: Item 0", got: ${dropText}`,
+    );
+  });
+});
+
 // ─── Phase 3: App management (requires built sample app) ───────────────────
 
 test("Phase 3: install_app → install sample app", { timeout: 60_000 }, async (t) => {
