@@ -1,0 +1,139 @@
+# Session Context
+
+**Session ID:** 801f2ad3-3d1f-4444-bfe8-6c5d30c84a22
+
+**Commit Message:** 샘플앱과 샘플앱 테스트 로직 검토
+
+## Prompt
+
+샘플앱과 샘플앱 테스트 로직 검토
+
+## Summary
+
+이제 전체 구조를 충분히 파악했습니다. 검토 결과를 정리하겠습니다.
+
+---
+
+## 샘플앱 & 테스트 로직 검토 결과
+
+`★ Insight ─────────────────────────────────────`
+**이 프로젝트의 테스트 아키텍처는 3-tier 계층으로 설계되어 있습니다:**
+1. **Contract tests** — 시뮬레이터 없이 MCP 프로토콜 레벨 검증 (빠름)
+2. **Unit tests** — 시뮬레이터 없이 엣지 케이스와 파라미터 포워딩 검증 (빠름)
+3. **Real/E2E tests** — 실제 부팅된 시뮬레이터 + SampleApp으로 종단간 검증 (느림)
+
+이 구조는 MCP 서버가 "도구 인터페이스 + 네이티브 바이너리 브릿지"라는 2-layer 아키텍처를 갖기 때문에 각 계층의 경계를 독립적으로 검증할 수 있도록 설계된 것입니다.
+`─────────────────────────────────────────────────`
+
+### 1. 샘플앱 구조 (iOS - `test-fixtures/SampleApp/`)
+
+| 파일 | 역할 |
+|------|------|
+| `SampleAppApp.swift` | `@main` 엔트리포인트, `ContentView` 렌더링 |
+| `ContentView.swift` | `TabView`로 3개 탭 구성 (Basic, Scroll, Drag) |
+| `BasicTab.swift` | 버튼 탭, 텍스트 입력, 리스트 스크롤 테스트용 UI |
+| `ScrollTab.swift` | 100개 아이템 리스트 + 현재 보이는 범위 표시 |
+| `DragDropTab.swift` | 드래그 앤 드롭 제스처 검증용 UI |
+
+**잘 된 점:**
+- 모든 UI 요소에 `accessibilityIdentifier` 부여 (`test-label`, `test-input`, `test-button` 등) → 테스트에서 `focusId`/`id`로 정확히 타겟팅 가능
+- 각 탭이 서로 다른 MCP 도구를 검증하도록 분리: Basic → tap/type_text, Scroll → scroll, Drag → drag_drop
+- `ScrollTab`의 `onAppear`/`onDisappear` 패턴으로 실시간 가시 범위 추적
+
+**개선 여지:**
+- `DragDropTab`의 `dropZoneGlobalFrame`이 `.onAppear`에서만 갱신됨 → 화면 회전이나 레이아웃 변경 시 좌표가 틀어질 수 있음 (테스트용이라 큰 문제는 아님)
+- `DraggableRow`의 `DragGesture(minimumDistance: 0)`이 일반 탭과 드래그를 구분하지 못할 수 있음
+
+### 2. 샘플 웹 페이지 (macOS - `test-fixtures/`)
+
+| 파일 | 역할 |
+|------|------|
+| `sample-web/index.html` | 시뮬레이터 내 Safari 웹 테스트용 (간단한 버튼/입력) |
+| `mac-gesture-test.html` | macOS Safari 테스트용 — 7가지 제스처 검증 (클릭, 더블클릭, 우클릭, 키, 텍스트, 마우스, 드래그) + Reset |
+
+**잘 된 점:**
+- `mac-gesture-test.html`이 Phase 4 테스트와 정확히 매핑됨 (Click Me → Clicked!, Reset All → Ready)
+- 각 제스처 영역이 독립적이어서 한 테스트가 다른 테스트에 영향 안 줌
+
+**주목할 점:**
+- `sample-web/index.html`은 현재 `test:real` 테스트에서 **직접 사용되지 않음** (`open_url` 테스트는 `https://example.com`을 사용). 이 파일이 실제로 필요한지 확인 필요
+
+### 3. 테스트 로직 (`tests/mcp.real.test.mjs`)
+
+`★ Insight ─────────────────────────────────────`
+**테스트가 Phase 1→2→2b→2c→3→4 순서로 진행되는데, 이는 의존성 체인을 반영합니다:**
+- Phase 1: 시뮬레이터 자체 기능 (screenshot, record 등) — 앱 불필요
+- Phase 2: 접근성 API 기반 도구 — 앱 필요하지만 상태 검증 없음
+- Phase 2b: 상태 변경 검증 (tap → label 변경 확인) — 앱 상태를 읽고 단언
+- Phase 2c: scroll/drag_drop 고급 제스처 — 탭 전환까지 필요
+- Phase 3: 앱 라이프사이클 (install/launch/terminate/uninstall)
+- Phase 4: macOS 네이티브 앱 (Safari)
+
+`withClient()` 헬퍼가 매 테스트마다 새 MCP 클라이언트를 생성하므로, 테스트 간 서버 상태가 공유되지 않습니다. 이는 격리성은 좋지만 성능 비용이 있습니다.
+`─────────────────────────────────────────────────`
+
+**잘 된 점:**
+- `relaunchSampleApp()` 헬퍼로 테스트 간 앱 상태를 깔끔하게 리셋
+- `waitForUI()` 폴링 패턴으로 비동기 UI 업데이트를 안정적으로 대기
+- `dismissContextMenu()` — 시뮬레이터에서 type_text 후 컨텍스트 메뉴가 뜨는 실제 문제를 처리
+- `isAccessibilityDenied()` → 접근성 권한 없으면 `t.skip()`으로 우아하게 건너뜀
+- `findSampleApp()`에서 빌드 경로 2곳을 후보로 탐색
+
+**발견된 이슈/개선점:**
+
+1. **`relaunchSampleApp()`의 위치 문제** (`mcp.real.test.mjs:641`)
+   - 이 함수가 파일 중간(641줄)에 정의되어 있는데, 332줄의 Phase 2 테스트에서 이미 호출됨. JavaScript 호이스팅으로 동작하지만, `function` 선언이 아닌 `async function`이므로 호이스팅은 됨. 가독성을 위해 헬퍼 함수들을 파일 상단에 모아두는 것이 좋음
+
+2. **`withClient()` 반복 생성**
+   - 매 테스트마다 새로운 MCP 서버 프로세스를 spawn/connect/close 함. E2E 특성상 불가피하지만, `test.describe()` 단위로 공유하면 성능 개선 가능
+
+3. **Phase 2b의 `type_text` 검증 불완전성** (`mcp.real.test.mjs:821-824`)
+   ```js
+   if (!resultDescribe.isError) {
+     assert.ok(resultText.includes("workflow test"), ...);
+   }
+   ```
+   `isError`일 때 아무 검증 없이 통과 — 실패를 조용히 삼키는 패턴
+
+4. **Phase 2c `scroll` 테스트** (`mcp.real.test.mjs:914`)
+   - `parseInt(match[2]) > 19`로 스크롤 검증하는데, 시뮬레이터 화면 크기에 따라 초기에 19번째 아이템이 이미 보일 수 있음
+
+5. **Phase 3 테스트 순서 의존성**
+   - `install_app` → `launch_app` → `terminate_app` → `uninstall_app` 순서인데, Node test runner는 기본적으로 순차 실행이지만 `--concurrency` 옵션 사용 시 깨질 수 있음
+
+6. **`sample-web/index.html` 미사용**
+   - `open_url` 테스트가 `https://example.com`을 쓰고 있어서 이 fixture가 실제로 활용되지 않음
+
+7. **Contract 테스트의 `extractText` 반복**
+   - `mcp.contract.test.mjs`에서 `extractText` 패턴이 인라인으로 반복되다가 중간부터 안 씀 (34줄에 `extractText` 정의 없이 수동으로 `.filter().map().join()` 반복)
+
+### 4. 빌드 스크립트 (`scripts/build-sample-app.sh`)
+
+- `SYMROOT`과 `derivedDataPath`를 분리해서 빌드 산출물이 명확한 위치에 나옴
+- `-quiet` 플래그로 CI에서 빌드 로그 최소화
+
+### 종합 평가
+
+| 항목 | 평가 |
+|------|------|
+| 샘플앱 설계 | ✅ MCP 도구별 탭 분리, accessibilityIdentifier 일관성 우수 |
+| 테스트 커버리지 | ✅ 32개 도구 중 핵심 도구들 대부분 커버 |
+| 에러 핸들링 | ⚠️ 일부 조용한 실패 패턴 존재 |
+| 테스트 격리성 | ✅ `relaunchSampleApp()`로 상태 리셋 잘 됨 |
+| fixture 정합성 | ⚠️ `sample-web/index.html` 미사용 |
+| macOS 테스트 | ✅ `mac-gesture-test.html`과 Phase 4 연동 잘 됨 |
+
+전체적으로 샘플앱과 테스트 로직이 잘 구성되어 있습니다. 가장 실질적인 개선 포인트는 **조용한 실패 패턴 제거**와 **미사용 fixture 정리**입니다. 특정 부분에 대해 더 깊이 살펴보거나 수정을 원하시면 말씀해 주세요!
+
+## Key Actions
+
+- - **Glob**: **/sample*/**
+- - **Glob**: **/SampleApp*/**
+- - **Glob**: tests/**
+- - **Glob**: test-fixtures/SampleApp/**/*.swift
+- - **Glob**: test-fixtures/SampleApp/**/*.xcodeproj/**
+- - **Glob**: test-fixtures/sample-web/**
+- - **Glob**: tests/*.mjs
+- - **Read**: /Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/test-fixtures/SampleApp/SampleApp/SampleAppApp.swift
+- - **Read**: /Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/test-fixtures/SampleApp/SampleApp/ContentView.swift
+- - **Read**: /Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/test-fixtures/SampleApp/SampleApp/BasicTab.swift
