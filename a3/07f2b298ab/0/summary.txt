@@ -1,0 +1,23 @@
+모든 테스트 통과. 변경 사항을 요약합니다.
+
+`★ Insight ─────────────────────────────────────`
+이 수정에서 적용된 방어 계층 패턴:
+1. **빌드 시점 검증** (CI `if-no-files-found: error` + `file | grep Mach-O`) — 잘못된 아티팩트가 애초에 배포되지 않도록 차단
+2. **런타임 플랫폼 가드** (`process.platform === "darwin"`) — Linux에서 Mach-O 바이너리를 candidates에서 제외해 `isExecutable()` 오판 방지
+3. **설치 시점 검증** (`--version` 실행) — `-x` 플래그는 파일 퍼미션만 확인하지만, 실제 실행은 아키텍처 호환성까지 검증
+
+이처럼 **다중 계층 방어(defense in depth)**를 적용하면 단일 검증이 실패해도 다른 계층이 문제를 잡아냅니다.
+`─────────────────────────────────────────────────`
+
+## 변경 요약
+
+| Step | 파일 | 변경 내용 |
+|------|------|----------|
+| 1 | `.github/workflows/release.yml` | `if-no-files-found: error` 추가 + Mach-O 바이너리 검증 단계 |
+| 2 | `src/utils.ts` | `bundled/` 경로를 `darwin` 전용으로 제한 |
+| 3 | `package.json` | postinstall에서 `-x` → `--version` 실행 검증 |
+| 4 | `tests/unit.test.mjs` | 2개 테스트 추가 (bundled 우선순위, env 오버라이드 우선) |
+| 5 | `CLAUDE.md` | `resolveNativeBinary()` 설명에 `bundled` 경로 추가 |
+| 6 | `scripts/bundle-native.sh` | Swift 빌드 실패 시 toolchain 설치 안내 메시지 |
+
+테스트 결과: **unit 77/77 통과, contract 16/16 통과**

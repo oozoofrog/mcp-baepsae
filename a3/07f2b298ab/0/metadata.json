@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "a307f2b298ab",
+  "session_id": "2e10f86f-7588-41ca-98b1-6987d458823c",
+  "strategy": "auto-commit",
+  "created_at": "2026-02-21T14:37:00.686047Z",
+  "branch": "feat/bundled-native-binary",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/release.yml",
+    "CLAUDE.md",
+    "package.json",
+    "scripts/bundle-native.sh",
+    "src/utils.ts",
+    "tests/unit.test.mjs"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 50546,
+    "cache_read_tokens": 712294,
+    "output_tokens": 2134,
+    "api_call_count": 8
+  }
+}

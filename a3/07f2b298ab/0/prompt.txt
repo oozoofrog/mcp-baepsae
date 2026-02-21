@@ -1,0 +1,77 @@
+Implement the following plan:
+
+# PR Review Fix Plan: `feat/bundled-native-binary`
+
+## Context
+PR 리뷰(4개 전문 에이전트 병렬 분석)에서 발견된 Critical/High 이슈를 수정합니다. 핵심 문제: 바이너리 없이 npm 배포 가능, Linux에서 Mach-O 오판, 테스트 누락.
+
+---
+
+## Step 1: CI 파이프라인 안전장치 (C1+C2)
+**File**: `.github/workflows/release.yml`
+
+- upload-artifact에 `if-no-files-found: error` 추가 (line 35-39)
+- `chmod +x` 이후 바이너리 검증 단계 추가:
+  ```yaml
+  - name: Verify native binary
+    run: |
+      file bundled/baepsae-native
+      file bundled/baepsae-native | grep -q 'Mach-O' || { echo "ERROR: not a Mach-O binary"; exit 1; }
+  ```
+
+## Step 2: 플랫폼 가드 (`src/utils.ts` H2)
+**File**: `src/utils.ts` (line 78-82)
+
+candidates 배열에서 `bundled/` 경로를 darwin 전용으로 제한:
+```typescript
+const candidates = [
+    ...(process.platform === "darwin"
+      ? [resolve(PACKAGE_ROOT, "bundled", NATIVE_BINARY_NAME)]
+      : []),
+    resolve(PACKAGE_ROOT, "native", ".build", "release", NATIVE_BINARY_NAME),
+    resolve(PACKAGE_ROOT, "native", ".build", "debug", NATIVE_BINARY_NAME),
+];
+```
+
+## Step 3: postinstall 실행 검증 (`package.json` H1)
+**File**: `package.json` (line 24)
+
+`-x` 검사를 실제 `--version` 실행 검증으로 교체:
+```
+"postinstall": "if [ -f bundled/baepsae-native ] && bundled/baepsae-native --version >/dev/null 2>&1; then exit 0; fi; if [ \"$(uname)\" = \"Darwin\" ] && command -v swift >/dev/null 2>&1; then npm run build:native; fi"
+```
+
+## Step 4: bundled 경로 단위 테스트 (H3)
+**File**: `tests/unit.test.mjs` (Section 24 이후)
+
+기존 `BAEPSAE_NATIVE_PATH` 테스트 패턴을 따라 2개 테스트 추가:
+1. `bundled/` 디렉토리에 가짜 실행파일 → 번들 바이너리가 release보다 우선 선택됨
+2. `BAEPSAE_NATIVE_PATH` + `bundled/` 동시 존재 → env 오버라이드가 우선
+
+방식: 프로젝트 루트 `bundled/`에 임시 shell script 생성, `finally`에서 정리. `.gitignore`에 `bundled/` 포함되어 있어 안전.
+
+## Step 5: CLAUDE.md 문서 업데이트 (C3)
+**File**: `CLAUDE.md` (line 35)
+
+```
+- `resolveNativeBinary()` — finds the native binary (env override `BAEPSAE_NATIVE_PATH` → bundled → release → debug fallback)
+```
+
+## Step 6: bundle-native.sh 에러 메시지 개선 (M1)
+**File**: `scripts/bundle-native.sh` (line 9-15)
+
+`npm run build:native` 실패 시 Swift toolchain 설치 안내 메시지 추가.
+
+---
+
+## Verification
+```bash
+npm test              # 기존 + 새 단위 테스트 통과 확인
+npm run build         # TypeScript + Swift 빌드 성공
+# bundled/ 테스트는 unit test에서 자동 생성/정리
+```
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/oozoofrog/.REDACTED.jsonl
+
+If this plan can be broken down into multiple independent tasks, consider using the TeamCreate tool to create a team and parallelize the work.
