@@ -39,7 +39,7 @@ Single test file: `node --test tests/mcp.contract.test.mjs`
 - `src/tools/` — Tool registration modules, each exports a `registerXxxTools(server)` function:
   - `info.ts` — baepsae_help, baepsae_version, list_apps, get_focused_app
   - `simulator.ts` — list_simulators, open_url, install_app, launch_app, terminate_app, uninstall_app
-  - `ui.ts` — describe_ui, search_ui, tap, type_text, swipe, scroll, drag_drop
+  - `ui.ts` — analyze_ui, query_ui, tap, type_text, swipe, scroll, drag_drop
   - `input.ts` — key, key_sequence, key_combo, button, touch, gesture
   - `media.ts` — stream_video, record_video, screenshot
   - `system.ts` — list_windows, activate_app, screenshot_app, right_click, menu_action, clipboard
@@ -58,7 +58,7 @@ Single test file: `node --test tests/mcp.contract.test.mjs`
 
 ## Naming Convention (Critical)
 
-MCP tool names are **snake_case** (e.g., `describe_ui`, `key_sequence`).
+MCP tool names are **snake_case** (e.g., `analyze_ui`, `key_sequence`).
 Native CLI subcommands are **kebab-case** (e.g., `describe-ui`, `key-sequence`).
 
 When adding a tool, both sides must be updated consistently.

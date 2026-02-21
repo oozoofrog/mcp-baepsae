@@ -1,22 +1,16 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
+import type { UnifiedTargetParams } from "../types.js";
 import {
   keycodeSchema,
   BUTTON_TYPES,
   GESTURE_PRESETS,
   unifiedTargetSchema,
   resolveUnifiedTargetArgs,
-  resolveSimulatorTargetArgs,
   pushOption,
   runNative,
 } from "../utils.js";
-
-type UnifiedTargetParams = {
-  udid?: string;
-  bundleId?: string;
-  appName?: string;
-};
 
 type KeyParams = {
   keycode: number;

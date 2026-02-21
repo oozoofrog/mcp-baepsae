@@ -1,19 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { ToolTextResult } from "../types.js";
+import type { ToolTextResult, UnifiedTargetParams } from "../types.js";
 import {
   unifiedTargetSchema,
   resolveUnifiedTargetArgs,
   pushOption,
   runNative,
 } from "../utils.js";
-
-type UnifiedTargetParams = {
-  udid?: string;
-  bundleId?: string;
-  appName?: string;
-};
 
 type DescribeParams = {
   output?: string;

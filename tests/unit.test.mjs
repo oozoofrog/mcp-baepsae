@@ -185,7 +185,7 @@ test("analyze_ui errors when no target is provided", async () => {
     });
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
-    assert.match(text, /Provide exactly one target: udid, bundleId, or appName\./);
+    assert.match(text, /No target specified/);
   });
 });
 
@@ -200,7 +200,23 @@ test("analyze_ui errors when multiple targets are provided", async () => {
     });
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
-    assert.match(text, /Provide exactly one target: udid, bundleId, or appName\./);
+    assert.match(text, /Multiple targets specified/);
+  });
+});
+
+test("analyze_ui errors when all three targets are provided", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "analyze_ui",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        bundleId: "com.example.app",
+        appName: "Example",
+      },
+    });
+    assert.equal(result.isError ?? false, true);
+    const text = extractText(result);
+    assert.match(text, /Multiple targets specified/);
   });
 });
 
@@ -238,7 +254,7 @@ test("query_ui errors when no target is provided", async () => {
     });
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
-    assert.match(text, /Provide exactly one target/);
+    assert.match(text, /No target specified/);
   });
 });
 
@@ -247,7 +263,7 @@ test("list_windows errors when no target is provided", async () => {
     const result = await client.callTool({ name: "list_windows", arguments: {} });
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
-    assert.match(text, /Provide exactly one target/);
+    assert.match(text, /No target specified/);
   });
 });
 
@@ -256,7 +272,7 @@ test("activate_app errors when no target is provided", async () => {
     const result = await client.callTool({ name: "activate_app", arguments: {} });
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
-    assert.match(text, /Provide exactly one target/);
+    assert.match(text, /No target specified/);
   });
 });
 
@@ -378,11 +394,11 @@ test("tap errors when no target is provided", async () => {
     const result = await client.callTool({ name: "tap", arguments: { id: "test-button" } });
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
-    assert.match(text, /Provide exactly one target/);
+    assert.match(text, /No target specified/);
   });
 });
 
-test("tap forwards mac target args", async () => {
+test("tap forwards mac target args with bundleId", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
       name: "tap",
@@ -395,6 +411,23 @@ test("tap forwards mac target args", async () => {
     assert.match(text, /tap/);
     assert.match(text, /--bundle-id/);
     assert.doesNotMatch(text, /--udid/);
+  });
+});
+
+test("tap forwards mac target args with appName", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "tap",
+      arguments: {
+        appName: "Safari",
+        id: "test-button",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /tap/);
+    assert.match(text, /--app-name/);
+    assert.doesNotMatch(text, /--udid/);
+    assert.doesNotMatch(text, /--bundle-id/);
   });
 });
 
@@ -973,23 +1006,7 @@ test("right_click forwards coordinate and selector options", async () => {
   });
 });
 
-test("right_click with all=true forwards --all", async () => {
-  await withClient(async (client) => {
-    const result = await client.callTool({
-      name: "right_click",
-      arguments: {
-        udid: "00000000-0000-0000-0000-000000000000",
-        id: "test-button",
-        all: true,
-      },
-    });
-    const text = extractText(result);
-    assert.match(text, /right-click/);
-    assert.match(text, /--all/);
-  });
-});
-
-test("right_click with udid forwards --all and --udid", async () => {
+test("right_click with udid and all=true forwards --all and --udid", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
       name: "right_click",
