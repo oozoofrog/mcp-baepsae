@@ -117,6 +117,31 @@ export function resolveNativeBinary(): string {
   throw new Error(messages.join(" "));
 }
 
+export const unifiedTargetSchema = {
+  udid: z.string().min(1).optional().describe("Simulator UDID (for simulator targets)"),
+  bundleId: z.string().optional().describe("macOS app bundle ID (for macOS targets)"),
+  appName: z.string().optional().describe("macOS app name (for macOS targets)"),
+};
+
+export function resolveUnifiedTargetArgs(params: { udid?: string; bundleId?: string; appName?: string }): string[] | ToolTextResult {
+  const modes = [params.udid, params.bundleId, params.appName].filter(Boolean).length;
+  if (modes === 0) {
+    return {
+      content: [{ type: "text", text: "Provide exactly one target: udid, bundleId, or appName." }],
+      isError: true,
+    };
+  }
+  if (modes > 1) {
+    return {
+      content: [{ type: "text", text: "Provide exactly one target: udid, bundleId, or appName." }],
+      isError: true,
+    };
+  }
+  if (params.udid) return ["--udid", params.udid];
+  if (params.bundleId) return ["--bundle-id", params.bundleId];
+  return ["--app-name", params.appName!];
+}
+
 export function resolveSimulatorTargetArgs(params: { udid?: string }): string[] | ToolTextResult {
   if (!params.udid) {
     return {

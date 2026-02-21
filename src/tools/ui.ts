@@ -3,13 +3,13 @@ import { z } from "zod";
 
 import type { ToolTextResult } from "../types.js";
 import {
-  resolveSimulatorTargetArgs,
-  resolveMacTargetArgs,
+  unifiedTargetSchema,
+  resolveUnifiedTargetArgs,
   pushOption,
   runNative,
 } from "../utils.js";
 
-type AnyTargetParams = {
+type UnifiedTargetParams = {
   udid?: string;
   bundleId?: string;
   appName?: string;
@@ -77,15 +77,6 @@ type DragDropParams = {
   duration?: number;
 };
 
-const simTargetSchema = {
-  udid: z.string().min(1).describe("Simulator UDID"),
-};
-
-const macTargetSchema = {
-  bundleId: z.string().optional().describe("macOS app bundle ID"),
-  appName: z.string().optional().describe("macOS app name"),
-};
-
 const describeSchema = {
   output: z.string().optional().describe("Optional output file path for hierarchy text"),
   focusId: z.string().optional().describe("Focus on element with specific ID"),
@@ -112,16 +103,6 @@ const tapSchema = {
   id: z.string().optional().describe("Accessibility identifier"),
   label: z.string().optional().describe("Accessibility label"),
   all: z.boolean().optional().describe("Include Simulator app chrome/system UI for selector lookup"),
-  double: z.boolean().optional().describe("Send double-click instead of single click"),
-  preDelay: z.number().optional().describe("Delay before tap in seconds"),
-  postDelay: z.number().optional().describe("Delay after tap in seconds"),
-};
-
-const tapSchemaWithoutAll = {
-  x: z.number().optional().describe("X coordinate"),
-  y: z.number().optional().describe("Y coordinate"),
-  id: z.string().optional().describe("Accessibility identifier"),
-  label: z.string().optional().describe("Accessibility label"),
   double: z.boolean().optional().describe("Send double-click instead of single click"),
   preDelay: z.number().optional().describe("Delay before tap in seconds"),
   postDelay: z.number().optional().describe("Delay after tap in seconds"),
@@ -299,157 +280,88 @@ function buildDragDropArgs(target: string[], params: DragDropParams): string[] {
 }
 
 export function registerUITools(server: McpServer): void {
-  const registerDescribeTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...describeSchema }, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
+  server.tool(
+    "analyze_ui",
+    "Describe app UI hierarchy. Works with both simulator (udid) and macOS (bundleId/appName) targets.",
+    { ...unifiedTargetSchema, ...describeSchema },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       return await runNative(buildDescribeArgs(target, params as DescribeParams));
-    });
-  };
+    }
+  );
 
-  const registerSearchTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...searchSchema }, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
+  server.tool(
+    "query_ui",
+    "Search app UI elements by text, identifier, or label. Works with both simulator and macOS targets.",
+    { ...unifiedTargetSchema, ...searchSchema },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       return await runNative(buildSearchArgs(target, params as SearchParams));
-    });
-  };
+    }
+  );
 
-  const registerTapTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    tapSchemaVariant: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...tapSchemaVariant }, async (params) => {
+  server.tool(
+    "tap",
+    "Tap coordinates or accessibility element. Selector lookup defaults to in-app content; set all=true to include Simulator chrome UI.",
+    { ...unifiedTargetSchema, ...tapSchema },
+    async (params) => {
       const validationError = validateTapParams(params as TapParams);
       if (validationError) return validationError;
 
-      const target = resolveTarget(params as AnyTargetParams);
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       return await runNative(buildTapArgs(target, params as TapParams));
-    });
-  };
+    }
+  );
 
-  const registerTypeTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...typeSchema }, async (params) => {
+  server.tool(
+    "type_text",
+    "Type text into the target app.",
+    { ...unifiedTargetSchema, ...typeSchema },
+    async (params) => {
       const validationError = validateTypeParams(params as TypeParams);
       if (validationError) return validationError;
 
-      const target = resolveTarget(params as AnyTargetParams);
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
 
       const built = buildTypeArgs(target, params as TypeParams);
       return await runNative(built.args, { stdinText: built.stdinText });
-    });
-  };
+    }
+  );
 
-  const registerSwipeTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...swipeSchema }, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
+  server.tool(
+    "swipe",
+    "Perform swipe gesture in the target app.",
+    { ...unifiedTargetSchema, ...swipeSchema },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       return await runNative(buildSwipeArgs(target, params as SwipeParams));
-    });
-  };
+    }
+  );
 
-  const registerScrollTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...scrollSchema }, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
+  server.tool(
+    "scroll",
+    "Send scroll wheel events to the target app.",
+    { ...unifiedTargetSchema, ...scrollSchema },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       return await runNative(buildScrollArgs(target, params as ScrollParams));
-    });
-  };
+    }
+  );
 
-  const registerDragDropTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...dragDropSchema }, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
+  server.tool(
+    "drag_drop",
+    "Drag and drop in the target app.",
+    { ...unifiedTargetSchema, ...dragDropSchema },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       return await runNative(buildDragDropArgs(target, params as DragDropParams));
-    });
-  };
-
-  // Explicit simulator/macOS split tools
-  registerDescribeTool(
-    "sim_describe_ui",
-    "Describe Simulator app UI hierarchy (inside simulator app content by default).",
-    simTargetSchema,
-    resolveSimulatorTargetArgs
+    }
   );
-  registerDescribeTool(
-    "mac_describe_ui",
-    "Describe macOS app UI hierarchy.",
-    macTargetSchema,
-    resolveMacTargetArgs
-  );
-
-  registerSearchTool(
-    "sim_search_ui",
-    "Search Simulator app UI elements by text, identifier, or label.",
-    simTargetSchema,
-    resolveSimulatorTargetArgs
-  );
-  registerSearchTool(
-    "mac_search_ui",
-    "Search macOS app UI elements by text, identifier, or label.",
-    macTargetSchema,
-    resolveMacTargetArgs
-  );
-
-  registerTapTool(
-    "sim_tap",
-    "Tap simulator coordinates or in-app accessibility element. Selector lookup defaults to in-app content; set all=true to include Simulator chrome UI.",
-    simTargetSchema,
-    tapSchema,
-    resolveSimulatorTargetArgs
-  );
-  registerTapTool(
-    "mac_tap",
-    "Tap macOS app coordinates or accessibility element.",
-    macTargetSchema,
-    tapSchemaWithoutAll,
-    resolveMacTargetArgs
-  );
-
-  registerTypeTool("sim_type_text", "Type text in Simulator target.", simTargetSchema, resolveSimulatorTargetArgs);
-  registerTypeTool("mac_type_text", "Type text in macOS app target.", macTargetSchema, resolveMacTargetArgs);
-
-  registerSwipeTool("sim_swipe", "Perform swipe gesture in Simulator target.", simTargetSchema, resolveSimulatorTargetArgs);
-  registerSwipeTool("mac_swipe", "Perform swipe gesture in macOS app target.", macTargetSchema, resolveMacTargetArgs);
-
-  registerScrollTool("sim_scroll", "Send scroll wheel events to Simulator target.", simTargetSchema, resolveSimulatorTargetArgs);
-  registerScrollTool("mac_scroll", "Send scroll wheel events to macOS app target.", macTargetSchema, resolveMacTargetArgs);
-
-  registerDragDropTool("sim_drag_drop", "Drag and drop in Simulator target.", simTargetSchema, resolveSimulatorTargetArgs);
-  registerDragDropTool("mac_drag_drop", "Drag and drop in macOS app target.", macTargetSchema, resolveMacTargetArgs);
 }

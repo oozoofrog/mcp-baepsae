@@ -12,7 +12,7 @@ opencode.json
 .sisyphus/
 DerivedData/
 *.xcuserstate
-test-fixtures/SampleApp/build/
+test-fixtures/SampleApp/[Bb]uild/
 mcp-publisher
 .mcpregistry_*
 

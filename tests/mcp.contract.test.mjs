@@ -79,36 +79,21 @@ test("tools/list exposes expected MCP tools", async () => {
       "stream_video",
       "record_video",
       "screenshot",
-      "sim_describe_ui",
-      "mac_describe_ui",
-      "sim_search_ui",
-      "mac_search_ui",
-      "sim_tap",
-      "mac_tap",
-      "sim_type_text",
-      "mac_type_text",
-      "sim_swipe",
-      "mac_swipe",
-      "sim_key",
-      "mac_key",
-      "sim_key_sequence",
-      "mac_key_sequence",
-      "sim_key_combo",
-      "mac_key_combo",
-      "sim_touch",
-      "mac_touch",
-      "sim_right_click",
-      "mac_right_click",
-      "sim_scroll",
-      "mac_scroll",
-      "sim_drag_drop",
-      "mac_drag_drop",
-      "sim_list_windows",
-      "mac_list_windows",
-      "sim_activate_app",
-      "mac_activate_app",
-      "sim_screenshot_app",
-      "mac_screenshot_app",
+      "analyze_ui",
+      "query_ui",
+      "tap",
+      "type_text",
+      "swipe",
+      "scroll",
+      "drag_drop",
+      "key",
+      "key_sequence",
+      "key_combo",
+      "touch",
+      "list_windows",
+      "activate_app",
+      "screenshot_app",
+      "right_click",
       "menu_action",
       "get_focused_app",
       "clipboard",
@@ -135,10 +120,10 @@ test("baepsae_version returns non-error response", async () => {
   });
 });
 
-test("sim_tap validates coordinate pair before native invocation", async () => {
+test("tap validates coordinate pair before native invocation", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         x: 10,
@@ -154,10 +139,10 @@ test("sim_tap validates coordinate pair before native invocation", async () => {
   });
 });
 
-test("sim_describe_ui call is routed to native layer", async () => {
+test("analyze_ui call is routed to native layer (simulator target)", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_describe_ui",
+      name: "analyze_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
       },
@@ -174,10 +159,10 @@ test("sim_describe_ui call is routed to native layer", async () => {
   });
 });
 
-test("sim_describe_ui routes with simulator target", async () => {
+test("analyze_ui routes with simulator target", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_describe_ui",
+      name: "analyze_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
       },
@@ -193,10 +178,10 @@ test("sim_describe_ui routes with simulator target", async () => {
   });
 });
 
-test("mac_describe_ui routes with macOS target", async () => {
+test("analyze_ui routes with macOS target", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "mac_describe_ui",
+      name: "analyze_ui",
       arguments: {
         bundleId: "com.example.app",
       },
@@ -212,10 +197,10 @@ test("mac_describe_ui routes with macOS target", async () => {
   });
 });
 
-test("sim_tap id/label call is routed to native layer", async () => {
+test("tap id/label call is routed to native layer", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         id: "com.example.button",
@@ -234,10 +219,10 @@ test("sim_tap id/label call is routed to native layer", async () => {
   });
 });
 
-test("sim_tap forwards all=true to native --all", async () => {
+test("tap forwards all=true to native --all", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         id: "com.example.button",
@@ -255,10 +240,10 @@ test("sim_tap forwards all=true to native --all", async () => {
   });
 });
 
-test("sim_tap forwards simulator-scoped args", async () => {
+test("tap forwards simulator-scoped args", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         id: "com.example.button",
@@ -277,10 +262,10 @@ test("sim_tap forwards simulator-scoped args", async () => {
   });
 });
 
-test("sim_tap rejects mixing coordinate and selector inputs", async () => {
+test("tap rejects mixing coordinate and selector inputs", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         x: 10,
@@ -298,10 +283,10 @@ test("sim_tap rejects mixing coordinate and selector inputs", async () => {
   });
 });
 
-test("sim_describe_ui forwards output option to native layer", async () => {
+test("analyze_ui forwards output option to native layer", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_describe_ui",
+      name: "analyze_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         output: ".tmp-test-artifacts/describe-ui.txt",
@@ -356,10 +341,10 @@ test("baepsae_version resolves native binary from different cwd (npx scenario)",
   });
 });
 
-test("sim_describe_ui resolves native binary from different cwd (npx scenario)", async () => {
+test("analyze_ui resolves native binary from different cwd (npx scenario)", async () => {
   await withClientFromDir(os.tmpdir(), async (client) => {
     const result = await client.callTool({
-      name: "sim_describe_ui",
+      name: "analyze_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
       },
