@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "5030a04fab54",
+  "session_id": "ec98672e-85d3-4b6a-920e-3c2e46b6442a",
+  "strategy": "auto-commit",
+  "created_at": "2026-02-21T12:05:02.37282Z",
+  "branch": "feat/bundled-native-binary",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "test-fixtures/SampleApp/SampleApp.xcodeproj/project.pbxproj",
+    "test-fixtures/SampleApp/SampleApp/BasicTab.swift",
+    "test-fixtures/SampleApp/SampleApp/ContentView.swift",
+    "test-fixtures/SampleApp/SampleApp/DragDropTab.swift",
+    "test-fixtures/SampleApp/SampleApp/ScrollTab.swift",
+    "tests/mcp.real.test.mjs"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 159,
+    "cache_creation_tokens": 108942,
+    "cache_read_tokens": 2831891,
+    "output_tokens": 4744,
+    "api_call_count": 30
+  }
+}

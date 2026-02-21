@@ -1,0 +1,79 @@
+Implement the following plan:
+
+# SampleApp Enhancement Plan
+
+## Context
+
+SampleApp은 mcp-baepsae의 iOS 시뮬레이터 MCP 도구를 dogfooding하는 테스트 앱이다.
+현재 단일 VStack에 5개 UI 요소(label, input, result, button, list)만 있어 `scroll`, `drag_drop` 도구의 테스트가 불가능하다.
+
+## Gap Analysis
+
+| 시뮬레이터 도구 | 테스트 존재 | SampleApp 지원 |
+|---|---|---|
+| scroll | X | list 있지만 scroll wheel 검증 불가 |
+| drag_drop | X | draggable 요소 없음 |
+| 나머지 20개 도구 | O | O |
+
+## Approach: TabView 기반 다중 페이지
+
+기존 ContentView를 TabView로 감싸고, 탭별로 테스트 시나리오를 분리한다.
+기존 test-label, test-input, test-result, test-button, test-list의 accessibility ID는 그대로 유지하여 기존 테스트 호환.
+
+### Tab 구조
+
+**Tab 1 — Basic (기존)**: 기존 ContentView 내용 유지
+- test-label, test-input, test-result, test-button, test-list
+- 기존 테스트 100% 호환
+
+**Tab 2 — Scroll**: scroll 도구 검증용
+- 100개 아이템 리스트 (`scroll-list`, accessibility ID)
+- 스크롤 위치 표시 텍스트 (`scroll-position`, "Visible: Item 0 ~ Item 19" 형태)
+- ScrollViewReader + GeometryReader로 visible range 추적
+
+**Tab 3 — Drag & Drop**: drag_drop 도구 검증용
+- 드래그 가능한 아이템들 (3개, `drag-item-0`, `drag-item-1`, `drag-item-2`)
+- 드롭 존 (`drop-zone`)
+- 드롭 결과 텍스트 (`drop-result`, "Dropped: Item 1" 형태)
+
+### File Structure
+
+```
+test-fixtures/SampleApp/SampleApp/
+├── SampleAppApp.swift          (수정: unchanged)
+├── ContentView.swift            (수정: TabView wrapper 추가)
+├── BasicTab.swift               (신규: 기존 UI 이동)
+├── ScrollTab.swift              (신규: scroll 테스트용)
+├── DragDropTab.swift            (신규: drag_drop 테스트용)
+├── Info.plist                   (unchanged)
+└── Assets.xcassets/             (unchanged)
+```
+
+### Test Additions (mcp.real.test.mjs)
+
+**scroll 테스트:**
+- SampleApp 실행 → Tab 2(Scroll) 탭 이동 → scroll 도구 호출 (deltaY: -5) → analyze_ui로 scroll-position 텍스트 변화 검증
+
+**drag_drop 테스트:**
+- SampleApp 실행 → Tab 3(Drag) 탭 이동 → drag-item-0 좌표 획득 → drop-zone 좌표 획득 → drag_drop 호출 → drop-result 텍스트 검증
+
+## Team Structure
+
+| Agent | Role | Files |
+|---|---|---|
+| swift-dev | SampleApp Swift 코드 작성 | `BasicTab.swift`, `ScrollTab.swift`, `DragDropTab.swift`, `ContentView.swift` 수정 |
+| test-dev | real test 추가 | `tests/mcp.real.test.mjs` 에 scroll, drag_drop 테스트 추가 |
+
+swift-dev가 먼저 완료 후 test-dev가 작업 (테스트가 UI 구조에 의존).
+
+## Verification
+
+1. `xcodebuild` 로 SampleApp 빌드 성공 확인
+2. 시뮬레이터에서 앱 실행 후 3개 탭 전환 확인
+3. 기존 테스트 통과: `npm run test:real`
+4. 새 scroll/drag_drop 테스트 통과
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/oozoofrog/.REDACTED.jsonl
+
+If this plan can be broken down into multiple independent tasks, consider using the TeamCreate tool to create a team and parallelize the work.

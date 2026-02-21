@@ -1,0 +1,33 @@
+모든 테스트 통과입니다. 구현 내용을 요약합니다.
+
+---
+
+## 구현 완료
+
+**변경된 파일 5개:**
+
+| 파일 | 역할 |
+|---|---|
+| `ContentView.swift` | TabView 래퍼로 교체 (Basic/Scroll/Drag 3탭) |
+| `BasicTab.swift` _(신규)_ | 기존 ContentView 내용 이동, 기존 accessibility ID 100% 유지 |
+| `ScrollTab.swift` _(신규)_ | 100개 아이템 List + `onAppear`/`onDisappear`로 가시 범위 추적 |
+| `DragDropTab.swift` _(신규)_ | `DragGesture(coordinateSpace: .global)` + GeometryReader 드롭 감지 |
+| `project.pbxproj` | 새 Swift 파일 3개 등록 |
+| `mcp.real.test.mjs` | Phase 2c: scroll/drag_drop 테스트 2개 추가 |
+
+**검증:** `xcodebuild` BUILD SUCCEEDED, `npm test` 16/16 통과
+
+---
+
+● **Learn by Doing**
+
+**Context:** `drag_drop` 테스트에서 `analyze_ui` 결과를 파싱해 좌표를 추출하려 하지만, 파싱 실패 시 폴백 좌표(`{ x: 195, y: 220 }`, `{ x: 195, y: 480 }`)를 사용합니다. 이 폴백은 현재 하드코딩되어 있어 시뮬레이터 해상도(iPhone 14 vs 16 Pro 등)에 따라 오작동할 수 있습니다.
+
+**Your Task:** `tests/mcp.real.test.mjs`의 `parseCenterFromText` 함수 바로 아래에 `TODO(human)` 주석이 있습니다. 시뮬레이터 해상도에 무관하게 동작하는 폴백 좌표 계산 방식을 2~5줄로 구현하세요.
+
+**Guidance:** 고려할 수 있는 접근들:
+- `analyze_ui` 결과에서 화면 크기 힌트를 추출해 중앙부 계산
+- `query_ui`로 각 요소의 좌표를 다른 패턴으로 재시도
+- 폴백보다 먼저 `tap { id: "drag-item-0" }`으로 요소가 존재하는지 확인 후 스킵 처리
+
+어떤 전략을 선택하든 "시뮬레이터가 없으면 skip"하는 기존 패턴을 유지해야 합니다.
