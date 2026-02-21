@@ -916,9 +916,12 @@ test("Phase 2c: scroll → verify scroll-position text changes in ScrollTab", { 
       5000,
     );
 
+    // Verify the scroll actually changed the visible range (not just that text exists)
+    const afterMatch = afterText.match(/Item\s+(\d+)\s*~\s*Item\s+(\d+)/);
+    assert.ok(afterMatch, `scroll-position should contain visible item range, got: ${afterText}`);
     assert.ok(
-      afterText.includes("Visible:"),
-      `scroll-position should contain "Visible:", got: ${afterText}`,
+      parseInt(afterMatch[2]) > 19,
+      `After scroll, max visible item should be > 19, got: Item ${afterMatch[1]} ~ Item ${afterMatch[2]}`,
     );
   });
 });
@@ -969,6 +972,10 @@ test("Phase 2c: drag_drop → drag item to drop zone and verify drop-result", { 
       name: "analyze_ui",
       arguments: { udid, focusId: "drop-zone" },
     });
+    if (dropZoneResult.isError && isAccessibilityDenied(extractText(dropZoneResult))) {
+      t.skip("Accessibility permission denied");
+      return;
+    }
 
     // Extract CGRect frame coordinates from analyze_ui text output.
     // Format: {{x, y}, {w, h}} or "frame: (x, y, w, h)"
@@ -983,8 +990,12 @@ test("Phase 2c: drag_drop → drag item to drop zone and verify drop-result", { 
       return null;
     }
 
-    const item0Center = parseCenterFromText(extractText(item0Result)) ?? { x: 195, y: 220 };
-    const dropZoneCenter = parseCenterFromText(extractText(dropZoneResult)) ?? { x: 195, y: 480 };
+    const item0Center = parseCenterFromText(extractText(item0Result));
+    const dropZoneCenter = parseCenterFromText(extractText(dropZoneResult));
+    if (!item0Center || !dropZoneCenter) {
+      t.skip(`Could not parse coordinates: item0=${!!item0Center}, dropZone=${!!dropZoneCenter}`);
+      return;
+    }
 
     // Perform drag from item-0 to drop-zone
     const dragResult = await client.callTool({

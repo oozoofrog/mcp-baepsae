@@ -21,7 +21,7 @@
     "build:ts": "npm run version:sync && tsc",
     "build:native": "npm run version:sync && swift build --package-path native -c release",
     "build": "npm run build:ts && npm run build:native",
-    "postinstall": "if [ \"$(uname)\" = \"Darwin\" ] && [ -f bundled/baepsae-native ] && bundled/baepsae-native --version >/dev/null 2>&1; then exit 0; fi; if [ \"$(uname)\" = \"Darwin\" ] && command -v swift >/dev/null 2>&1; then npm run build:native; fi",
+    "postinstall": "if [ \"$(uname)\" = \"Darwin\" ]; then if [ -f bundled/baepsae-native ] && bundled/baepsae-native --version >/dev/null 2>&1; then exit 0; fi; if command -v swift >/dev/null 2>&1; then npm run build:native; else echo 'WARNING: No working native binary and Swift not found. Native commands will be unavailable.' >&2; fi; fi",
     "prepublishOnly": "npm run build:ts",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
@@ -57,7 +57,7 @@
   },
   "files": [
     "dist",
-    "bundled",
+    "bundled/baepsae-native",
     "native/Sources",
     "native/Tests",
     "native/Package.swift",

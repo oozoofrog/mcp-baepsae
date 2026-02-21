@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { writeFileSync, chmodSync, mkdirSync, rmSync, readFileSync } from "node:fs";
+import { writeFileSync, chmodSync, mkdirSync, rmSync, rmdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -1209,9 +1209,9 @@ test("bundled binary is preferred over release build", async () => {
       writeFileSync(bundledBinary, existingContent);
     } else {
       rmSync(bundledBinary, { force: true });
-      // Only remove dir if we created it and it's empty
+      // Only remove dir if it's now empty (rmdirSync fails on non-empty dirs)
       try {
-        rmSync(bundledDir, { recursive: true, force: true });
+        rmdirSync(bundledDir);
       } catch {
         // directory not empty or other issue, leave it
       }
