@@ -1,0 +1,317 @@
+Implement the following plan:
+
+# MCP Tool Merge: 47 -> 32 Tools (Context Token Optimization)
+
+## Context
+
+mcp-baepsae exposes 47 MCP tools at runtime. 15 sim_/mac_ pairs (30 tools) perform identical native commands but differ only in target resolution (udid vs bundleId/appName). The Swift native layer already handles unified targets via `resolveTarget(from:)`. Merging these pairs reduces tools to 32, cutting ~32% of context token overhead per LLM turn. This is a breaking change (v5.0.0).
+
+**Correction**: Earlier analysis said "32 tools" — that counted source-level `server.tool()` patterns. The higher-order helpers (registerDescribeTool etc.) each register 2 tools at runtime (sim + mac), yielding 47 total tools confirmed by contract tests.
+
+## Tool Name Mapping
+
+15 pairs merged + 2 renamed:
+
+| Current (2 tools each) | Merged Name |
+|------------------------|-------------|
+| sim_describe_ui + mac_describe_ui | **analyze_ui** |
+| sim_search_ui + mac_search_ui | **query_ui** |
+| sim_tap + mac_tap | **tap** |
+| sim_type_text + mac_type_text | **type_text** |
+| sim_swipe + mac_swipe | **swipe** |
+| sim_scroll + mac_scroll | **scroll** |
+| sim_drag_drop + mac_drag_drop | **drag_drop** |
+| sim_key + mac_key | **key** |
+| sim_key_sequence + mac_key_sequence | **key_sequence** |
+| sim_key_combo + mac_key_combo | **key_combo** |
+| sim_touch + mac_touch | **touch** |
+| sim_list_windows + mac_list_windows | **list_windows** |
+| sim_activate_app + mac_activate_app | **activate_app** |
+| sim_screenshot_app + mac_screenshot_app | **screenshot_app** |
+| sim_right_click + mac_right_click | **right_click** |
+
+17 standalone tools unchanged: button, gesture, list_simulators, open_url, install_app, launch_app, terminate_app, uninstall_app, screenshot, record_video, stream_video, list_apps, get_focused_app, menu_action, clipboard, baepsae_help, baepsae_version
+
+## Implementation Steps
+
+### Step 1: `src/utils.ts` — Add unified target resolution
+
+Add `unifiedTargetSchema` (exported const with udid/bundleId/appName all optional) and `resolveUnifiedTargetArgs()` function. Keep existing `resolveSimulatorTargetArgs` and `resolveMacTargetArgs` (used by unchanged tools in simulator.ts, media.ts).
+
+Reuse: existing `pushOption()`, `runNative()`, `toToolResult()` — no changes needed.
+
+### Step 2: `src/tools/ui.ts` — 14 tools -> 7 tools
+
+- Remove: `simTargetSchema`, `macTargetSchema`, `tapSchemaWithoutAll`, all 7 `registerXxxTool` helpers, all 14 `registerXxxTool()` calls
+- Keep: all `buildXxxArgs` functions, all zod schemas (with `tapSchema` including `all` as optional), all validate functions, all param types
+- Add: 7 direct `server.tool()` registrations using `unifiedTargetSchema` + `resolveUnifiedTargetArgs`
+- Import `unifiedTargetSchema`, `resolveUnifiedTargetArgs` from utils
+
+### Step 3: `src/tools/input.ts` — 10 tools -> 5 tools
+
+- Remove: `simTargetSchema`, `macTargetSchema`, all 4 `registerXxxTool` helpers, 8 paired tool calls
+- Keep: `button` and `gesture` tools unchanged (simulator-only, use `resolveSimulatorTargetArgs`)
+- Add: 4 direct `server.tool()` registrations (key, key_sequence, key_combo, touch)
+
+### Step 4: `src/tools/system.ts` — 10 tools -> 7 tools
+
+- Remove: `simTargetSchema`, `macTargetSchema`, `rightClickSchemaWithoutAll`, all 4 helpers, 8 paired tool calls
+- Keep: `menu_action` and `clipboard` unchanged
+- Add: 4 direct `server.tool()` registrations (list_windows, activate_app, screenshot_app, right_click)
+
+### Step 5: `src/tools/info.ts` — Update help text
+
+Update `baepsae_help` handler's help output to show unified tool names grouped by category. `BAEPSAE_SUBCOMMANDS` enum unchanged (native CLI commands).
+
+### Step 6: `tests/mcp.contract.test.mjs`
+
+- Update expected tool list: 47 -> 32 tools
+- Rename all `sim_*`/`mac_*` references to unified names
+- For sim-target tests: use unified name + `{ udid: ... }`
+- For mac-target tests: use unified name + `{ bundleId: ... }`
+
+### Step 7: `tests/unit.test.mjs` (largest change, ~150 edits)
+
+- Update tool registry test: 47 -> 32 expected tools
+- Rename all tool name strings in `callTool({ name: "sim_tap" })` -> `callTool({ name: "tap" })`
+- Update target validation tests for unified error messages
+- Add new tests: `analyze_ui` rejects multiple targets (udid + bundleId)
+
+### Step 8: `tests/mcp.real.test.mjs`
+
+- Rename sim_* calls: sim_describe_ui -> analyze_ui, sim_search_ui -> query_ui, sim_tap -> tap, etc.
+- Rename mac_* calls in Phase 4 (Safari): mac_search_ui -> query_ui, mac_tap -> tap, mac_describe_ui -> analyze_ui
+- Update helper functions: waitForUI, hasContextMenu, dismissContextMenu, waitForMacUI
+
+### Step 9: Version & docs
+
+- `package.json`: version 4.0.1 -> 5.0.0
+- Run `npm run version:sync` to sync version.ts and Version.swift
+- CHANGELOG.md: Add 5.0.0 entry with breaking changes and migration guide
+
+**No changes**: `src/index.ts`, `native/Sources/**`, `native/Tests/**`, `src/tools/simulator.ts`, `src/tools/media.ts`
+
+## Critical Files
+
+| File | Change Type | Scope |
+|------|-----------|-------|
+| `src/utils.ts` | Add | ~30 lines (resolveUnifiedTargetArgs + unifiedTargetSchema) |
+| `src/tools/ui.ts` | Rewrite | 14 -> 7 tools, remove helpers |
+| `src/tools/input.ts` | Rewrite | 10 -> 5 tools, remove helpers |
+| `src/tools/system.ts` | Rewrite | 10 -> 7 tools, remove helpers |
+| `src/tools/info.ts` | Edit | Help text update |
+| `tests/unit.test.mjs` | Edit | ~150 tool name replacements |
+| `tests/mcp.contract.test.mjs` | Edit | Tool list + ~20 name replacements |
+| `tests/mcp.real.test.mjs` | Edit | ~40 name replacements |
+
+## Verification
+
+```bash
+npm run build          # TypeScript compilation
+npm test               # Contract + unit tests (no simulator needed)
+npm run test:real      # Real simulator tests (if simulator booted)
+```
+
+All 3 test suites must pass. Verify tool count = 32 in contract test output.
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/oozoofrog/.REDACTED.jsonl
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me go through the conversation chronologically:
+
+1. The user provided a detailed implementation plan to merge 47 MCP tools down to 32 tools in the mcp-baepsae project. This is a breaking change (v5.0.0) that consolidates sim_/mac_ tool pairs into unified tools.
+
+2. I created a task list with 8 tasks tracking the implementation steps.
+
+3. I read all the relevant source files to understand the current implementation:
+   - `src/utils.ts` - Shared utilities with target resolution functions
+   - `src/tools/ui.ts` - UI tools (14 tools via sim_/mac_ pairs)
+   - `src/tools/input.ts` - Input tools (10 tools via sim_/mac_ pairs)
+   - `src/tools/system.ts` - System tools (10 tools via sim_/mac_ pairs)
+   - `src/tools/info.ts` - Help and version tools
+   - `tests/mcp.contract.test.mjs` - Contract tests
+   - `tests/unit.test.mjs` - Unit tests (1386 lines)
+   - `tests/mcp.real.test.mjs` - Real simulator tests (1199 lines)
+   - `package.json` - Version 4.0.1
+
+4. I completed Steps 1-5 (source code changes):
+   - Step 1: Added `unifiedTargetSchema` and `resolveUnifiedTargetArgs()` to `src/utils.ts`
+   - Step 2: Rewrote `src/tools/ui.ts` - 14 tools → 7 tools (analyze_ui, query_ui, tap, type_text, swipe, scroll, drag_drop)
+   - Step 3: Rewrote `src/tools/input.ts` - 10 tools → 5 tools (key, key_sequence, key_combo, touch + button/gesture unchanged)
+   - Step 4: Rewrote `src/tools/system.ts` - 10 tools → 7 tools (list_windows, activate_app, screenshot_app, right_click + menu_action/clipboard unchanged)
+   - Step 5: Updated help text in `src/tools/info.ts`
+
+5. I ran `npm run build:ts` and it succeeded without errors.
+
+6. I completed Steps 6-8 (test file updates):
+   - Step 6: Rewrote `tests/mcp.contract.test.mjs` - Updated expected tool list to 32, renamed all sim_*/mac_* references
+   - Step 7: Rewrote `tests/unit.test.mjs` - Updated tool count from 47 to 32, renamed all tool references
+   - Step 8: Rewrote `tests/mcp.real.test.mjs` - Renamed all sim_*/mac_* calls to unified names
+
+7. Remaining tasks not yet done:
+   - Step 9: Version bump to 5.0.0 and CHANGELOG update
+   - Final: Build and run tests to verify
+
+The user's CLAUDE.md states:
+- Always respond in Korean
+- Don't include Co-Authored-By in commit messages
+
+The project is on branch `optimize/reduce-mcp-context-tokens`.
+
+Key mapping:
+- sim_describe_ui + mac_describe_ui → analyze_ui
+- sim_search_ui + mac_search_ui → query_ui
+- sim_tap + mac_tap → tap
+- sim_type_text + mac_type_text → type_text
+- sim_swipe + mac_swipe → swipe
+- sim_scroll + mac_scroll → scroll
+- sim_drag_drop + mac_drag_drop → drag_drop
+- sim_key + mac_key → key
+- sim_key_sequence + mac_key_sequence → key_sequence
+- sim_key_combo + mac_key_combo → key_combo
+- sim_touch + mac_touch → touch
+- sim_list_windows + mac_list_windows → list_windows
+- sim_activate_app + mac_activate_app → activate_app
+- sim_screenshot_app + mac_screenshot_app → screenshot_app
+- sim_right_click + mac_right_click → right_click
+
+The unified target validation error message is: "Provide exactly one target: udid, bundleId, or appName."
+
+The input.ts file has an unused import of `resolveSimulatorTargetArgs` - this might cause a lint warning but shouldn't be a build error since it's still used by button/gesture... wait, no. Looking at the input.ts I wrote, button and gesture tools use inline `udid` schema and push `--udid` directly, they don't use `resolveSimulatorTargetArgs`. Let me check... Yes, in my rewritten input.ts I imported `resolveSimulatorTargetArgs` but it's not used. This could be a TypeScript error or warning. Actually, looking more carefully, TypeScript with the project's tsconfig may or may not flag unused imports as errors. The build succeeded, so it's likely fine or the tsconfig doesn't have `noUnusedLocals` enabled.
+
+Wait - looking at my input.ts write, I included `resolveSimulatorTargetArgs` in the import but don't use it. This is unused. The build succeeded though, so it's not flagged as an error.
+
+Summary:
+1. Primary Request and Intent:
+   The user requested implementation of a detailed plan to merge 47 MCP tools down to 32 tools in the `mcp-baepsae` project. This is a breaking change (v5.0.0) that consolidates 15 `sim_*/mac_*` tool pairs into unified tools with a single target schema accepting `udid`, `bundleId`, or `appName`. The goal is to reduce ~32% of context token overhead per LLM turn. The plan has 9 steps covering source changes, test updates, and version bump.
+
+2. Key Technical Concepts:
+   - MCP (Model Context Protocol) server with TypeScript + Swift native bridge architecture
+   - Unified target resolution: merging separate simulator (`--udid`) and macOS (`--bundle-id`/`--app-name`) target schemas into one
+   - Zod schema validation for MCP tool parameters
+   - Higher-order tool registration pattern (eliminated in favor of direct `server.tool()` calls)
+   - Node.js built-in test runner (`node --test`) with `.mjs` ESM test files
+   - MCP SDK client/server stdio transport for testing
+
+3. Files and Code Sections:
+
+   - **`src/utils.ts`** — Core utilities. Added unified target resolution.
+     - Added `unifiedTargetSchema` and `resolveUnifiedTargetArgs()` before existing `resolveSimulatorTargetArgs`
+     - Existing `resolveSimulatorTargetArgs` and `resolveMacTargetArgs` kept (used by unchanged tools in simulator.ts, media.ts)
+     ```typescript
+     export const unifiedTargetSchema = {
+       udid: z.string().min(1).optional().describe("Simulator UDID (for simulator targets)"),
+       bundleId: z.string().optional().describe("macOS app bundle ID (for macOS targets)"),
+       appName: z.string().optional().describe("macOS app name (for macOS targets)"),
+     };
+
+     export function resolveUnifiedTargetArgs(params: { udid?: string; bundleId?: string; appName?: string }): string[] | ToolTextResult {
+       const modes = [params.udid, params.bundleId, params.appName].filter(Boolean).length;
+       if (modes === 0) {
+         return {
+           content: [{ type: "text", text: "Provide exactly one target: udid, bundleId, or appName." }],
+           isError: true,
+         };
+       }
+       if (modes > 1) {
+         return {
+           content: [{ type: "text", text: "Provide exactly one target: udid, bundleId, or appName." }],
+           isError: true,
+         };
+       }
+       if (params.udid) return ["--udid", params.udid];
+       if (params.bundleId) return ["--bundle-id", params.bundleId];
+       return ["--app-name", params.appName!];
+     }
+     ```
+
+   - **`src/tools/ui.ts`** — Fully rewritten. 14 tools → 7 unified tools.
+     - Removed: `simTargetSchema`, `macTargetSchema`, `tapSchemaWithoutAll`, all 7 `registerXxxTool` helper functions, all 14 paired tool registrations
+     - Kept: All `buildXxxArgs` functions, all Zod schemas, all validate functions, all param types
+     - Added: 7 direct `server.tool()` registrations using `unifiedTargetSchema` + `resolveUnifiedTargetArgs`
+     - Tool name mapping: `sim_describe_ui`/`mac_describe_ui` → `analyze_ui`, `sim_search_ui`/`mac_search_ui` → `query_ui`, `sim_tap`/`mac_tap` → `tap`, `sim_type_text`/`mac_type_text` → `type_text`, `sim_swipe`/`mac_swipe` → `swipe`, `sim_scroll`/`mac_scroll` → `scroll`, `sim_drag_drop`/`mac_drag_drop` → `drag_drop`
+     - `tapSchema` now includes `all` as optional for both sim and mac targets (previously `tapSchemaWithoutAll` excluded it for mac)
+     - Imports changed from `resolveSimulatorTargetArgs`/`resolveMacTargetArgs` to `unifiedTargetSchema`/`resolveUnifiedTargetArgs`
+
+   - **`src/tools/input.ts`** — Fully rewritten. 10 tools → 5 unified tools.
+     - Removed: `simTargetSchema`, `macTargetSchema`, all 4 `registerXxxTool` helpers, 8 paired tool calls
+     - Kept: `button` and `gesture` tools unchanged (simulator-only, use inline `udid` schema)
+     - Added: 4 direct `server.tool()` registrations: `key`, `key_sequence`, `key_combo`, `touch`
+     - Note: `resolveSimulatorTargetArgs` is imported but unused — potential cleanup needed
+
+   - **`src/tools/system.ts`** — Fully rewritten. 10 tools → 7 unified tools.
+     - Removed: `simTargetSchema`, `macTargetSchema`, `rightClickSchemaWithoutAll`, all 4 helpers, 8 paired tool calls
+     - Kept: `menu_action` and `clipboard` unchanged
+     - Added: 4 direct `server.tool()` registrations: `list_windows`, `activate_app`, `screenshot_app`, `right_click`
+     - `rightClickSchema` now includes `all` for unified tools (previously `rightClickSchemaWithoutAll` excluded it for mac)
+
+   - **`src/tools/info.ts`** — Help text updated.
+     - Replaced `sim_*/mac_*` variant descriptions with unified tool names grouped by category (UI, Input, System, Simulator-only, macOS/system)
+     - Updated accessibility tip to reference `analyze_ui`/`query_ui`/`tap` instead of `sim_describe_ui`/`sim_search_ui`/`sim_tap`
+
+   - **`tests/mcp.contract.test.mjs`** — Fully rewritten.
+     - Expected tool list updated from 47 to 32 names
+     - All `sim_*`/`mac_*` tool calls renamed to unified names
+     - Test "sim_tap validates..." → "tap validates..."
+     - Test "sim_describe_ui call is routed..." → "analyze_ui call is routed... (simulator target)"
+     - Test "mac_describe_ui routes with macOS target" → "analyze_ui routes with macOS target"
+     - npx scenario test updated: `sim_describe_ui` → `analyze_ui`
+
+   - **`tests/unit.test.mjs`** — Fully rewritten (1386 lines → similar length).
+     - Tool count assertion: 47 → 32
+     - All `sim_*`/`mac_*` tool name strings updated throughout
+     - Section 4 renamed from "Scoped target validation (sim_* / mac_*)" to "Unified target validation"
+     - Error messages updated: `"Provide exactly one of bundleId or appName."` → `"Provide exactly one target: udid, bundleId, or appName."`
+     - New test: `analyze_ui errors when multiple targets are provided` (udid + bundleId)
+     - `sim_tap requires udid` → `tap errors when no target is provided` (checks unified error)
+     - `mac_tap forwards mac target args` → `tap forwards mac target args`
+
+   - **`tests/mcp.real.test.mjs`** — Fully rewritten (1199 lines → similar length).
+     - Helper `waitForUI`: `sim_describe_ui` → `analyze_ui`
+     - Helper `hasContextMenu`: `sim_describe_ui` → `analyze_ui`
+     - Helper `dismissContextMenu`: `sim_key` → `key`, `sim_tap` → `tap`
+     - Helper `waitForMacUI`: `mac_search_ui` → `query_ui`
+     - All Phase 2 tests: `sim_describe_ui` → `analyze_ui`, `sim_search_ui` → `query_ui`, `sim_tap` → `tap`, `sim_type_text` → `type_text`, `sim_swipe` → `swipe`, `sim_key` → `key`, `sim_key_sequence` → `key_sequence`, `sim_key_combo` → `key_combo`, `sim_touch` → `touch`
+     - All Phase 4 (Safari) tests: `mac_tap` → `tap`, `mac_search_ui` → `query_ui`, `mac_describe_ui` → `analyze_ui`
+
+   - **`package.json`** — Read only, version currently `4.0.1`, needs bump to `5.0.0`
+   
+   - Files NOT changed (as planned): `src/index.ts`, `native/Sources/**`, `native/Tests/**`, `src/tools/simulator.ts`, `src/tools/media.ts`
+
+4. Errors and Fixes:
+   - No errors encountered during implementation. TypeScript build (`npm run build:ts`) succeeded on first attempt after all source changes.
+   - Potential issue: `src/tools/input.ts` imports `resolveSimulatorTargetArgs` which is unused (button and gesture use inline udid handling). The build passed, suggesting `noUnusedLocals` is not enabled in tsconfig.
+
+5. Problem Solving:
+   - Successfully eliminated the higher-order tool registration pattern (7 `registerXxxTool` functions in ui.ts, 4 in input.ts, 4 in system.ts) in favor of direct `server.tool()` calls
+   - Unified the `tapSchemaWithoutAll` and `rightClickSchemaWithoutAll` variants — the unified tools now always include `all` as an optional parameter regardless of target type
+   - Changed error messages from target-specific ("Provide udid" / "Provide exactly one of bundleId or appName") to unified ("Provide exactly one target: udid, bundleId, or appName") and updated all test assertions accordingly
+
+6. All User Messages:
+   - Message 1: "Implement the following plan: [detailed 9-step plan for merging 47→32 MCP tools with tool name mapping, implementation steps, critical files list, and verification commands]"
+
+7. Pending Tasks:
+   - **Step 9: Version bump and CHANGELOG** (Task #7) — Bump `package.json` version to `5.0.0`, run `npm run version:sync` to sync `src/version.ts` and `native/Sources/Version.swift`, update `CHANGELOG.md` with v5.0.0 breaking changes entry
+   - **Final: Build and run tests** (Task #8) — Run `npm run build && npm test` to verify TypeScript compilation and all 32 tools pass contract + unit tests
+
+8. Current Work:
+   I had just completed writing all three test files (Steps 6-8) — `tests/mcp.contract.test.mjs`, `tests/unit.test.mjs`, and `tests/mcp.real.test.mjs`. The task list shows:
+   - Tasks #1-5: completed (source code changes)
+   - Task #6: in_progress (test files — actually completed, status not updated)
+   - Task #7: pending (version bump + CHANGELOG)
+   - Task #8: pending (build + test verification)
+
+9. Optional Next Step:
+   The immediate next step is to complete **Step 9: Version bump and CHANGELOG**. From the plan:
+   > "Step 9: Version & docs — `package.json`: version 4.0.1 -> 5.0.0 — Run `npm run version:sync` to sync version.ts and Version.swift — CHANGELOG.md: Add 5.0.0 entry with breaking changes and migration guide"
+   
+   After that, run the final verification:
+   > "Verification: `npm run build` (TypeScript compilation), `npm test` (Contract + unit tests). All 3 test suites must pass. Verify tool count = 32 in contract test output."
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/oozoofrog/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.

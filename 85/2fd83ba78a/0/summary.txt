@@ -1,0 +1,26 @@
+`★ Insight ─────────────────────────────────────`
+- **Context token 절감 효과**: 47개 도구를 32개로 줄여 MCP `tools/list` 응답 크기가 ~32% 감소합니다. LLM은 매 턴마다 전체 도구 목록을 context에 포함하므로, 15개 도구 제거는 누적 토큰 비용에 상당한 영향을 줍니다.
+- **v4→v5 아키텍처 전환**: v4.0.0에서 sim_/mac_ 분리를 강제한 것은 "명시적 > 암시적" 원칙에 따른 것이었지만, 실사용에서 LLM이 올바른 prefix를 선택하는 데 실패하는 경우가 많아 오히려 UX가 나빠졌습니다. v5.0.0의 unified target 방식은 하나의 도구에 target 파라미터로 구분하여 두 문제를 모두 해결합니다.
+- **`version:sync` 패턴**: 하나의 `package.json` 버전을 TypeScript(`src/version.ts`)와 Swift(`native/Sources/Version.swift`) 양쪽에 자동 반영하는 단일 소스 원칙(Single Source of Truth)의 좋은 예시입니다.
+`─────────────────────────────────────────────────`
+
+## 완료 요약
+
+모든 9단계가 성공적으로 완료되었습니다:
+
+| 단계 | 내용 | 상태 |
+|------|------|------|
+| 1 | `src/utils.ts` — unified target resolution 추가 | ✅ |
+| 2 | `src/tools/ui.ts` — 14 → 7 도구 | ✅ |
+| 3 | `src/tools/input.ts` — 10 → 5 도구 | ✅ |
+| 4 | `src/tools/system.ts` — 10 → 7 도구 | ✅ |
+| 5 | `src/tools/info.ts` — 도움말 텍스트 업데이트 | ✅ |
+| 6 | `tests/mcp.contract.test.mjs` — 32개 도구 목록으로 갱신 | ✅ |
+| 7 | `tests/unit.test.mjs` — 모든 도구명 갱신 | ✅ |
+| 8 | `tests/mcp.real.test.mjs` — 모든 도구명 갱신 | ✅ |
+| 9 | 버전 5.0.0 + CHANGELOG | ✅ |
+
+**테스트 결과**:
+- Contract 테스트: **16/16** 통과
+- Unit 테스트: **74/74** 통과
+- 도구 수: **32개** 확인 (47 → 32, ~32% 감소)
