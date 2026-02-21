@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "d77307006ec9",
+  "strategy": "auto-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".gitignore"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d7/7307006ec9/0/metadata.json",
+      "transcript": "/d7/7307006ec9/0/full.jsonl",
+      "context": "",
+      "content_hash": "/d7/7307006ec9/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 5,
+    "cache_creation_tokens": 63172,
+    "cache_read_tokens": 125090,
+    "output_tokens": 18,
+    "api_call_count": 3
+  }
+}
