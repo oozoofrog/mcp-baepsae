@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [5.0.0] - 2026-02-21
+
+### Removed (Breaking)
+
+- Removed 30 scoped MCP tools (`sim_*` / `mac_*` pairs):
+  - `sim_describe_ui` / `mac_describe_ui` → merged into `analyze_ui`
+  - `sim_search_ui` / `mac_search_ui` → merged into `query_ui`
+  - `sim_tap` / `mac_tap` → merged into `tap`
+  - `sim_type_text` / `mac_type_text` → merged into `type_text`
+  - `sim_swipe` / `mac_swipe` → merged into `swipe`
+  - `sim_scroll` / `mac_scroll` → merged into `scroll`
+  - `sim_drag_drop` / `mac_drag_drop` → merged into `drag_drop`
+  - `sim_key` / `mac_key` → merged into `key`
+  - `sim_key_sequence` / `mac_key_sequence` → merged into `key_sequence`
+  - `sim_key_combo` / `mac_key_combo` → merged into `key_combo`
+  - `sim_touch` / `mac_touch` → merged into `touch`
+  - `sim_list_windows` / `mac_list_windows` → merged into `list_windows`
+  - `sim_activate_app` / `mac_activate_app` → merged into `activate_app`
+  - `sim_screenshot_app` / `mac_screenshot_app` → merged into `screenshot_app`
+  - `sim_right_click` / `mac_right_click` → merged into `right_click`
+
+### Added / Changed
+
+- 15 unified tools with flexible target resolution: pass `udid` for simulator, `bundleId` or `appName` for macOS
+- Tool inventory reduced from 47 to 32 (~32% fewer context tokens per LLM turn)
+- Unified target validation: exactly one of `udid`, `bundleId`, or `appName` required
+- Updated help output and tests for unified tool surface
+
+### Migration
+
+```diff
+- sim_describe_ui({ udid: "..." })
++ analyze_ui({ udid: "..." })
+
+- mac_tap({ bundleId: "com.example.app", id: "login" })
++ tap({ bundleId: "com.example.app", id: "login" })
+
+- sim_key({ udid: "...", key: "return" })
++ key({ udid: "...", key: "return" })
+```
+
 ## [4.0.1] - 2026-02-20
 
 ### Fixed
@@ -170,6 +211,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - UI automation tools: `describe_ui`, `tap`, `type_text`, `swipe`, `key`, `key_sequence`, `key_combo`, `touch`
 - Contract and integration tests
 
+[5.0.0]: https://github.com/oozoofrog/mcp-baepsae/compare/v4.0.1...v5.0.0
 [4.0.1]: https://github.com/oozoofrog/mcp-baepsae/compare/v4.0.0...v4.0.1
 [4.0.0]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.2.1...v4.0.0
 [3.2.1]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.2.0...v3.2.1

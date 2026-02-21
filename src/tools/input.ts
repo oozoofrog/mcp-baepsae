@@ -1,22 +1,16 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { ToolTextResult } from "../types.js";
+import type { UnifiedTargetParams } from "../types.js";
 import {
   keycodeSchema,
   BUTTON_TYPES,
   GESTURE_PRESETS,
-  resolveSimulatorTargetArgs,
-  resolveMacTargetArgs,
+  unifiedTargetSchema,
+  resolveUnifiedTargetArgs,
   pushOption,
   runNative,
 } from "../utils.js";
-
-type AnyTargetParams = {
-  udid?: string;
-  bundleId?: string;
-  appName?: string;
-};
 
 type KeyParams = {
   keycode: number;
@@ -39,15 +33,6 @@ type TouchParams = {
   down?: boolean;
   up?: boolean;
   delay?: number;
-};
-
-const simTargetSchema = {
-  udid: z.string().min(1).describe("Simulator UDID"),
-};
-
-const macTargetSchema = {
-  bundleId: z.string().optional().describe("macOS app bundle ID"),
-  appName: z.string().optional().describe("macOS app name"),
 };
 
 const keySchema = {
@@ -122,58 +107,6 @@ function buildTouchArgs(target: string[], params: TouchParams): string[] {
 }
 
 export function registerInputTools(server: McpServer): void {
-  const registerKeyTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...keySchema }, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
-      if (!Array.isArray(target)) return target;
-      return await runNative(buildKeyArgs(target, params as KeyParams));
-    });
-  };
-
-  const registerKeySequenceTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...keySequenceSchema }, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
-      if (!Array.isArray(target)) return target;
-      return await runNative(buildKeySequenceArgs(target, params as KeySequenceParams));
-    });
-  };
-
-  const registerKeyComboTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...keyComboSchema }, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
-      if (!Array.isArray(target)) return target;
-      return await runNative(buildKeyComboArgs(target, params as KeyComboParams));
-    });
-  };
-
-  const registerTouchTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...touchSchema }, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
-      if (!Array.isArray(target)) return target;
-      return await runNative(buildTouchArgs(target, params as TouchParams));
-    });
-  };
-
   server.tool(
     "button",
     "Press a simulator hardware button.",
@@ -190,37 +123,49 @@ export function registerInputTools(server: McpServer): void {
     }
   );
 
-  registerKeyTool("sim_key", "Press a single HID keycode in Simulator target.", simTargetSchema, resolveSimulatorTargetArgs);
-  registerKeyTool("mac_key", "Press a single HID keycode in macOS app target.", macTargetSchema, resolveMacTargetArgs);
-
-  registerKeySequenceTool(
-    "sim_key_sequence",
-    "Press multiple HID keycodes in sequence in Simulator target.",
-    simTargetSchema,
-    resolveSimulatorTargetArgs
-  );
-  registerKeySequenceTool(
-    "mac_key_sequence",
-    "Press multiple HID keycodes in sequence in macOS app target.",
-    macTargetSchema,
-    resolveMacTargetArgs
+  server.tool(
+    "key",
+    "Press a single HID keycode in the target app.",
+    { ...unifiedTargetSchema, ...keySchema },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      return await runNative(buildKeyArgs(target, params as KeyParams));
+    }
   );
 
-  registerKeyComboTool(
-    "sim_key_combo",
-    "Press key combo in Simulator target.",
-    simTargetSchema,
-    resolveSimulatorTargetArgs
-  );
-  registerKeyComboTool(
-    "mac_key_combo",
-    "Press key combo in macOS app target.",
-    macTargetSchema,
-    resolveMacTargetArgs
+  server.tool(
+    "key_sequence",
+    "Press multiple HID keycodes in sequence in the target app.",
+    { ...unifiedTargetSchema, ...keySequenceSchema },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      return await runNative(buildKeySequenceArgs(target, params as KeySequenceParams));
+    }
   );
 
-  registerTouchTool("sim_touch", "Perform touch events in Simulator target.", simTargetSchema, resolveSimulatorTargetArgs);
-  registerTouchTool("mac_touch", "Perform touch events in macOS app target.", macTargetSchema, resolveMacTargetArgs);
+  server.tool(
+    "key_combo",
+    "Press key combo in the target app.",
+    { ...unifiedTargetSchema, ...keyComboSchema },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      return await runNative(buildKeyComboArgs(target, params as KeyComboParams));
+    }
+  );
+
+  server.tool(
+    "touch",
+    "Perform touch events in the target app.",
+    { ...unifiedTargetSchema, ...touchSchema },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      return await runNative(buildTouchArgs(target, params as TouchParams));
+    }
+  );
 
   server.tool(
     "gesture",

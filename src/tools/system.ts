@@ -1,19 +1,13 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { ToolTextResult } from "../types.js";
+import type { UnifiedTargetParams } from "../types.js";
 import {
-  resolveSimulatorTargetArgs,
-  resolveMacTargetArgs,
+  unifiedTargetSchema,
+  resolveUnifiedTargetArgs,
   pushOption,
   runNative,
 } from "../utils.js";
-
-type AnyTargetParams = {
-  udid?: string;
-  bundleId?: string;
-  appName?: string;
-};
 
 type ScreenshotParams = {
   output?: string;
@@ -27,15 +21,6 @@ type RightClickParams = {
   all?: boolean;
 };
 
-const simTargetSchema = {
-  udid: z.string().min(1),
-};
-
-const macTargetSchema = {
-  bundleId: z.string().optional(),
-  appName: z.string().optional(),
-};
-
 const screenshotSchema = {
   output: z.string().optional().describe("Output file path"),
 };
@@ -46,13 +31,6 @@ const rightClickSchema = {
   id: z.string().optional(),
   label: z.string().optional(),
   all: z.boolean().optional(),
-};
-
-const rightClickSchemaWithoutAll = {
-  x: z.number().optional(),
-  y: z.number().optional(),
-  id: z.string().optional(),
-  label: z.string().optional(),
 };
 
 function buildScreenshotArgs(target: string[], params: ScreenshotParams): string[] {
@@ -72,91 +50,48 @@ function buildRightClickArgs(target: string[], params: RightClickParams): string
 }
 
 export function registerSystemTools(server: McpServer): void {
-  const registerListWindowsTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, targetSchema, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
+  server.tool(
+    "list_windows",
+    "List windows in the target app.",
+    unifiedTargetSchema,
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       return await runNative(["list-windows", ...target]);
-    });
-  };
+    }
+  );
 
-  const registerActivateAppTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, targetSchema, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
+  server.tool(
+    "activate_app",
+    "Bring the target app to foreground.",
+    unifiedTargetSchema,
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       return await runNative(["activate-app", ...target]);
-    });
-  };
+    }
+  );
 
-  const registerScreenshotAppTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...screenshotSchema }, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
+  server.tool(
+    "screenshot_app",
+    "Take a screenshot of the target app window.",
+    { ...unifiedTargetSchema, ...screenshotSchema },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       return await runNative(buildScreenshotArgs(target, params as ScreenshotParams));
-    });
-  };
+    }
+  );
 
-  const registerRightClickTool = (
-    name: string,
-    description: string,
-    targetSchema: Record<string, z.ZodTypeAny>,
-    schema: Record<string, z.ZodTypeAny>,
-    resolveTarget: (params: AnyTargetParams) => string[] | ToolTextResult
-  ) => {
-    server.tool(name, description, { ...targetSchema, ...schema }, async (params) => {
-      const target = resolveTarget(params as AnyTargetParams);
+  server.tool(
+    "right_click",
+    "Right-click in the target app. Selector lookup defaults to in-app content; set all=true for Simulator chrome UI.",
+    { ...unifiedTargetSchema, ...rightClickSchema },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       return await runNative(buildRightClickArgs(target, params as RightClickParams));
-    });
-  };
-
-  registerListWindowsTool("sim_list_windows", "List windows in Simulator target.", simTargetSchema, resolveSimulatorTargetArgs);
-  registerListWindowsTool("mac_list_windows", "List windows in macOS app target.", macTargetSchema, resolveMacTargetArgs);
-
-  registerActivateAppTool("sim_activate_app", "Bring Simulator target to foreground.", simTargetSchema, resolveSimulatorTargetArgs);
-  registerActivateAppTool("mac_activate_app", "Bring macOS app target to foreground.", macTargetSchema, resolveMacTargetArgs);
-
-  registerScreenshotAppTool(
-    "sim_screenshot_app",
-    "Take a screenshot of Simulator target window.",
-    simTargetSchema,
-    resolveSimulatorTargetArgs
-  );
-  registerScreenshotAppTool(
-    "mac_screenshot_app",
-    "Take a screenshot of macOS app target window.",
-    macTargetSchema,
-    resolveMacTargetArgs
-  );
-
-  registerRightClickTool(
-    "sim_right_click",
-    "Right-click in Simulator target (selector lookup defaults to in-app content; set all=true for Simulator chrome UI).",
-    simTargetSchema,
-    rightClickSchema,
-    resolveSimulatorTargetArgs
-  );
-  registerRightClickTool(
-    "mac_right_click",
-    "Right-click in macOS app target.",
-    macTargetSchema,
-    rightClickSchemaWithoutAll,
-    resolveMacTargetArgs
+    }
   );
 
   server.tool(

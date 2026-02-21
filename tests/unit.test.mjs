@@ -59,7 +59,7 @@ async function withClient(run, envOverrides = {}) {
 // Section 1: Tool registry completeness
 // ===========================================================================
 
-test("tool registry lists all 47 expected MCP tools", async () => {
+test("tool registry lists all 32 expected MCP tools", async () => {
   await withClient(async (client) => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((t) => t.name));
@@ -82,36 +82,21 @@ test("tool registry lists all 47 expected MCP tools", async () => {
       "menu_action",
       "get_focused_app",
       "clipboard",
-      "sim_describe_ui",
-      "mac_describe_ui",
-      "sim_search_ui",
-      "mac_search_ui",
-      "sim_tap",
-      "mac_tap",
-      "sim_type_text",
-      "mac_type_text",
-      "sim_swipe",
-      "mac_swipe",
-      "sim_scroll",
-      "mac_scroll",
-      "sim_drag_drop",
-      "mac_drag_drop",
-      "sim_key",
-      "mac_key",
-      "sim_key_sequence",
-      "mac_key_sequence",
-      "sim_key_combo",
-      "mac_key_combo",
-      "sim_touch",
-      "mac_touch",
-      "sim_list_windows",
-      "mac_list_windows",
-      "sim_activate_app",
-      "mac_activate_app",
-      "sim_screenshot_app",
-      "mac_screenshot_app",
-      "sim_right_click",
-      "mac_right_click",
+      "analyze_ui",
+      "query_ui",
+      "tap",
+      "type_text",
+      "swipe",
+      "scroll",
+      "drag_drop",
+      "key",
+      "key_sequence",
+      "key_combo",
+      "touch",
+      "list_windows",
+      "activate_app",
+      "screenshot_app",
+      "right_click",
     ];
 
     for (const name of allExpected) {
@@ -189,51 +174,56 @@ test("baepsae_version includes native binary version when built", async () => {
 });
 
 // ===========================================================================
-// Section 4: Scoped target validation (sim_* / mac_*)
+// Section 4: Unified target validation
 // ===========================================================================
 
-test("sim_describe_ui requires udid", async () => {
+test("analyze_ui errors when no target is provided", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_describe_ui",
-      arguments: {},
-    });
-    const text = extractText(result);
-    assert.match(text, /udid/);
-  });
-});
-
-test("mac_describe_ui errors when no target is provided", async () => {
-  await withClient(async (client) => {
-    const result = await client.callTool({
-      name: "mac_describe_ui",
+      name: "analyze_ui",
       arguments: {},
     });
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
-    assert.match(text, /Provide exactly one of bundleId or appName\./);
+    assert.match(text, /No target specified/);
   });
 });
 
-test("mac_describe_ui errors when both bundleId and appName are provided", async () => {
+test("analyze_ui errors when multiple targets are provided", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "mac_describe_ui",
+      name: "analyze_ui",
       arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        bundleId: "com.example.app",
+      },
+    });
+    assert.equal(result.isError ?? false, true);
+    const text = extractText(result);
+    assert.match(text, /Multiple targets specified/);
+  });
+});
+
+test("analyze_ui errors when all three targets are provided", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "analyze_ui",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
         bundleId: "com.example.app",
         appName: "Example",
       },
     });
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
-    assert.match(text, /Provide exactly one of bundleId or appName\./);
+    assert.match(text, /Multiple targets specified/);
   });
 });
 
-test("mac_describe_ui routes correctly with bundleId target", async () => {
+test("analyze_ui routes correctly with bundleId target", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "mac_describe_ui",
+      name: "analyze_ui",
       arguments: { bundleId: "com.example.nonexistent" },
     });
     const text = extractText(result);
@@ -243,10 +233,10 @@ test("mac_describe_ui routes correctly with bundleId target", async () => {
   });
 });
 
-test("mac_describe_ui routes correctly with appName target", async () => {
+test("analyze_ui routes correctly with appName target", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "mac_describe_ui",
+      name: "analyze_ui",
       arguments: { appName: "NonexistentApp" },
     });
     const text = extractText(result);
@@ -256,40 +246,33 @@ test("mac_describe_ui routes correctly with appName target", async () => {
   });
 });
 
-test("sim_search_ui requires udid", async () => {
+test("query_ui errors when no target is provided", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_search_ui",
+      name: "query_ui",
       arguments: { query: "hello" },
     });
-    const text = extractText(result);
-    assert.match(text, /udid/);
-  });
-});
-
-test("sim_list_windows requires udid", async () => {
-  await withClient(async (client) => {
-    const result = await client.callTool({ name: "sim_list_windows", arguments: {} });
-    const text = extractText(result);
-    assert.match(text, /udid/);
-  });
-});
-
-test("mac_list_windows requires exactly one mac target", async () => {
-  await withClient(async (client) => {
-    const result = await client.callTool({ name: "mac_list_windows", arguments: {} });
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
-    assert.match(text, /Provide exactly one of bundleId or appName\./);
+    assert.match(text, /No target specified/);
   });
 });
 
-test("mac_activate_app requires exactly one mac target", async () => {
+test("list_windows errors when no target is provided", async () => {
   await withClient(async (client) => {
-    const result = await client.callTool({ name: "mac_activate_app", arguments: {} });
+    const result = await client.callTool({ name: "list_windows", arguments: {} });
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
-    assert.match(text, /Provide exactly one of bundleId or appName\./);
+    assert.match(text, /No target specified/);
+  });
+});
+
+test("activate_app errors when no target is provided", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({ name: "activate_app", arguments: {} });
+    assert.equal(result.isError ?? false, true);
+    const text = extractText(result);
+    assert.match(text, /No target specified/);
   });
 });
 
@@ -300,7 +283,7 @@ test("mac_activate_app requires exactly one mac target", async () => {
 test("tap errors when only y is provided (missing x)", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         y: 20,
@@ -315,7 +298,7 @@ test("tap errors when only y is provided (missing x)", async () => {
 test("tap errors when no coordinate or selector is provided", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
       },
@@ -329,7 +312,7 @@ test("tap errors when no coordinate or selector is provided", async () => {
 test("tap errors when coordinates and label are both given", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         x: 10,
@@ -346,7 +329,7 @@ test("tap errors when coordinates and label are both given", async () => {
 test("tap with label-only routes correctly to native binary", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         label: "My Button",
@@ -361,7 +344,7 @@ test("tap with label-only routes correctly to native binary", async () => {
 test("tap with coordinates passes x and y to native", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         x: 100,
@@ -378,7 +361,7 @@ test("tap with coordinates passes x and y to native", async () => {
 test("tap with --double flag is forwarded", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         x: 100,
@@ -394,7 +377,7 @@ test("tap with --double flag is forwarded", async () => {
 test("tap with all=true forwards --all", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         id: "test-button",
@@ -406,19 +389,19 @@ test("tap with all=true forwards --all", async () => {
   });
 });
 
-test("sim_tap requires udid", async () => {
+test("tap errors when no target is provided", async () => {
   await withClient(async (client) => {
-    const result = await client.callTool({ name: "sim_tap", arguments: { id: "test-button" } });
+    const result = await client.callTool({ name: "tap", arguments: { id: "test-button" } });
+    assert.equal(result.isError ?? false, true);
     const text = extractText(result);
-    // Zod schema enforces udid as required — MCP SDK returns validation error
-    assert.match(text, /udid/);
+    assert.match(text, /No target specified/);
   });
 });
 
-test("mac_tap forwards mac target args", async () => {
+test("tap forwards mac target args with bundleId", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "mac_tap",
+      name: "tap",
       arguments: {
         bundleId: "com.example.app",
         id: "test-button",
@@ -431,6 +414,23 @@ test("mac_tap forwards mac target args", async () => {
   });
 });
 
+test("tap forwards mac target args with appName", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "tap",
+      arguments: {
+        appName: "Safari",
+        id: "test-button",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /tap/);
+    assert.match(text, /--app-name/);
+    assert.doesNotMatch(text, /--udid/);
+    assert.doesNotMatch(text, /--bundle-id/);
+  });
+});
+
 // ===========================================================================
 // Section 6: type_text validation
 // ===========================================================================
@@ -438,7 +438,7 @@ test("mac_tap forwards mac target args", async () => {
 test("type_text errors when no text source is provided", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_type_text",
+      name: "type_text",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
       },
@@ -452,7 +452,7 @@ test("type_text errors when no text source is provided", async () => {
 test("type_text errors when multiple text sources are provided", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_type_text",
+      name: "type_text",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         text: "hello",
@@ -468,7 +468,7 @@ test("type_text errors when multiple text sources are provided", async () => {
 test("type_text errors when all three text sources are provided", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_type_text",
+      name: "type_text",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         text: "hello",
@@ -485,7 +485,7 @@ test("type_text errors when all three text sources are provided", async () => {
 test("type_text with text argument routes to native with correct args", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_type_text",
+      name: "type_text",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         text: "hello world",
@@ -500,7 +500,7 @@ test("type_text with text argument routes to native with correct args", async ()
 test("type_text with file argument includes --file flag", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_type_text",
+      name: "type_text",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         file: "/tmp/nonexistent-type-test.txt",
@@ -514,7 +514,7 @@ test("type_text with file argument includes --file flag", async () => {
 test("type_text with stdinText argument includes --stdin flag", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_type_text",
+      name: "type_text",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         stdinText: "piped text",
@@ -618,7 +618,7 @@ test("menu_action with appName routes correctly", async () => {
 test("successful native command output includes Executable, Command, Exit code, Duration lines", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_describe_ui",
+      name: "analyze_ui",
       arguments: { udid: "00000000-0000-0000-0000-000000000000" },
     });
     const text = extractText(result);
@@ -634,7 +634,7 @@ test("native command output quotes arguments with special characters in Command 
   await withClient(async (client) => {
     // Search UI with a query containing spaces to test quoteArg
     const result = await client.callTool({
-      name: "sim_search_ui",
+      name: "query_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         query: "hello world",
@@ -647,13 +647,13 @@ test("native command output quotes arguments with special characters in Command 
 });
 
 // ===========================================================================
-// Section 10: describe_ui optional parameters forwarding
+// Section 10: analyze_ui optional parameters forwarding
 // ===========================================================================
 
-test("describe_ui forwards pagination parameters (offset/limit)", async () => {
+test("analyze_ui forwards pagination parameters (offset/limit)", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_describe_ui",
+      name: "analyze_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         offset: 5,
@@ -666,10 +666,10 @@ test("describe_ui forwards pagination parameters (offset/limit)", async () => {
   });
 });
 
-test("describe_ui forwards filter parameters (role, visibleOnly, maxDepth)", async () => {
+test("analyze_ui forwards filter parameters (role, visibleOnly, maxDepth)", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_describe_ui",
+      name: "analyze_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         role: "AXButton",
@@ -684,10 +684,10 @@ test("describe_ui forwards filter parameters (role, visibleOnly, maxDepth)", asy
   });
 });
 
-test("describe_ui forwards --all and --summary flags", async () => {
+test("analyze_ui forwards --all and --summary flags", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_describe_ui",
+      name: "analyze_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         all: true,
@@ -700,10 +700,10 @@ test("describe_ui forwards --all and --summary flags", async () => {
   });
 });
 
-test("describe_ui forwards rootElementId parameter", async () => {
+test("analyze_ui forwards rootElementId parameter", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_describe_ui",
+      name: "analyze_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         rootElementId: "some-element-42",
@@ -715,13 +715,13 @@ test("describe_ui forwards rootElementId parameter", async () => {
 });
 
 // ===========================================================================
-// Section 11: search_ui optional parameters
+// Section 11: query_ui optional parameters
 // ===========================================================================
 
-test("search_ui forwards optional filter parameters", async () => {
+test("query_ui forwards optional filter parameters", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_search_ui",
+      name: "query_ui",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         query: "test",
@@ -745,7 +745,7 @@ test("search_ui forwards optional filter parameters", async () => {
 test("key_sequence accepts array of keycodes", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_key_sequence",
+      name: "key_sequence",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         keycodes: [4, 5, 6],
@@ -763,7 +763,7 @@ test("key_sequence accepts array of keycodes", async () => {
 test("key_sequence accepts comma-separated string of keycodes", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_key_sequence",
+      name: "key_sequence",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         keycodes: "10,20,30",
@@ -778,7 +778,7 @@ test("key_sequence accepts comma-separated string of keycodes", async () => {
 test("key_sequence forwards delay option", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_key_sequence",
+      name: "key_sequence",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         keycodes: [4, 5],
@@ -797,7 +797,7 @@ test("key_sequence forwards delay option", async () => {
 test("touch defaults to --down --up when neither specified", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_touch",
+      name: "touch",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         x: 100,
@@ -813,7 +813,7 @@ test("touch defaults to --down --up when neither specified", async () => {
 test("touch with only down flag omits up", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_touch",
+      name: "touch",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         x: 100,
@@ -838,7 +838,7 @@ test("touch with only down flag omits up", async () => {
 test("swipe forwards all coordinates and optional parameters", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_swipe",
+      name: "swipe",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         startX: 10,
@@ -918,7 +918,7 @@ test("button forwards duration option", async () => {
 test("key_combo formats modifiers as comma-separated list", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_key_combo",
+      name: "key_combo",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         modifiers: [224, 225],
@@ -940,7 +940,7 @@ test("key_combo formats modifiers as comma-separated list", async () => {
 test("drag_drop forwards all coordinates and optional duration", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "mac_drag_drop",
+      name: "drag_drop",
       arguments: {
         bundleId: "com.example.app",
         startX: 10,
@@ -967,7 +967,7 @@ test("drag_drop forwards all coordinates and optional duration", async () => {
 test("scroll forwards delta and coordinate options", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "mac_scroll",
+      name: "scroll",
       arguments: {
         bundleId: "com.example.app",
         deltaX: 0,
@@ -992,7 +992,7 @@ test("scroll forwards delta and coordinate options", async () => {
 test("right_click forwards coordinate and selector options", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "mac_right_click",
+      name: "right_click",
       arguments: {
         bundleId: "com.example.app",
         x: 50,
@@ -1006,26 +1006,10 @@ test("right_click forwards coordinate and selector options", async () => {
   });
 });
 
-test("right_click with all=true forwards --all", async () => {
+test("right_click with udid and all=true forwards --all and --udid", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_right_click",
-      arguments: {
-        udid: "00000000-0000-0000-0000-000000000000",
-        id: "test-button",
-        all: true,
-      },
-    });
-    const text = extractText(result);
-    assert.match(text, /right-click/);
-    assert.match(text, /--all/);
-  });
-});
-
-test("sim_right_click with all=true forwards --all", async () => {
-  await withClient(async (client) => {
-    const result = await client.callTool({
-      name: "sim_right_click",
+      name: "right_click",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         id: "test-button",
@@ -1039,10 +1023,10 @@ test("sim_right_click with all=true forwards --all", async () => {
   });
 });
 
-test("mac_right_click routes with mac target", async () => {
+test("right_click routes with mac target", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "mac_right_click",
+      name: "right_click",
       arguments: {
         bundleId: "com.example.app",
         id: "test-button",
@@ -1062,7 +1046,7 @@ test("mac_right_click routes with mac target", async () => {
 test("screenshot_app forwards output option", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "mac_screenshot_app",
+      name: "screenshot_app",
       arguments: {
         bundleId: "com.example.app",
         output: "/tmp/test-screenshot.png",
@@ -1191,7 +1175,7 @@ test("native command shows non-zero exit code as error", async () => {
   await withClient(async (client) => {
     const missingAppName = `__baepsae_missing_app_${Date.now()}__`;
     const result = await client.callTool({
-      name: "mac_describe_ui",
+      name: "analyze_ui",
       arguments: { appName: missingAppName },
     });
     const text = extractText(result);
@@ -1301,7 +1285,7 @@ test("tool results always have content array with text type entries", async () =
       client.callTool({ name: "baepsae_version", arguments: {} }),
       client.callTool({ name: "list_simulators", arguments: {} }),
       client.callTool({
-        name: "sim_describe_ui",
+        name: "analyze_ui",
         arguments: {},
       }),
     ]);
@@ -1325,7 +1309,7 @@ test("tool results always have content array with text type entries", async () =
 test("tap forwards preDelay and postDelay options", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_tap",
+      name: "tap",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         x: 100,
@@ -1363,7 +1347,7 @@ test("get_focused_app routes to native binary", async () => {
 test("key forwards duration option", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
-      name: "sim_key",
+      name: "key",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         keycode: 40,

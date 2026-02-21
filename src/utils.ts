@@ -117,29 +117,31 @@ export function resolveNativeBinary(): string {
   throw new Error(messages.join(" "));
 }
 
-export function resolveSimulatorTargetArgs(params: { udid?: string }): string[] | ToolTextResult {
-  if (!params.udid) {
-    return {
-      content: [{ type: "text", text: "Provide udid." }],
-      isError: true,
-    };
-  }
-  return ["--udid", params.udid];
-}
+export const unifiedTargetSchema = {
+  udid: z.string().min(1).optional().describe("Simulator UDID (for simulator targets)"),
+  bundleId: z.string().min(1).optional().describe("macOS app bundle ID (for macOS targets)"),
+  appName: z.string().min(1).optional().describe("macOS app name (for macOS targets)"),
+};
 
-export function resolveMacTargetArgs(params: { bundleId?: string; appName?: string }): string[] | ToolTextResult {
-  const modes = [params.bundleId, params.appName].filter(Boolean).length;
-  if (modes !== 1) {
+export function resolveUnifiedTargetArgs(params: { udid?: string; bundleId?: string; appName?: string }): string[] | ToolTextResult {
+  const modes = [params.udid, params.bundleId, params.appName].filter(Boolean).length;
+  if (modes === 0) {
     return {
-      content: [{ type: "text", text: "Provide exactly one of bundleId or appName." }],
+      content: [{ type: "text", text: "No target specified. Provide exactly one: udid (simulator), bundleId, or appName (macOS)." }],
       isError: true,
     };
   }
-  if (params.bundleId) {
-    return ["--bundle-id", params.bundleId];
+  if (modes > 1) {
+    return {
+      content: [{ type: "text", text: "Multiple targets specified. Provide exactly one: udid (simulator), bundleId, or appName (macOS)." }],
+      isError: true,
+    };
   }
+  if (params.udid) return ["--udid", params.udid];
+  if (params.bundleId) return ["--bundle-id", params.bundleId];
   return ["--app-name", params.appName!];
 }
+
 
 export function pushOption(args: string[], name: string, value: string | number | undefined): void {
   if (value !== undefined) {

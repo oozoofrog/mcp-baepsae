@@ -1,3 +1,9 @@
+export type UnifiedTargetParams = {
+  udid?: string;
+  bundleId?: string;
+  appName?: string;
+};
+
 export type ToolTextResult = {
   content: Array<{ type: "text"; text: string }>;
   isError: boolean;
