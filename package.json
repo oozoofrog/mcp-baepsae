@@ -1,6 +1,6 @@
 {
   "name": "mcp-baepsae",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "mcpName": "io.github.oozoofrog/baepsae",
   "description": "Local MCP server for iOS Simulator and macOS app automation with a native Swift bridge",
   "author": "oozoofrog",
