@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "79362e98d0e3",
+  "session_id": "59d484b6-b7bf-42b0-80fb-271881af8a51",
+  "strategy": "auto-commit",
+  "created_at": "2026-02-21T15:11:59.597363Z",
+  "branch": "feat/bundled-native-binary",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "package.json",
+    "scripts/bundle-native.sh",
+    "src/utils.ts",
+    "tests/unit.test.mjs"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 55931,
+    "cache_read_tokens": 1089096,
+    "output_tokens": 3178,
+    "api_call_count": 12
+  }
+}

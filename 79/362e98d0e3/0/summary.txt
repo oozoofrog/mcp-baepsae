@@ -1,0 +1,11 @@
+모든 테스트 통과 — 계약 테스트 16개 + 단위 테스트 78개 (새로 추가된 `non-executable bundled binary falls back to release build` 테스트 포함).
+
+`★ Insight ─────────────────────────────────────`
+**수정 요약:**
+1. **Fix 1** (`package.json`): `postinstall`에 `$(uname) = Darwin` 가드 추가 — 비-macOS에서 Mach-O 바이너리 실행 시도 차단
+2. **Fix 2** (`src/utils.ts`): `candidates` 배열 위에 우선순위 주석 — 코드 의도를 명확히 문서화
+3. **Fix 3** (`tests/unit.test.mjs`): `rmSync`에 `recursive: true` 추가 — 디렉토리 정리 시 파일이 남아있어도 안전하게 삭제
+4. **Fix 4** (`tests/unit.test.mjs`): 동적 `import("node:fs")` → 정적 `readFileSync` — 불필요한 동적 import 제거로 코드 일관성 향상
+5. **Fix 5** (`scripts/bundle-native.sh`): 번들 후 `--version` 검증 — CI에서 손상된 바이너리 배포 방지
+6. **Fix 6** (`tests/unit.test.mjs`): 비실행 번들 바이너리 폴백 테스트 — `chmod 0o644` 시나리오에서 release build로 정상 폴백 확인
+`─────────────────────────────────────────────────`
