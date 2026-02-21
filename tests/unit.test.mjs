@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { writeFileSync, chmodSync, mkdirSync, rmSync } from "node:fs";
+import { writeFileSync, chmodSync, mkdirSync, rmSync, rmdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -1163,6 +1163,167 @@ test("BAEPSAE_NATIVE_PATH with non-executable file returns error", async () => {
     }, { BAEPSAE_NATIVE_PATH: nonExecFile });
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// ===========================================================================
+// Section 24b: resolveNativeBinary with bundled/ path
+// ===========================================================================
+
+test("bundled binary is preferred over release build", async () => {
+  const bundledDir = path.join(projectRoot, "bundled");
+  const bundledBinary = path.join(bundledDir, "baepsae-native");
+
+  // Save and remove existing bundled binary if present
+  let existingContent = null;
+  try {
+    existingContent = readFileSync(bundledBinary);
+  } catch {
+    // no existing bundled binary
+  }
+
+  mkdirSync(bundledDir, { recursive: true });
+  writeFileSync(bundledBinary, '#!/bin/sh\necho "BUNDLED_BINARY_OUTPUT"\n');
+  chmodSync(bundledBinary, 0o755);
+
+  try {
+    await withClient(async (client) => {
+      const result = await client.callTool({
+        name: "list_apps",
+        arguments: {},
+      });
+      const text = extractText(result);
+      assert.match(
+        text,
+        /bundled\/baepsae-native/,
+        "Should resolve to bundled binary path"
+      );
+      assert.match(
+        text,
+        /BUNDLED_BINARY_OUTPUT/,
+        "Should contain output from bundled binary"
+      );
+    });
+  } finally {
+    if (existingContent !== null) {
+      writeFileSync(bundledBinary, existingContent);
+    } else {
+      rmSync(bundledBinary, { force: true });
+      // Only remove dir if it's now empty (rmdirSync fails on non-empty dirs)
+      try {
+        rmdirSync(bundledDir);
+      } catch {
+        // directory not empty or other issue, leave it
+      }
+    }
+  }
+});
+
+test("BAEPSAE_NATIVE_PATH takes priority over bundled binary", async () => {
+  const bundledDir = path.join(projectRoot, "bundled");
+  const bundledBinary = path.join(bundledDir, "baepsae-native");
+  const tmpDir = path.join(os.tmpdir(), `baepsae-unit-test-priority-${Date.now()}`);
+
+  // Save existing bundled binary if present
+  let existingContent = null;
+  try {
+    existingContent = readFileSync(bundledBinary);
+  } catch {
+    // no existing bundled binary
+  }
+
+  mkdirSync(bundledDir, { recursive: true });
+  writeFileSync(bundledBinary, '#!/bin/sh\necho "BUNDLED_SHOULD_NOT_SEE"\n');
+  chmodSync(bundledBinary, 0o755);
+
+  mkdirSync(tmpDir, { recursive: true });
+  const envBinary = path.join(tmpDir, "env-baepsae-native");
+  writeFileSync(envBinary, '#!/bin/sh\necho "ENV_OVERRIDE_OUTPUT"\n');
+  chmodSync(envBinary, 0o755);
+
+  try {
+    await withClient(async (client) => {
+      const result = await client.callTool({
+        name: "list_apps",
+        arguments: {},
+      });
+      const text = extractText(result);
+      assert.match(
+        text,
+        /env-baepsae-native/,
+        "Should use env override binary, not bundled"
+      );
+      assert.match(
+        text,
+        /ENV_OVERRIDE_OUTPUT/,
+        "Should contain output from env override binary"
+      );
+      assert.ok(
+        !text.includes("BUNDLED_SHOULD_NOT_SEE"),
+        "Should not contain bundled binary output"
+      );
+    }, { BAEPSAE_NATIVE_PATH: envBinary });
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+    if (existingContent !== null) {
+      writeFileSync(bundledBinary, existingContent);
+    } else {
+      rmSync(bundledBinary, { force: true });
+      try {
+        rmSync(bundledDir, { recursive: true, force: true });
+      } catch {
+        // directory not empty or other issue, leave it
+      }
+    }
+  }
+});
+
+test("non-executable bundled binary falls back to release build", async () => {
+  const bundledDir = path.join(projectRoot, "bundled");
+  const bundledBinary = path.join(bundledDir, "baepsae-native");
+
+  // Save existing bundled binary if present
+  let existingContent = null;
+  try {
+    existingContent = readFileSync(bundledBinary);
+  } catch {
+    // no existing bundled binary
+  }
+
+  mkdirSync(bundledDir, { recursive: true });
+  writeFileSync(bundledBinary, '#!/bin/sh\necho "SHOULD_NOT_RUN"\n');
+  chmodSync(bundledBinary, 0o644); // not executable
+
+  try {
+    await withClient(async (client) => {
+      const result = await client.callTool({
+        name: "list_apps",
+        arguments: {},
+      });
+      const text = extractText(result);
+      // Should fall back to the release build, not the bundled binary
+      assert.match(
+        text,
+        /native\/\.build\/release\/baepsae-native/,
+        "Should fall back to release build path"
+      );
+      assert.ok(
+        !text.includes("SHOULD_NOT_RUN"),
+        "Should not contain output from non-executable bundled binary"
+      );
+    });
+  } finally {
+    if (existingContent !== null) {
+      writeFileSync(bundledBinary, existingContent);
+      chmodSync(bundledBinary, 0o755);
+    } else {
+      rmSync(bundledBinary, { force: true });
+      try {
+        rmSync(bundledDir, { recursive: true, force: true });
+      } catch {
+        // directory not empty or other issue, leave it
+      }
+    }
   }
 });
 

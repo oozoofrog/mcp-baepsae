@@ -32,7 +32,7 @@ Single test file: `node --test tests/mcp.contract.test.mjs`
 - `src/index.ts` — Entry point: `--version` flag, MCP server setup, imports and calls `registerXxxTools()` from each tool module
 - `src/types.ts` — Shared TypeScript interfaces (`ToolTextResult`, `CommandExecutionOptions`, etc.)
 - `src/utils.ts` — Shared utilities and constants:
-  - `resolveNativeBinary()` — finds the native binary (env override `BAEPSAE_NATIVE_PATH` → release → debug fallback)
+  - `resolveNativeBinary()` — finds the native binary (env override `BAEPSAE_NATIVE_PATH` → bundled → release → debug fallback)
   - `executeCommand()` — process spawn with timeout, SIGINT→SIGTERM escalation, stdout/stderr capture
   - `runNative()` / `runSimctl()` — bridge MCP tools to native CLI or `xcrun simctl`
   - `toToolResult()` — normalizes output into `{ content: text[], isError: boolean }` shape

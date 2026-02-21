@@ -1,31 +1,22 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var labelText = "Ready"
-    @State private var inputText = ""
-
     var body: some View {
-        VStack(spacing: 16) {
-            Text(labelText)
-                .accessibilityIdentifier("test-label")
+        TabView {
+            BasicTab()
+                .tabItem {
+                    Label("Basic", systemImage: "square.grid.2x2")
+                }
 
-            TextField("Enter text", text: $inputText)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("test-input")
+            ScrollTab()
+                .tabItem {
+                    Label("Scroll", systemImage: "list.bullet")
+                }
 
-            Text(inputText)
-                .accessibilityIdentifier("test-result")
-
-            Button("Tap Me") {
-                labelText = "Tapped!"
-            }
-            .accessibilityIdentifier("test-button")
-
-            List(0..<20, id: \.self) { index in
-                Text("Item \(index)")
-            }
-            .accessibilityIdentifier("test-list")
+            DragDropTab()
+                .tabItem {
+                    Label("Drag", systemImage: "hand.draw")
+                }
         }
-        .padding()
     }
 }

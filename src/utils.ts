@@ -75,7 +75,14 @@ export function resolveNativeBinary(): string {
     return resolved;
   }
 
+  // Resolution priority (first match wins):
+  // 1. Bundled pre-built binary (darwin only, for npm package users)
+  // 2. Release build (local swift build)
+  // 3. Debug build (development fallback)
   const candidates = [
+    ...(process.platform === "darwin"
+      ? [resolve(PACKAGE_ROOT, "bundled", NATIVE_BINARY_NAME)]
+      : []),
     resolve(PACKAGE_ROOT, "native", ".build", "release", NATIVE_BINARY_NAME),
     resolve(PACKAGE_ROOT, "native", ".build", "debug", NATIVE_BINARY_NAME),
   ];
