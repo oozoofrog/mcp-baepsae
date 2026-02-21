@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "1318d8a69f76",
+  "session_id": "8ee6879a-56a3-47c6-abfe-1c357d7e7c06",
+  "strategy": "auto-commit",
+  "created_at": "2026-02-21T15:33:39.493267Z",
+  "branch": "feat/bundled-native-binary",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "package.json"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "0ab94ba571fb",
+  "transcript_identifier_at_start": "c36bd074-7337-4898-a2c9-f52d714a4f6e",
+  "checkpoint_transcript_start": 127,
+  "transcript_lines_at_start": 127,
+  "token_usage": {
+    "input_tokens": 5,
+    "cache_creation_tokens": 1414,
+    "cache_read_tokens": 253690,
+    "output_tokens": 258,
+    "api_call_count": 3
+  }
+}

@@ -1,0 +1,26 @@
+# Session Context
+
+**Session ID:** 8ee6879a-56a3-47c6-abfe-1c357d7e7c06
+
+**Commit Message:** 버전 5.1.0
+
+## Prompt
+
+버전 5.1.0
+
+## Summary
+
+`★ Insight ─────────────────────────────────────`
+`version:sync` 스크립트는 `package.json`의 버전을 **단일 진실 원천(single source of truth)**으로 사용해서 `src/version.ts`와 `native/Sources/Version.swift`에 자동 전파합니다. `build:ts`와 `build:native` 모두 이 스크립트를 먼저 실행하므로, 빌드 시 항상 최신 버전이 반영됩니다.
+`─────────────────────────────────────────────────`
+
+버전 5.1.0으로 업데이트 완료. 변경된 파일 3개:
+
+- `package.json` — `"version": "5.1.0"`
+- `src/version.ts` — `PACKAGE_VERSION = "5.1.0"`
+- `native/Sources/Version.swift` — `BAEPSAE_VERSION = "5.1.0"`
+
+## Key Actions
+
+- - **Edit**: /Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/package.json
+- - **Bash**: Sync version to TS and Swift source files
