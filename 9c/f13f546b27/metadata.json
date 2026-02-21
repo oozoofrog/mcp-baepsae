@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "9cf13f546b27",
+  "strategy": "auto-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".moai/config/sections/quality.yaml",
+    ".moai/project/product.md",
+    ".moai/project/structure.md",
+    ".moai/project/tech.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9c/f13f546b27/0/metadata.json",
+      "transcript": "/9c/f13f546b27/0/full.jsonl",
+      "context": "",
+      "content_hash": "/9c/f13f546b27/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 21,
+    "cache_creation_tokens": 72891,
+    "cache_read_tokens": 1336615,
+    "output_tokens": 2369,
+    "api_call_count": 16
+  }
+}
