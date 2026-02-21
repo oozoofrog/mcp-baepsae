@@ -1,0 +1,13 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "9f6a3b5ea8ac",
+  "session_id": "b3fb6315-4bf8-483d-a14f-55e513915515",
+  "strategy": "auto-commit",
+  "created_at": "2026-02-21T11:52:21.530732Z",
+  "branch": "feat/bundled-native-binary",
+  "checkpoints_count": 0,
+  "files_touched": null,
+  "agent": "Claude Code",
+  "is_task": true,
+  "tool_use_id": "toolu_01JPKUac9SV4cq7s5XdHGEBg"
+}
