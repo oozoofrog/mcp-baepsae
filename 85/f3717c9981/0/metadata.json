@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "85f3717c9981",
+  "session_id": "5cf01c06-3bc6-4c9e-be7e-6363f70dfee6",
+  "strategy": "auto-commit",
+  "created_at": "2026-02-21T09:12:50.668586Z",
+  "branch": "optimize/reduce-mcp-context-tokens",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "CLAUDE.md",
+    "src/tools/input.ts",
+    "src/tools/system.ts",
+    "src/tools/ui.ts",
+    "src/types.ts",
+    "src/utils.ts",
+    "tests/unit.test.mjs"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "7fbb96721b59",
+  "transcript_identifier_at_start": "08b5ce4b-2c44-4475-945c-7fc477dfe780",
+  "checkpoint_transcript_start": 61,
+  "transcript_lines_at_start": 61,
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 23700,
+    "cache_read_tokens": 2153867,
+    "output_tokens": 2863,
+    "api_call_count": 22
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "85f3717c9981",
+  "strategy": "auto-commit",
+  "branch": "optimize/reduce-mcp-context-tokens",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "CLAUDE.md",
+    "src/tools/input.ts",
+    "src/tools/system.ts",
+    "src/tools/ui.ts",
+    "src/types.ts",
+    "src/utils.ts",
+    "tests/unit.test.mjs"
+  ],
+  "sessions": [
+    {
+      "metadata": "/85/f3717c9981/0/metadata.json",
+      "transcript": "/85/f3717c9981/0/full.jsonl",
+      "context": "",
+      "content_hash": "/85/f3717c9981/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 23700,
+    "cache_read_tokens": 2153867,
+    "output_tokens": 2863,
+    "api_call_count": 22
+  }
+}
