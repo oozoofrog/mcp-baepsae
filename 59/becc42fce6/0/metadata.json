@@ -1,0 +1,13 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "59becc42fce6",
+  "session_id": "5cf01c06-3bc6-4c9e-be7e-6363f70dfee6",
+  "strategy": "auto-commit",
+  "created_at": "2026-02-21T11:12:22.4929Z",
+  "branch": "optimize/reduce-mcp-context-tokens",
+  "checkpoints_count": 0,
+  "files_touched": null,
+  "agent": "Claude Code",
+  "is_task": true,
+  "tool_use_id": "toolu_01KJPCFc4WsJu9wqEQB7vTSn"
+}
