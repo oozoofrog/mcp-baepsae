@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "fff4079d872b",
+  "session_id": "ec915fa6-50ee-4727-a099-71564646b961",
+  "strategy": "auto-commit",
+  "created_at": "2026-02-22T09:51:55.679702Z",
+  "branch": "feat/simulator-improvements",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "native/Sources/Commands/InputCommands.swift",
+    "native/Sources/Commands/UICommands.swift",
+    "native/Sources/Commands/WindowCommands.swift",
+    "native/Sources/IndigoHID/IndigoHIDClient.swift",
+    "native/Sources/IndigoHID/IndigoHIDCoordinates.swift",
+    "native/Sources/IndigoHID/IndigoHIDEvents.swift",
+    "native/Sources/IndigoHID/IndigoHIDLoader.swift",
+    "native/Sources/IndigoHID/IndigoHIDTypes.swift",
+    "native/Sources/Utils.swift",
+    "native/Sources/main.swift",
+    "native/Tests/BaepsaeNativeTests/BinaryInvocationTests.swift",
+    "package.json",
+    "src/tools/ui.ts",
+    "tests/unit.test.mjs"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 55,
+    "cache_creation_tokens": 203221,
+    "cache_read_tokens": 6741983,
+    "output_tokens": 9307,
+    "api_call_count": 51
+  }
+}

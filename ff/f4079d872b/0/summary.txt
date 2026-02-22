@@ -1,0 +1,19 @@
+`★ Insight ─────────────────────────────────────`
+**`@preconcurrency import`의 역할**: Swift 6의 strict concurrency는 C 헤더에서 가져온 심볼도 data race 분석 대상입니다. `@preconcurrency`는 "이 모듈은 concurrency annotation이 없지만 안전하다고 가정한다"는 의미로, C interop에서 필수적인 패턴입니다. `bootstrap_port`처럼 프로세스당 한 번만 설정되는 Mach 포트는 실질적으로 immutable이므로 이 어노테이션이 적절합니다.
+
+**IndigoHID 아키텍처 요약**: SimulatorKit.framework의 private API를 `dlopen/dlsym`으로 동적 로딩하고, `bootstrap_look_up`으로 시뮬레이터의 Mach 서비스 포트를 찾은 뒤, 구조화된 `mach_msg`로 HID 이벤트를 직접 전송합니다. CGEvent 기반 접근(화면 좌표 클릭)과 달리 시뮬레이터 커널에 직접 입력하므로 자동완성 간섭 없이 정확한 타이핑이 가능합니다.
+`─────────────────────────────────────────────────`
+
+## 구현 완료 요약
+
+| Phase | 항목 | 상태 |
+|-------|------|------|
+| 1-A | Y축 좌표계 수정 (top-left origin) | ✅ |
+| 1-B | Gesture 프리셋 콘텐츠 영역 기준 | ✅ |
+| 1-C | Drag & Drop hold duration | ✅ |
+| 1-D | 버전 6.0.0 + 테스트 | ✅ |
+| 2 | IndigoHID 5개 파일 + 핸들러 통합 | ✅ |
+| 빌드 | TypeScript + Swift 빌드 성공 | ✅ |
+| 테스트 | 140개 전체 통과 (16+79+45) | ✅ |
+
+모든 변경사항이 `feat/simulator-improvements` 브랜치에 있으며, 커밋이 필요하면 말씀해 주세요.
