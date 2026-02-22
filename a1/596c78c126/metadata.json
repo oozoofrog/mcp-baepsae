@@ -1,0 +1,17 @@
+{
+  "cli_version": "0.4.5",
+  "checkpoint_id": "a1596c78c126",
+  "strategy": "auto-commit",
+  "branch": "feat/simulator-improvements",
+  "checkpoints_count": 0,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/a1/596c78c126/0/metadata.json",
+      "transcript": "/a1/596c78c126/0/full.jsonl",
+      "context": "",
+      "content_hash": "/a1/596c78c126/0/content_hash.txt",
+      "prompt": ""
+    }
+  ]
+}
