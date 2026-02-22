@@ -900,7 +900,29 @@ func pointInSimulatorWindow(x: Double, y: Double) throws -> CGPoint {
         throw NativeError.commandFailed("Simulator window not found. Ensure Simulator is running and visible.")
     }
     let targetX = bounds.origin.x + CGFloat(x)
-    let targetY = bounds.origin.y + bounds.size.height - CGFloat(y)
+    let targetY = bounds.origin.y + CGFloat(y)
+    return CGPoint(x: targetX, y: targetY)
+}
+
+// MARK: - Simulator Content Bounds
+
+func simulatorContentBounds() -> CGRect? {
+    guard let appRoot = try? simulatorAccessibilityRootElement() else {
+        return simulatorWindowBounds()
+    }
+    if let contentGroup = simulatorContentRootElement(from: appRoot),
+       let frame = FrameAttribute(contentGroup) {
+        return frame
+    }
+    return simulatorWindowBounds()
+}
+
+func pointInSimulatorContent(x: Double, y: Double) throws -> CGPoint {
+    guard let bounds = simulatorContentBounds() else {
+        throw NativeError.commandFailed("Simulator content area not found. Ensure Simulator is running and visible.")
+    }
+    let targetX = bounds.origin.x + CGFloat(x)
+    let targetY = bounds.origin.y + CGFloat(y)
     return CGPoint(x: targetX, y: targetY)
 }
 
@@ -1000,6 +1022,24 @@ func sendSwipe(from start: CGPoint, to end: CGPoint, duration: Double?) {
     postMouseEvent(type: .leftMouseUp, point: end)
 }
 
+func sendDrag(from start: CGPoint, to end: CGPoint, holdDuration: Double, moveDuration: Double?) {
+    postMouseEvent(type: .leftMouseDown, point: start)
+    if holdDuration > 0 {
+        Thread.sleep(forTimeInterval: holdDuration)
+    }
+    let steps = 10
+    for step in 1...steps {
+        let progress = CGFloat(step) / CGFloat(steps)
+        let x = start.x + (end.x - start.x) * progress
+        let y = start.y + (end.y - start.y) * progress
+        postMouseEvent(type: .leftMouseDragged, point: CGPoint(x: x, y: y))
+        if let moveDuration {
+            Thread.sleep(forTimeInterval: moveDuration / Double(steps))
+        }
+    }
+    postMouseEvent(type: .leftMouseUp, point: end)
+}
+
 // MARK: - Keyboard Events
 
 func sendKeyPress(keyCode: Int, duration: Double?) {
@@ -1043,6 +1083,39 @@ func sendText(_ text: String) {
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
         keyUp?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &char)
         keyUp?.post(tap: .cghidEventTap)
+    }
+}
+
+// MARK: - Input Backend
+
+enum InputBackend {
+    case cgevent
+    case indigoHID(IndigoHIDClient)
+}
+
+/// Resolve the input backend for the given target.
+/// For simulators: try IndigoHID first, fall back to CGEvent.
+/// For macOS apps: always use CGEvent.
+/// Override with BAEPSAE_INPUT_BACKEND=indigo|cgevent|auto
+func resolveInputBackend(for target: TargetApp) -> InputBackend {
+    let envOverride = ProcessInfo.processInfo.environment["BAEPSAE_INPUT_BACKEND"]?.lowercased()
+
+    switch target {
+    case .macApp:
+        return .cgevent
+    case .simulator(let udid):
+        if envOverride == "cgevent" {
+            return .cgevent
+        }
+
+        if let client = IndigoHIDClient(udid: udid) {
+            return .indigoHID(client)
+        }
+
+        if envOverride == "indigo" {
+            fputs("Warning: IndigoHID requested but not available, falling back to CGEvent\n", stderr)
+        }
+        return .cgevent
     }
 }
 

@@ -206,11 +206,23 @@ func handleTap(_ parsed: ParsedOptions) throws -> Int32 {
     if preDelay > 0 {
         Thread.sleep(forTimeInterval: preDelay)
     }
-    let point = try pointInWindow(x: x, y: y, for: target)
-    if isDouble {
-        sendDoubleClick(at: point)
-    } else {
-        sendClick(at: point)
+    let backend = resolveInputBackend(for: target)
+    switch backend {
+    case .indigoHID(let client):
+        if isDouble {
+            _ = client.tap(x: x, y: y)
+            Thread.sleep(forTimeInterval: 0.1)
+            _ = client.tap(x: x, y: y)
+        } else {
+            _ = client.tap(x: x, y: y)
+        }
+    case .cgevent:
+        let point = try pointInWindow(x: x, y: y, for: target)
+        if isDouble {
+            sendDoubleClick(at: point)
+        } else {
+            sendClick(at: point)
+        }
     }
     if postDelay > 0 {
         Thread.sleep(forTimeInterval: postDelay)
@@ -233,7 +245,13 @@ func handleType(_ parsed: ParsedOptions) throws -> Int32 {
     if text.isEmpty {
         throw NativeError.invalidArguments("type requires text input.")
     }
-    sendText(text)
+    let backend = resolveInputBackend(for: target)
+    switch backend {
+    case .indigoHID(let client):
+        _ = client.typeText(text)
+    case .cgevent:
+        sendText(text)
+    }
     return 0
 }
 
@@ -257,9 +275,15 @@ func handleSwipe(_ parsed: ParsedOptions) throws -> Int32 {
     if preDelay > 0 {
         Thread.sleep(forTimeInterval: preDelay)
     }
-    let start = try pointInWindow(x: startXValue, y: startYValue, for: target)
-    let end = try pointInWindow(x: endXValue, y: endYValue, for: target)
-    sendSwipe(from: start, to: end, duration: duration)
+    let backend = resolveInputBackend(for: target)
+    switch backend {
+    case .indigoHID(let client):
+        _ = client.swipe(fromX: startXValue, fromY: startYValue, toX: endXValue, toY: endYValue, duration: duration)
+    case .cgevent:
+        let start = try pointInWindow(x: startXValue, y: startYValue, for: target)
+        let end = try pointInWindow(x: endXValue, y: endYValue, for: target)
+        sendSwipe(from: start, to: end, duration: duration)
+    }
     if postDelay > 0 {
         Thread.sleep(forTimeInterval: postDelay)
     }

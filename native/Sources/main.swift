@@ -34,7 +34,7 @@ func printHelp() {
       baepsae-native screenshot-app <TARGET> [--output <path>]
       baepsae-native right-click <TARGET> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--all] [--pre-delay <S>] [--post-delay <S>]
       baepsae-native scroll <TARGET> [--delta-x <N>] [--delta-y <N>] [-x <X> -y <Y>]
-      baepsae-native drag-drop <TARGET> --start-x <X> --start-y <Y> --end-x <X> --end-y <Y> [--duration <S>] [--pre-delay <S>] [--post-delay <S>]
+      baepsae-native drag-drop <TARGET> --start-x <X> --start-y <Y> --end-x <X> --end-y <Y> [--duration <S>] [--hold-duration <S>] [--pre-delay <S>] [--post-delay <S>]
       baepsae-native menu-action --bundle-id <ID> | --app-name <NAME> --menu <MENU> --item <ITEM>
       baepsae-native get-focused-app
       baepsae-native clipboard --read | --write <TEXT>

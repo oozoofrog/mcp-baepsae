@@ -960,6 +960,25 @@ test("drag_drop forwards all coordinates and optional duration", async () => {
   });
 });
 
+test("drag_drop forwards holdDuration as --hold-duration", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "drag_drop",
+      arguments: {
+        bundleId: "com.example.app",
+        startX: 10,
+        startY: 20,
+        endX: 300,
+        endY: 400,
+        holdDuration: 1.5,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /drag-drop/);
+    assert.match(text, /--hold-duration/);
+  });
+});
+
 // ===========================================================================
 // Section 19: scroll parameter forwarding
 // ===========================================================================

@@ -69,6 +69,7 @@ type DragDropParams = {
   endX: number;
   endY: number;
   duration?: number;
+  holdDuration?: number;
 };
 
 const describeSchema = {
@@ -131,6 +132,7 @@ const dragDropSchema = {
   endX: z.number().describe("End X"),
   endY: z.number().describe("End Y"),
   duration: z.number().optional().describe("Duration in seconds"),
+  holdDuration: z.number().optional().describe("Hold duration before drag in seconds"),
 };
 
 function validateTapParams(params: TapParams): ToolTextResult | null {
@@ -270,6 +272,7 @@ function buildDragDropArgs(target: string[], params: DragDropParams): string[] {
   args.push("--start-x", String(params.startX), "--start-y", String(params.startY));
   args.push("--end-x", String(params.endX), "--end-y", String(params.endY));
   pushOption(args, "--duration", params.duration);
+  pushOption(args, "--hold-duration", params.holdDuration);
   return args;
 }
 

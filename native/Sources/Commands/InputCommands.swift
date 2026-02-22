@@ -83,24 +83,43 @@ func handleTouch(_ parsed: ParsedOptions) throws -> Int32 {
     }
     let delay = try optionalDoubleOption("--delay", from: parsed) ?? 0
     try activateTarget(target)
-    let point = try pointInWindow(x: x, y: y, for: target)
     let downRequested = parsed.flags.contains("--down")
     let upRequested = parsed.flags.contains("--up")
-    if !downRequested && !upRequested {
-        postMouseEvent(type: .leftMouseDown, point: point)
-        if delay > 0 {
-            Thread.sleep(forTimeInterval: delay)
+    let backend = resolveInputBackend(for: target)
+    switch backend {
+    case .indigoHID(let client):
+        let (nx, ny) = client.coords.normalize(x: x, y: y)
+        if !downRequested && !upRequested {
+            if let msg = client.loader.createTouchMessage(phase: .began, x: nx, y: ny) {
+                _ = sendIndigoHIDMessage(msg, to: client.port)
+            }
+            if delay > 0 { Thread.sleep(forTimeInterval: delay) }
+            if let msg = client.loader.createTouchMessage(phase: .ended, x: nx, y: ny) {
+                _ = sendIndigoHIDMessage(msg, to: client.port)
+            }
+        } else {
+            if downRequested {
+                if let msg = client.loader.createTouchMessage(phase: .began, x: nx, y: ny) {
+                    _ = sendIndigoHIDMessage(msg, to: client.port)
+                }
+            }
+            if delay > 0 { Thread.sleep(forTimeInterval: delay) }
+            if upRequested {
+                if let msg = client.loader.createTouchMessage(phase: .ended, x: nx, y: ny) {
+                    _ = sendIndigoHIDMessage(msg, to: client.port)
+                }
+            }
         }
-        postMouseEvent(type: .leftMouseUp, point: point)
-    } else {
-        if downRequested {
+    case .cgevent:
+        let point = try pointInWindow(x: x, y: y, for: target)
+        if !downRequested && !upRequested {
             postMouseEvent(type: .leftMouseDown, point: point)
-        }
-        if delay > 0 {
-            Thread.sleep(forTimeInterval: delay)
-        }
-        if upRequested {
+            if delay > 0 { Thread.sleep(forTimeInterval: delay) }
             postMouseEvent(type: .leftMouseUp, point: point)
+        } else {
+            if downRequested { postMouseEvent(type: .leftMouseDown, point: point) }
+            if delay > 0 { Thread.sleep(forTimeInterval: delay) }
+            if upRequested { postMouseEvent(type: .leftMouseUp, point: point) }
         }
     }
     return 0
@@ -119,39 +138,39 @@ func handleGesture(_ parsed: ParsedOptions) throws -> Int32 {
     let screenHeight = try optionalDoubleOption("--screen-height", from: parsed)
     try ensureAccessibilityTrusted()
     try activateTarget(target)
-    let bounds = simulatorWindowBounds()
+    let bounds = simulatorContentBounds()
     let width = screenWidth ?? Double(bounds?.width ?? 0)
     let height = screenHeight ?? Double(bounds?.height ?? 0)
     if width <= 0 || height <= 0 {
-        throw NativeError.commandFailed("Unable to determine simulator window size; provide screenWidth/screenHeight.")
+        throw NativeError.commandFailed("Unable to determine simulator content size; provide screenWidth/screenHeight.")
     }
     let start: CGPoint
     let end: CGPoint
     switch preset {
     case "scroll-up":
-        start = try pointInSimulatorWindow(x: width * 0.5, y: height * 0.7)
-        end = try pointInSimulatorWindow(x: width * 0.5, y: height * 0.3)
+        start = try pointInSimulatorContent(x: width * 0.5, y: height * 0.7)
+        end = try pointInSimulatorContent(x: width * 0.5, y: height * 0.3)
     case "scroll-down":
-        start = try pointInSimulatorWindow(x: width * 0.5, y: height * 0.3)
-        end = try pointInSimulatorWindow(x: width * 0.5, y: height * 0.7)
+        start = try pointInSimulatorContent(x: width * 0.5, y: height * 0.3)
+        end = try pointInSimulatorContent(x: width * 0.5, y: height * 0.7)
     case "scroll-left":
-        start = try pointInSimulatorWindow(x: width * 0.7, y: height * 0.5)
-        end = try pointInSimulatorWindow(x: width * 0.3, y: height * 0.5)
+        start = try pointInSimulatorContent(x: width * 0.7, y: height * 0.5)
+        end = try pointInSimulatorContent(x: width * 0.3, y: height * 0.5)
     case "scroll-right":
-        start = try pointInSimulatorWindow(x: width * 0.3, y: height * 0.5)
-        end = try pointInSimulatorWindow(x: width * 0.7, y: height * 0.5)
+        start = try pointInSimulatorContent(x: width * 0.3, y: height * 0.5)
+        end = try pointInSimulatorContent(x: width * 0.7, y: height * 0.5)
     case "swipe-from-left-edge":
-        start = try pointInSimulatorWindow(x: width * 0.05, y: height * 0.5)
-        end = try pointInSimulatorWindow(x: width * 0.6, y: height * 0.5)
+        start = try pointInSimulatorContent(x: width * 0.05, y: height * 0.5)
+        end = try pointInSimulatorContent(x: width * 0.6, y: height * 0.5)
     case "swipe-from-right-edge":
-        start = try pointInSimulatorWindow(x: width * 0.95, y: height * 0.5)
-        end = try pointInSimulatorWindow(x: width * 0.4, y: height * 0.5)
+        start = try pointInSimulatorContent(x: width * 0.95, y: height * 0.5)
+        end = try pointInSimulatorContent(x: width * 0.4, y: height * 0.5)
     case "swipe-from-top-edge":
-        start = try pointInSimulatorWindow(x: width * 0.5, y: height * 0.05)
-        end = try pointInSimulatorWindow(x: width * 0.5, y: height * 0.6)
+        start = try pointInSimulatorContent(x: width * 0.5, y: height * 0.05)
+        end = try pointInSimulatorContent(x: width * 0.5, y: height * 0.6)
     case "swipe-from-bottom-edge":
-        start = try pointInSimulatorWindow(x: width * 0.5, y: height * 0.95)
-        end = try pointInSimulatorWindow(x: width * 0.5, y: height * 0.4)
+        start = try pointInSimulatorContent(x: width * 0.5, y: height * 0.95)
+        end = try pointInSimulatorContent(x: width * 0.5, y: height * 0.4)
     default:
         throw NativeError.invalidArguments("Unsupported gesture preset: \(preset)")
     }

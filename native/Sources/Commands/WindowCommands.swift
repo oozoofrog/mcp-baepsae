@@ -71,14 +71,21 @@ func handleDragDrop(_ parsed: ParsedOptions) throws -> Int32 {
         throw NativeError.invalidArguments("drag-drop requires numeric start/end coordinates.")
     }
     let duration = try optionalDoubleOption("--duration", from: parsed) ?? 0.5
+    let holdDuration = try optionalDoubleOption("--hold-duration", from: parsed) ?? 0.5
     let preDelay = try optionalDoubleOption("--pre-delay", from: parsed) ?? 0
     let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
     if preDelay > 0 {
         Thread.sleep(forTimeInterval: preDelay)
     }
-    let start = try pointInWindow(x: startXVal, y: startYVal, for: target)
-    let end = try pointInWindow(x: endXVal, y: endYVal, for: target)
-    sendSwipe(from: start, to: end, duration: duration)
+    let backend = resolveInputBackend(for: target)
+    switch backend {
+    case .indigoHID(let client):
+        _ = client.drag(fromX: startXVal, fromY: startYVal, toX: endXVal, toY: endYVal, holdDuration: holdDuration, moveDuration: duration)
+    case .cgevent:
+        let start = try pointInWindow(x: startXVal, y: startYVal, for: target)
+        let end = try pointInWindow(x: endXVal, y: endYVal, for: target)
+        sendDrag(from: start, to: end, holdDuration: holdDuration, moveDuration: duration)
+    }
     if postDelay > 0 {
         Thread.sleep(forTimeInterval: postDelay)
     }
