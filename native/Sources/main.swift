@@ -20,6 +20,7 @@ func printHelp() {
       baepsae-native screenshot --udid <UDID> [--output <path>]
       baepsae-native record-video --udid <UDID> [--output <path>]
       baepsae-native tap <TARGET> [--id <ID> | --label <LABEL> | -x <X> -y <Y>] [--all] [--double] [--pre-delay <S>] [--post-delay <S>]
+      baepsae-native tap-tab <TARGET> --index <N> [--tab-count <N>] [--pre-delay <S>] [--post-delay <S>]
       baepsae-native type <TARGET> [<TEXT> | --stdin | --file <PATH>]
       baepsae-native swipe <TARGET> --start-x <X> --start-y <Y> --end-x <X> --end-y <Y> [--duration <S>] [--pre-delay <S>] [--post-delay <S>]
       baepsae-native button --udid <UDID> <TYPE> [--duration <S>]
@@ -77,6 +78,9 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
 
     case "tap":
         return try handleTap(parsed)
+
+    case "tap-tab":
+        return try handleTapTab(parsed)
 
     case "type":
         return try handleType(parsed)

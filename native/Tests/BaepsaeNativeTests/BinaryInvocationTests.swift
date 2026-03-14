@@ -425,6 +425,7 @@ final class BinaryInvocationTests: XCTestCase {
             "screenshot",
             "record-video",
             "tap",
+            "tap-tab",
             "type",
             "swipe",
             "button",
@@ -484,5 +485,25 @@ final class BinaryInvocationTests: XCTestCase {
             result.stderr.contains("No running application found"),
             "Error should say no app found, got: \(result.stderr)"
         )
+    }
+
+    func testTapTab_missingIndex() throws {
+        let result = try execute([
+            "tap-tab",
+            "--udid", "FAKE-UDID",
+        ])
+        XCTAssertNotEqual(result.exitCode, 0, "tap-tab without --index should fail")
+        XCTAssertTrue(
+            result.stderr.contains("--index"),
+            "Error should mention --index requirement, got: \(result.stderr)"
+        )
+    }
+
+    func testTapTab_missingTarget() throws {
+        let result = try execute([
+            "tap-tab",
+            "--index", "0",
+        ])
+        XCTAssertNotEqual(result.exitCode, 0, "tap-tab without target should fail")
     }
 }

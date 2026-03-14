@@ -15,6 +15,7 @@ let supportedCommands: Set<String> = [
     "describe-ui",
     "search-ui",
     "tap",
+    "tap-tab",
     "type",
     "swipe",
     "button",
@@ -590,6 +591,20 @@ func describeAccessibilityTree(from root: UIElement, options: DescribeOptions = 
                     lines.append("\(prefix)- [hidden: no accessible content]")
                 }
                 emitted += 1
+                // Add hint for tab bar elements with unlabeled children
+                let attrs2 = copyMultipleAttributes(element, [kAXRoleAttribute as String])
+                if let roleRef = attrs2[kAXRoleAttribute as String], let role = stringFromCFTypeRef(roleRef),
+                   role == "AXTabGroup" || role == "AXRadioGroup" {
+                    let tabChildren = Children(element)
+                    let unlabeledCount = tabChildren.filter { child in
+                        let childTexts = getElementTextValues(child)
+                        return childTexts.isEmpty
+                    }.count
+                    if unlabeledCount > 0 && unlabeledCount == tabChildren.count {
+                        let hint = "\(prefix)  [Tab bar with \(tabChildren.count) unlabeled items - use tap_tab with index 0..\(tabChildren.count - 1)]"
+                        lines.append(hint)
+                    }
+                }
             }
         }
 
@@ -810,6 +825,70 @@ func findElementBySubrole(from root: UIElement, subrole: String) -> UIElement? {
 
 func simulatorContentRootElement(from appRoot: UIElement) -> UIElement? {
     return findElementBySubrole(from: appRoot, subrole: "iOSContentGroup")
+}
+
+func findTabBarElement(in root: UIElement) -> UIElement? {
+    // 1st pass: Look for AXTabGroup
+    var stack: [UIElement] = [root]
+    var visited = 0
+    while let current = stack.popLast() {
+        if visited > 500 { break }
+        visited += 1
+
+        let attrs = copyMultipleAttributes(current, [kAXRoleAttribute as String])
+        if let ref = attrs[kAXRoleAttribute as String], let role = stringFromCFTypeRef(ref), role == "AXTabGroup" {
+            return current
+        }
+        for child in Children(current).reversed() {
+            stack.append(child)
+        }
+    }
+
+    // 2nd pass: Look for AXRadioGroup
+    stack = [root]
+    visited = 0
+    while let current = stack.popLast() {
+        if visited > 500 { break }
+        visited += 1
+
+        let attrs = copyMultipleAttributes(current, [kAXRoleAttribute as String])
+        if let ref = attrs[kAXRoleAttribute as String], let role = stringFromCFTypeRef(ref), role == "AXRadioGroup" {
+            return current
+        }
+        for child in Children(current).reversed() {
+            stack.append(child)
+        }
+    }
+
+    // 3rd pass: Heuristic — wide AXGroup in bottom 15% of screen
+    guard let mainScreen = NSScreen.main else { return nil }
+    let screenHeight = mainScreen.frame.height
+    let bottomThreshold = screenHeight * 0.15
+
+    stack = [root]
+    visited = 0
+    while let current = stack.popLast() {
+        if visited > 500 { break }
+        visited += 1
+
+        let attrs = copyMultipleAttributes(current, [kAXRoleAttribute as String, "AXFrame"])
+        if let ref = attrs[kAXRoleAttribute as String], let role = stringFromCFTypeRef(ref), role == "AXGroup" {
+            if let frameRef = attrs["AXFrame"], let frame = frameFromCFTypeRef(frameRef) {
+                // In macOS coordinate system, y=0 is at the bottom of the screen
+                // A tab bar at the bottom of the app window has a low y value in flipped coords
+                // We check if the element is wide (>60% of screen width) and in the bottom 15%
+                let screenWidth = mainScreen.frame.width
+                if frame.width > screenWidth * 0.6 && frame.origin.y > screenHeight - bottomThreshold {
+                    return current
+                }
+            }
+        }
+        for child in Children(current).reversed() {
+            stack.append(child)
+        }
+    }
+
+    return nil
 }
 
 // MARK: - Window / Coordinate Helpers

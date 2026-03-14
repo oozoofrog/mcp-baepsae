@@ -59,7 +59,7 @@ async function withClient(run, envOverrides = {}) {
 // Section 1: Tool registry completeness
 // ===========================================================================
 
-test("tool registry lists all 32 expected MCP tools", async () => {
+test("tool registry lists all 33 expected MCP tools", async () => {
   await withClient(async (client) => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((t) => t.name));
@@ -85,6 +85,7 @@ test("tool registry lists all 32 expected MCP tools", async () => {
       "analyze_ui",
       "query_ui",
       "tap",
+      "tap_tab",
       "type_text",
       "swipe",
       "scroll",
@@ -428,6 +429,65 @@ test("tap forwards mac target args with appName", async () => {
     assert.match(text, /--app-name/);
     assert.doesNotMatch(text, /--udid/);
     assert.doesNotMatch(text, /--bundle-id/);
+  });
+});
+
+// ===========================================================================
+// Section 5b: tap_tab validation
+// ===========================================================================
+
+test("tap_tab errors when no target is provided", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({ name: "tap_tab", arguments: { index: 0 } });
+    assert.equal(result.isError ?? false, true);
+    const text = extractText(result);
+    assert.match(text, /No target specified/);
+  });
+});
+
+test("tap_tab forwards index and target to native", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "tap_tab",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        index: 2,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /tap-tab/);
+    assert.match(text, /--index/);
+  });
+});
+
+test("tap_tab forwards tabCount when provided", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "tap_tab",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        index: 1,
+        tabCount: 4,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /--tab-count/);
+  });
+});
+
+test("tap_tab errors when index >= tabCount", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "tap_tab",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        index: 5,
+        tabCount: 3,
+      },
+    });
+    assert.equal(result.isError ?? false, true);
+    const text = extractText(result);
+    assert.match(text, /out of range/);
   });
 });
 

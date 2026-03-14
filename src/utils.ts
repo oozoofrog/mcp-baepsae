@@ -32,6 +32,7 @@ export const BAEPSAE_SUBCOMMANDS = [
   "list-simulators",
   "list-apps",
   "tap",
+  "tap-tab",
   "type",
   "swipe",
   "button",

@@ -82,6 +82,7 @@ test("tools/list exposes expected MCP tools", async () => {
       "analyze_ui",
       "query_ui",
       "tap",
+      "tap_tab",
       "type_text",
       "swipe",
       "scroll",
