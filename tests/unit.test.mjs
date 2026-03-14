@@ -491,6 +491,55 @@ test("tap_tab errors when index >= tabCount", async () => {
   });
 });
 
+test("tap_tab errors when index equals tabCount (boundary)", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "tap_tab",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        index: 3,
+        tabCount: 3,
+      },
+    });
+    assert.equal(result.isError ?? false, true);
+    const text = extractText(result);
+    assert.match(text, /out of range/);
+  });
+});
+
+test("tap_tab forwards mac target args with bundleId", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "tap_tab",
+      arguments: {
+        bundleId: "com.example.app",
+        index: 0,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /tap-tab/);
+    assert.match(text, /--bundle-id/);
+    assert.doesNotMatch(text, /--udid/);
+  });
+});
+
+test("tap_tab forwards preDelay and postDelay options", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "tap_tab",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        index: 0,
+        preDelay: 0.5,
+        postDelay: 1.0,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /--pre-delay/);
+    assert.match(text, /--post-delay/);
+  });
+});
+
 // ===========================================================================
 // Section 6: type_text validation
 // ===========================================================================

@@ -874,9 +874,9 @@ func findTabBarElement(in root: UIElement) -> UIElement? {
         let attrs = copyMultipleAttributes(current, [kAXRoleAttribute as String, "AXFrame"])
         if let ref = attrs[kAXRoleAttribute as String], let role = stringFromCFTypeRef(ref), role == "AXGroup" {
             if let frameRef = attrs["AXFrame"], let frame = frameFromCFTypeRef(frameRef) {
-                // In macOS coordinate system, y=0 is at the bottom of the screen
-                // A tab bar at the bottom of the app window has a low y value in flipped coords
-                // We check if the element is wide (>60% of screen width) and in the bottom 15%
+                // AXFrame uses screen coordinates with origin at top-left.
+                // A tab bar near the bottom of the screen has a high y value.
+                // We check if the element is wide (>60% of screen width) and in the bottom 15%.
                 let screenWidth = mainScreen.frame.width
                 if frame.width > screenWidth * 0.6 && frame.origin.y > screenHeight - bottomThreshold {
                     return current

@@ -285,13 +285,16 @@ func handleTapTab(_ parsed: ParsedOptions) throws -> Int32 {
     let backend = resolveInputBackend(for: target)
     switch backend {
     case .indigoHID(let client):
-        // For IndigoHID, convert screen coordinates to content-relative coordinates
-        if let contentBounds = simulatorContentBounds() {
-            let relX = Double(tapX) - Double(contentBounds.origin.x)
-            let relY = Double(tapY) - Double(contentBounds.origin.y)
-            _ = client.tap(x: relX, y: relY)
-        } else {
-            _ = client.tap(x: Double(tapX), y: Double(tapY))
+        // IndigoHID normalizes coordinates against simulator screen dimensions.
+        // Since tapX/tapY are screen-absolute (from AXFrame), subtract the content
+        // area origin to make them content-relative before normalization.
+        guard let contentBounds = simulatorContentBounds() else {
+            throw NativeError.commandFailed("Cannot determine simulator content bounds for IndigoHID coordinate conversion. Ensure Simulator is running.")
+        }
+        let relX = Double(tapX) - Double(contentBounds.origin.x)
+        let relY = Double(tapY) - Double(contentBounds.origin.y)
+        if !client.tap(x: relX, y: relY) {
+            throw NativeError.commandFailed("IndigoHID tap failed. The simulator may not be responding.")
         }
     case .cgevent:
         sendClick(at: CGPoint(x: tapX, y: tapY))
