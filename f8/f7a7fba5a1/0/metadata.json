@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "f8f7a7fba5a1",
+  "session_id": "a5d881da-d6d9-469b-b790-c61e1ffc33d7",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-14T16:27:43.695172Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "native/Sources/Commands/UICommands.swift",
+    "tests/unit.test.mjs"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "0fbe5eb0ceeb",
+  "checkpoint_transcript_start": 312,
+  "transcript_lines_at_start": 312,
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 19197,
+    "cache_read_tokens": 2475550,
+    "output_tokens": 6129,
+    "api_call_count": 18
+  },
+  "session_metrics": {
+    "turn_count": 14
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-14T16:27:43.489143Z",
+    "agent_lines": 90,
+    "human_added": 94,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 184,
+    "agent_percentage": 48.91304347826087
+  }
+}
