@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "30ba6f6841a3",
+  "session_id": "a5d881da-d6d9-469b-b790-c61e1ffc33d7",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-14T14:10:02.244925Z",
+  "branch": "feat/simulator-improvements",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "native/Sources/Utils.swift"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "1bdc53db1462",
+  "checkpoint_transcript_start": 197,
+  "transcript_lines_at_start": 197,
+  "token_usage": {
+    "input_tokens": 29,
+    "cache_creation_tokens": 28296,
+    "cache_read_tokens": 2279100,
+    "output_tokens": 6536,
+    "api_call_count": 20
+  },
+  "session_metrics": {
+    "turn_count": 9
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-14T14:10:02.07246Z",
+    "agent_lines": 0,
+    "human_added": 59,
+    "human_modified": 3,
+    "human_removed": 0,
+    "total_committed": 59,
+    "agent_percentage": 0
+  }
+}

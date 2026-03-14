@@ -1,0 +1,625 @@
+/pr-review-toolkit:review-pr
+
+---
+
+<task-notification>
+<task-id>a79baf08d8cef7519</task-id>
+<tool-use-id>toolu_01RUukcFJHHhXYAnoyz1mtqQ</tool-use-id>
+<output-file>/private/tmp/claude-501/-Volumes-eyedisk-develop-oozoofrog-mcp-baepsae/105baf7e-c3c2-4202-9883-42e1c2d632dc/tasks/a79baf08d8cef7519.output</output-file>
+<status>completed</status>
+<summary>Agent "Comment analysis PR #43" completed</summary>
+<result>Now I have a thorough understanding of all the code in this PR. Let me compile my analysis.
+
+---
+
+**Summary**
+
+I analyzed all comments introduced or modified in the `feat/simulator-improvements` PR (branch `feat/simulator-improvements` vs `main`), spanning 18 changed files with roughly 988 lines added. The PR introduces: (1) a new `tap_tab`/`tap-tab` tool for tapping tab bar items by index, (2) IndigoHID integration for native touch/keyboard input to iOS Simulators, and (3) a tab bar detection heuristic with `describe-ui` hints. My analysis covers comments in `native/Sources/Utils.swift`, `native/Sources/Commands/UICommands.swift`, `src/tools/ui.ts`, and all five `native/Sources/IndigoHID/*.swift` files.
+
+---
+
+**Critical Issues**
+
+**1. Misleading coordinate system comment in `findTabBarElement` heuristic (3rd pass)**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Utils.swift`, lines 877-879
+- The comment states:
+
+```
+// In macOS coordinate system, y=0 is at the bottom of the screen
+// A tab bar at the bottom of the app window has a low y value in flipped coords
+// We check if the element is wide (>60% of screen width) and in the bottom 15%
+```
+
+- Issue: The comment says "y=0 is at the bottom" (AppKit/Cocoa convention), then says a bottom tab bar has "a low y value in flipped coords." However, the actual code check on line 881 is `frame.origin.y > screenHeight - bottomThreshold`, which means it is looking for elements with a **high** y value (near `screenHeight`). In macOS accessibility coordinates, `AXFrame` values use the **screen** coordinate system where `y=0` is at the **top-left** of the primary display (unlike NSView where y=0 is at the bottom). The `AXFrame` attribute returns coordinates in the same flipped (top-left origin) system that `CGWindowListCopyWindowInfo` uses. So the actual code logic -- checking that `frame.origin.y` is close to `screenHeight` -- correctly finds elements near the bottom of the screen in this top-left-origin system. But the comment claims the opposite coordinate orientation. The second line about "a low y value in flipped coords" directly contradicts what the code actually tests for.
+- Suggestion: Replace the three comment lines with something that accurately describes the coordinate system used by `AXFrame`:
+
+> "AXFrame uses screen coordinates with origin at top-left. A tab bar near the bottom of the screen has a y value close to screenHeight. We check if the element is wide (>60% of screen width) and positioned in the bottom 15% of the screen."
+
+**2. `IndigoHIDLoader` doc comment calls `mouseFn` a "mouse" function, but it sends touch events**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDLoader.swift`, lines 19-20 and 82-83
+- The type alias on line 19 of IndigoHIDLoader.swift is named `IndigoHIDMessageForMouseNSEventFn`, and the property `mouseFn` stores it. However, the `createTouchMessage` method on line 82-83 says `/// Create a touch event message` and uses `mouseFn` internally. Meanwhile, the parameter passed to `mouseFn` on line 86 is `phase.rawValue` where `phase` is an `IndigoHIDTouchPhase`. The function name `IndigoHIDMessageForMouseNSEvent` comes from Apple's private framework symbol name and cannot be changed, but the property name `mouseFn` in the loader class is author-controlled.
+- Issue: A future maintainer seeing `mouseFn` used inside `createTouchMessage` may be confused about whether this sends mouse events or touch events. The Apple symbol name is indeed `IndigoHIDMessageForMouseNSEvent`, but this is a quirk of the private API -- it actually generates touch events for the simulator, not mouse events. There is no clarifying comment.
+- Suggestion: Add a brief comment above `mouseFn` explaining the naming discrepancy:
+
+> "Named after the Apple private symbol IndigoHIDMessageForMouseNSEvent, but actually creates touch events for iOS Simulator input."
+
+---
+
+**Improvement Opportunities**
+
+**1. `findTabBarElement` lacks documentation of its multi-pass strategy**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Utils.swift`, lines 830-892
+- Current state: The function has inline comments marking "1st pass," "2nd pass," and "3rd pass" but no function-level doc comment explaining why three passes exist or what the overall strategy is. The 3rd pass uses a spatial heuristic that is inherently fragile (hard-coded percentages of screen dimensions), and there is no note about when or why it might fail.
+- Suggestion: Add a doc comment above the function explaining:
+  - Why three passes: SwiftUI `TabView` exposes different accessibility roles depending on version/configuration (sometimes `AXTabGroup`, sometimes `AXRadioGroup`, sometimes neither).
+  - That the 3rd pass is a spatial heuristic fallback and should be treated as best-effort.
+  - That the 60% width and 15% bottom thresholds are empirical values that may need tuning for iPad or different screen sizes.
+
+**2. `describe-ui` tab bar hint references `tap_tab` but should clarify what it is**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Utils.swift`, line 604
+- Current state: The hint text reads `[Tab bar with N unlabeled items - use tap_tab with index 0..N-1]`. This uses the MCP tool name (`tap_tab`, snake_case) while running inside the native Swift binary where the command name is `tap-tab` (kebab-case). Since this hint text is output to users via the `describe-ui` command and consumed by MCP clients, using the MCP tool name is arguably correct. However, this crosses the naming convention boundary documented in CLAUDE.md.
+- Suggestion: Add a brief inline comment explaining this deliberate choice, e.g.: `// Use MCP tool name (snake_case) since this output is consumed by MCP clients`
+
+**3. `resolveSimulatorScreenSize` hardcodes device type string patterns**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDCoordinates.swift`, lines 53-63
+- Current state: The function matches `deviceTypeIdentifier` strings like `"iPhone-16"`, `"iPhone-15"`, `"iPhone-SE"`, `"iPad"` with hardcoded resolutions. No comment explains the coverage limitations or that future device types will fall through to the default.
+- Suggestion: Add a comment noting that this is a best-effort mapping for common devices and will need updates as new device types are released. Also note that the returned values are logical points, not physical pixels, and explain how this interacts with the IndigoHID coordinate normalization.
+
+**4. `IndigoHIDCoordinates.normalize` doc comment should clarify coordinate expectations**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDCoordinates.swift`, lines 17-21
+- Current state: The comment says `/// Convert point coordinates (pixels) to normalized 0-1 ratio. /// Origin is top-left.` However, the `resolveSimulatorScreenSize` function returns logical point dimensions (e.g., 393x852), not pixel dimensions. If a Retina device is in use, the actual pixel resolution could be 2x or 3x. The comment calling the input "pixels" is potentially misleading.
+- Suggestion: Change "pixels" to "logical points" or "points" to match what `resolveSimulatorScreenSize` actually returns.
+
+**5. `IndigoHIDClient.typeText` doc comment claim about autocomplete bypass**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDClient.swift`, lines 100-101
+- Current state: The comment says `/// Type text using HID keyboard events. /// This bypasses iOS autocomplete by sending raw HID keycodes.` This claim may be inaccurate. Sending HID key events through IndigoHID may or may not bypass iOS autocomplete depending on the iOS version and text field configuration. The claim is presented as a definitive fact without qualification.
+- Suggestion: Soften the claim or add context: "Sends raw HID keycodes, which may bypass iOS autocomplete depending on the text field and iOS version."
+
+**6. `handleTapTab` inline comment about IndigoHID coordinate conversion**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Commands/UICommands.swift`, line 288
+- Current state: The comment says `// For IndigoHID, convert screen coordinates to content-relative coordinates`. This is accurate but could be more specific about *why* the conversion is needed -- IndigoHID expects coordinates relative to the simulator's content area, not absolute screen coordinates, because the normalization divides by the logical screen dimensions.
+- Suggestion: Expand to: "IndigoHID normalizes coordinates against the simulator screen dimensions. Since tapX/tapY are screen-absolute (from AXFrame), subtract the content area origin to make them content-relative before normalization."
+
+**7. `resolveInputBackend` doc comment mentions `auto` but the code does not handle it**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Utils.swift`, line 1178
+- Current state: The comment says `/// Override with BAEPSAE_INPUT_BACKEND=indigo|cgevent|auto`. The code handles `"cgevent"` and `"indigo"` explicitly. For `"auto"` (or any other value, including no value), it falls through to the default IndigoHID-first behavior. Listing `auto` as a valid option suggests it is explicitly handled, but it is simply the absence of a recognized override.
+- Suggestion: Either (a) add an explicit `envOverride == "auto"` check before the default path for clarity, or (b) change the comment to `/// Override with BAEPSAE_INPUT_BACKEND=indigo|cgevent (default: auto-detect)`.
+
+---
+
+**Recommended Removals**
+
+**1. Inline comments restating obvious code in `IndigoHIDClient`**
+
+- Locations: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDClient.swift`, lines 33, 39, 49, 55, 65, 75, 83, 95
+- Comments like `// Touch began`, `// Touch ended`, `// Touch moved sequence`, `// Move sequence`, `// Key down`, `// Key up`, `// Shift down`, `// Shift up` merely restate what the next line of code does (e.g., `createTouchMessage(phase: .began, ...)` obviously creates a "touch began" message).
+- Rationale: These comments add no information beyond what the code already communicates through its parameter names (`.began`, `.ended`, `.moved`, `.keyDown`, `.keyUp`). They are pure noise and will need updating if the API changes.
+
+**2. `// Zero out buffer` and `// Copy payload after header` in `sendIndigoHIDMessage`**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDEvents.swift`, lines 35, 47
+- Rationale: `buffer.initialize(repeating: 0, count: totalSize)` is self-explanatory for anyone working at this level. Similarly, `(buffer + headerSize).update(from: bytes, count: length)` clearly copies data after the header offset. These comments restate the code.
+
+---
+
+**Positive Findings**
+
+**1. `IndigoHIDLoader` singleton pattern is well-documented**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDLoader.swift`, lines 33-34
+- The doc comment `/// Loads IndigoHID symbols from SimulatorKit.framework via dlopen/dlsym. /// This is a singleton -- symbol loading happens once.` concisely explains both the mechanism and the design decision. This is valuable for future maintainers who might wonder about initialization cost.
+
+**2. `IndigoHIDClient.init` doc comment is precise about failure conditions**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDClient.swift`, lines 12-13
+- `/// Initialize with a simulator UDID. /// Returns nil if IndigoHID is not available or the Mach port cannot be resolved.` accurately documents both failure conditions that cause the failable initializer to return nil, and matches the actual guard statements in the implementation.
+
+**3. `resolveInputBackend` doc comment concisely captures the fallback strategy**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Utils.swift`, lines 1175-1178
+- Despite the minor `auto` issue noted above, the comment clearly documents the fallback hierarchy (IndigoHID first, CGEvent fallback) and the platform-specific behavior (macOS always CGEvent). This is exactly the kind of "why" documentation that helps future maintainers.
+
+**4. `tap_tab` tool description in `src/tools/ui.ts` is excellent**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/src/tools/ui.ts`, line 399
+- The description `"Tap a tab in a tab bar by index. Workaround for SwiftUI TabView where individual tab buttons are not exposed in the accessibility tree. Finds the tab bar element and calculates tap coordinates by dividing it equally."` explains not just *what* the tool does but *why* it exists (SwiftUI TabView accessibility limitation) and *how* it works (coordinate division). This is a model tool description.
+
+**5. `bootstrap_look_up` forward declaration comment**
+
+- Location: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDEvents.swift`, line 3
+- The comment `// bootstrap_look_up is in /usr/include/servers/bootstrap.h` explains where this private system function originates, which is essential context for anyone trying to understand why `@_silgen_name` is used instead of a normal import.</result>
+<usage><total_tokens>67919</total_tokens><tool_uses>19</tool_uses><duration_ms>120712</duration_ms></usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Volumes-eyedisk-develop-oozoofrog-mcp-baepsae/105baf7e-c3c2-4202-9883-42e1c2d632dc/tasks/a79baf08d8cef7519.output
+
+---
+
+<task-notification>
+<task-id>a2b3743a357dfe1ca</task-id>
+<tool-use-id>toolu_01SQMvBCmZwkZr4Gu8E1d1tR</tool-use-id>
+<output-file>/private/tmp/claude-501/-Volumes-eyedisk-develop-oozoofrog-mcp-baepsae/105baf7e-c3c2-4202-9883-42e1c2d632dc/tasks/a2b3743a357dfe1ca.output</output-file>
+<status>completed</status>
+<summary>Agent "Code review for PR #43" completed</summary>
+<result>All tests pass. Now let me compile my findings.
+
+---
+
+## Code Review: PR #43 - `tap_tab` MCP tool (commit 7a7a8b0)
+
+### Files Reviewed
+
+- `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/src/tools/ui.ts` -- MCP tool registration
+- `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/src/utils.ts` -- BAEPSAE_SUBCOMMANDS list
+- `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Commands/UICommands.swift` -- handleTapTab implementation
+- `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Utils.swift` -- findTabBarElement + describe-ui hint
+- `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/main.swift` -- help text + switch dispatch
+- `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/tests/unit.test.mjs` -- 4 new unit tests
+- `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/tests/mcp.contract.test.mjs` -- contract test updated
+- `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Tests/BaepsaeNativeTests/BinaryInvocationTests.swift` -- 2 new Swift tests
+
+### CLAUDE.md Compliance Checklist
+
+1. **Naming Convention (Critical rule)**: MCP tool is `tap_tab` (snake_case), CLI subcommand is `tap-tab` (kebab-case). Correct.
+
+2. **Both layers updated consistently**: TypeScript MCP layer and Swift native bridge are both updated. Correct.
+
+3. **Error handling pattern**: All tool failures return `{ content: [{ type: "text", text: "..." }], isError: true }` via `validateTapTabParams` in the TS layer. Swift side uses `throw NativeError.invalidArguments(...)` and `throw NativeError.commandFailed(...)`, which are caught and forwarded through `runNative()`. Correct.
+
+4. **Test coverage**: Contract test lists `tap_tab`. Unit tests cover: no target, index forwarding, tabCount forwarding, index >= tabCount validation. Swift tests cover: missing index, missing target. Tool count updated from 32 to 33. Correct.
+
+5. **BAEPSAE_SUBCOMMANDS updated**: `"tap-tab"` added to the list. Correct.
+
+6. **supportedCommands updated** (Utils.swift): `"tap-tab"` added. Correct.
+
+7. **Help text updated** (main.swift): `tap-tab` usage line added. Correct.
+
+8. **No ad-hoc process spawning**: Uses `runNative()` pattern. Correct.
+
+### Potential Issues Analyzed
+
+**3rd pass heuristic coordinate system comment (Utils.swift line 877-881)**: The comment says "In macOS coordinate system, y=0 is at the bottom of the screen" but then checks `frame.origin.y > screenHeight - bottomThreshold`. The AXFrame attribute returns coordinates in the **screen coordinate system** where (0,0) is at the top-left of the primary display (not the bottom as in Quartz/NSView). So `frame.origin.y > screenHeight - bottomThreshold` actually checks if the element is near the **bottom** of the screen in the AX coordinate space (high y = further down from top). The comment is misleading but the **logic is correct** for identifying bottom-of-screen elements. This is a documentation inaccuracy in the comment, not a bug, and it was introduced in the earlier `fc58044` commit rather than the `tap_tab` commit under review. Confidence: 65 -- below threshold.
+
+**`findTabBarElement` 3rd pass uses `NSScreen.main` dimensions**: For simulator targets, the tab bar is inside the simulator window, which is typically much smaller than the screen. The heuristic checks if the AXGroup is wider than 60% of screen width and in the bottom 15% of the screen. For a simulator app, the tab bar width relative to the full screen may be under 60%, potentially causing a false negative. However, passes 1 and 2 (AXTabGroup / AXRadioGroup) would already have matched standard SwiftUI TabView elements, so the 3rd pass is a last-resort fallback for unusual cases. Confidence: 55 -- below threshold (acceptable fallback behavior).
+
+**`handleTapTab` IndigoHID branch calls `simulatorContentBounds()` which re-fetches the accessibility root**: This is a minor efficiency concern but not a bug. The content bounds are needed to convert screen-absolute coordinates from `FrameAttribute` to content-relative coordinates for IndigoHID. Confidence: 30 -- below threshold.
+
+### Build and Test Verification
+
+- TypeScript build: PASS
+- Contract tests (16 tests): PASS
+- Unit tests (83 tests): PASS  
+- Swift tests (47 tests): PASS
+
+### Verdict
+
+**No issues with confidence >= 80 found.** The `tap_tab` implementation is clean and follows all CLAUDE.md guidelines:
+
+- Naming convention is correctly applied (snake_case MCP / kebab-case CLI)
+- Both TypeScript and Swift layers are updated in sync
+- Error handling follows the established pattern
+- Tests cover validation edge cases at all three test levels (unit, contract, Swift binary invocation)
+- The tool count is properly updated from 32 to 33
+- The `describe-ui` hint correctly references the MCP tool name (`tap_tab`) to guide AI consumers
+
+The implementation is well-structured, consistent with existing patterns in the codebase, and ready to merge.</result>
+<usage><total_tokens>58112</total_tokens><tool_uses>22</tool_uses><duration_ms>153302</duration_ms></usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Volumes-eyedisk-develop-oozoofrog-mcp-baepsae/105baf7e-c3c2-4202-9883-42e1c2d632dc/tasks/a2b3743a357dfe1ca.output
+
+---
+
+<task-notification>
+<task-id>aff1bd32facf64495</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Volumes-eyedisk-develop-oozoofrog-mcp-baepsae/105baf7e-c3c2-4202-9883-42e1c2d632dc/tasks/aff1bd32facf64495.output</output-file>
+<status>completed</status>
+<summary>Agent "Test coverage review PR #43" completed</summary>
+<result>Now I have a comprehensive understanding of the PR. Let me compile my analysis.
+
+---
+
+## Test Coverage Analysis: PR #43 (feat/simulator-improvements)
+
+### Summary
+
+The PR introduces three categories of changes: (1) a new `tap_tab` MCP tool with full TS+Swift implementation, (2) IndigoHID integration for native simulator touch/keyboard input via Mach IPC, and (3) CGEvent refactoring with a new `InputBackend` dispatch mechanism. Test coverage for the `tap_tab` tool is solid at the MCP/TS layer, covering the happy path, parameter forwarding, and key validation errors. However, the IndigoHID integration and the CGEvent/InputBackend refactoring have zero dedicated test coverage, representing a meaningful gap given the complexity of these changes.
+
+---
+
+### 1. Critical Gaps (Criticality 8-10)
+
+**[Criticality 8] No Swift-side test for `tap-tab` argument validation edge cases beyond missing `--index`**
+
+The Swift `handleTapTab` function in `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Commands/UICommands.swift` (lines 233-304) has several error paths:
+- Missing `--index` (tested in `BinaryInvocationTests.swift` line 490)
+- Missing target (tested in `BinaryInvocationTests.swift` line 502)
+- Non-numeric `--index` value (NOT tested)
+
+The guard on line 235 (`guard let indexStr = parsed.options["--index"], let index = Int(indexStr)`) handles both missing and non-numeric index with the same error, but there is no test verifying that `--index abc` produces the correct error. Following the existing pattern where `testSwipe_missingCoordinates` and `testKeySequence_missingKeycodes` validate argument parsing, a test for non-numeric index would be consistent.
+
+What it catches: A refactoring that changes the error message or removes the `Int()` conversion guard would go undetected.
+
+**[Criticality 8] No test for `resolveInputBackend` dispatch logic**
+
+The new `resolveInputBackend` function in `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Utils.swift` (lines 1179-1199) is a critical routing decision point that determines whether touch/tap/swipe/drag/type operations use IndigoHID (Mach IPC) or CGEvent. It has three branches:
+- macOS apps always return `.cgevent`
+- Simulators try IndigoHID first, fall back to `.cgevent`
+- Environment variable `BAEPSAE_INPUT_BACKEND` can force either backend
+
+This function is called by `handleTap`, `handleTapTab`, `handleTouch`, `handleType`, `handleSwipe`, and `handleDragDrop`. If this dispatch breaks, all coordinate-based input for simulators fails silently (falls to wrong backend) or crashes.
+
+Neither the Swift tests nor the TS tests exercise the backend selection logic. The TS tests cannot directly test this (it's an internal Swift implementation detail), but the Swift `BinaryInvocationTests` could test that `BAEPSAE_INPUT_BACKEND=cgevent` environment variable is respected, similar to how `BAEPSAE_NATIVE_PATH` is tested in the TS layer.
+
+What it catches: If `resolveInputBackend` defaults change or the IndigoHID fallback path breaks, no test would catch it.
+
+---
+
+### 2. Important Improvements (Criticality 5-7)
+
+**[Criticality 7] No test for `tap_tab` with `preDelay` and `postDelay` parameter forwarding**
+
+The TS `buildTapTabArgs` function in `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/src/tools/ui.ts` (line 303-308) forwards `preDelay` and `postDelay` to native `--pre-delay` and `--post-delay` args. The existing `tap_tab` unit tests verify `index` and `tabCount` forwarding but never test delay parameters.
+
+The existing test suite has an analogous test for `tap` delays (`"tap forwards preDelay and postDelay options"` at line 1549 of unit.test.mjs) and for `swipe` delays, establishing a pattern. The `tap_tab` tool follows the same parameter forwarding pattern but lacks this specific coverage.
+
+What it catches: If `pushOption(args, "--pre-delay", params.preDelay)` or `pushOption(args, "--post-delay", params.postDelay)` is accidentally removed from `buildTapTabArgs`, no test would detect it.
+
+**[Criticality 7] No test verifying `tap_tab` uses macOS target (bundleId/appName)**
+
+All four existing `tap_tab` unit tests use `udid` (simulator target). The `tap_tab` tool supports macOS app targets via `bundleId` or `appName` (inherited from `unifiedTargetSchema`). Other tools like `analyze_ui` have explicit tests for both simulator and macOS routing (`"analyze_ui routes with macOS target"` at line 182). There is no `tap_tab` test confirming `--bundle-id` forwarding.
+
+What it catches: If `tap_tab` accidentally restricts to simulator-only targets (like `button` and `gesture` do), no test would detect it. The Swift implementation at line 247 does have an `if case .simulator = target` branch for content root, so this path difference is real.
+
+**[Criticality 6] `validateTapTabParams` boundary: index equals tabCount**
+
+The TS validation function `validateTapTabParams` in `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/src/tools/ui.ts` (line 182) uses `params.index >= params.tabCount`. The test at line 478 of unit.test.mjs uses `index: 5, tabCount: 3` (index well above tabCount). There is no test for the exact boundary case `index === tabCount` (e.g., `index: 3, tabCount: 3`), which is the off-by-one error most likely to regress.
+
+What it catches: If someone changes `>=` to `>` in the validation, the current test with `index: 5, tabCount: 3` would still pass, but index 2 (last valid) would wrongly be rejected or index 3 (first invalid) would wrongly be accepted.
+
+**[Criticality 6] No test that `tabCount` Zod schema enforces `min(1)`**
+
+The `tapTabSchema` defines `tabCount: z.number().int().min(1)` at line 147 of ui.ts. There is no test verifying that `tabCount: 0` is rejected by Zod validation. The Swift side (line 269) also has a `guard tabCount > 0` check, but the TS-side Zod validation is the first line of defense.
+
+What it catches: If `min(1)` is removed from the schema, a `tabCount: 0` would reach the native layer where it would fail with a less clear error message.
+
+**[Criticality 5] IndigoHID `characterNeedsShift` missing coverage for edge characters**
+
+The `characterNeedsShift` function in `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDClient.swift` (line 203) and `hidUsageForCharacter` (line 145) have a comprehensive character mapping but no unit tests. These are pure functions that would be straightforward to test in the Swift XCTest suite. However, since IndigoHID only activates when the framework is available on the test machine, this is less critical.
+
+What it catches: If the HID usage code for a character is wrong (e.g., mapping ";" to the wrong keycode), typing that character in the simulator would produce the wrong result. This is hard to test without a simulator but the mapping table itself could be validated.
+
+---
+
+### 3. Test Quality Issues
+
+**No significant test quality issues found.** The tests follow established patterns well:
+
+- The `tap_tab` TS unit tests follow the same `withClient` + `extractText` + `assert.match` pattern as other tool tests.
+- The Swift `BinaryInvocationTests` for `tap-tab` follow the existing `testTap_missingTarget` and `testScreenshot_missingUdid` patterns.
+- Contract test (`mcp.contract.test.mjs`) correctly adds `tap_tab` to the expected tools list.
+- The tool registry completeness test in unit.test.mjs (line 62) correctly includes `tap_tab` in the 33-tool count.
+
+One minor observation: the `tap_tab` tests do not verify `isError` on the happy path (lines 448-461), while comparable tests like `tap forwards all=true to native --all` (line 223) also skip this check. This is a pre-existing pattern in the test suite, not a regression.
+
+---
+
+### 4. Positive Observations
+
+- **Consistent naming convention**: The PR correctly uses `tap_tab` (snake_case) for the MCP tool name and `tap-tab` (kebab-case) for the native CLI subcommand, as documented in CLAUDE.md.
+
+- **Both layers updated**: The tool is added in `src/tools/ui.ts` (TS MCP layer), `native/Sources/Commands/UICommands.swift` (Swift handler), `native/Sources/main.swift` (command dispatch), `native/Sources/Utils.swift` (supported commands set), and `src/utils.ts` (subcommand list).
+
+- **All three test files updated**: Contract test adds `tap_tab` to expected tools, unit test adds 4 tests for the new tool, Swift test adds 2 argument validation tests.
+
+- **Validation logic is tested at the TS boundary**: The `validateTapTabParams` function is tested for the `index >= tabCount` case, and the `"tap_tab errors when no target is provided"` test verifies the unified target resolution.
+
+- **Swift `findTabBarElement` has a defensive depth limit** (500 elements per pass), preventing infinite traversal, which is a good design choice even though it's not directly tested.
+
+- **The `InputBackend` enum and `resolveInputBackend` function are well-structured** with a clear fallback chain (IndigoHID -> CGEvent) and environment variable override support.
+
+---
+
+### 5. Summary of Recommendations
+
+| Priority | Gap | Criticality | Effort |
+|----------|-----|-------------|--------|
+| Should add | Boundary test for `index === tabCount` in TS unit tests | 6 | Low |
+| Should add | `tap_tab` with macOS target (bundleId) test | 7 | Low |
+| Should add | `tap_tab` preDelay/postDelay forwarding test | 7 | Low |
+| Consider | Swift test for non-numeric `--index` value | 8 | Low |
+| Consider | `tabCount: 0` Zod rejection test | 6 | Low |
+| Acknowledge | IndigoHID integration is untestable without simulator framework | N/A | N/A |
+| Acknowledge | `resolveInputBackend` is an internal detail, hard to unit test without mock infrastructure | 8 | High |
+
+The first four items are low-effort additions that follow existing patterns and would provide meaningful regression protection. The IndigoHID and InputBackend gaps are acknowledged but harder to address without significant test infrastructure investment (mocking Mach ports, dlopen, etc.), and the graceful fallback to CGEvent mitigates the risk.</result>
+<usage><total_tokens>73056</total_tokens><tool_uses>34</tool_uses><duration_ms>172117</duration_ms></usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Volumes-eyedisk-develop-oozoofrog-mcp-baepsae/105baf7e-c3c2-4202-9883-42e1c2d632dc/tasks/aff1bd32facf64495.output
+
+---
+
+<task-notification>
+<task-id>adfb6b9743ee327fb</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Volumes-eyedisk-develop-oozoofrog-mcp-baepsae/105baf7e-c3c2-4202-9883-42e1c2d632dc/tasks/adfb6b9743ee327fb.output</output-file>
+<status>completed</status>
+<summary>Agent "Silent failure hunting PR #43" completed</summary>
+<result>Now I have a comprehensive picture of all the changes. Let me compile my error handling audit.
+
+---
+
+# Error Handling Audit: PR #43 (feat/simulator-improvements)
+
+## Executive Summary
+
+This PR introduces two major features: (1) a `tap-tab` command for tapping tab bar items by index, and (2) IndigoHID integration as an alternative input backend for iOS Simulator. While the `handleTapTab` function on the Swift side has reasonably good error handling with explicit guard-and-throw patterns, the IndigoHID integration has **pervasive silent failure patterns** where boolean return values are systematically discarded. This creates a category of bugs where the user is told an operation succeeded when it actually failed at the HID transport layer.
+
+---
+
+## CRITICAL Issues
+
+### Issue 1: Silent failure across all IndigoHID message sends in `InputCommands.swift`
+
+**Location**: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Commands/InputCommands.swift`, lines 93-94, 97-98, 102-103, 108-109 (handleTouch), and similar patterns throughout
+
+**Severity**: CRITICAL
+
+**Issue Description**: Every `if let msg = ... { _ = sendIndigoHIDMessage(msg, to: client.port) }` pattern has two independent silent failure points:
+
+1. If `createTouchMessage` returns `nil`, the entire touch event is silently skipped -- no error, no feedback, no logging. The function returns `0` (success).
+2. The return value of `sendIndigoHIDMessage` is explicitly discarded with `_ =`. If the Mach IPC send fails, the user is never informed.
+
+**Hidden Errors**:
+- `createTouchMessage` returning nil due to `mouseFn` being nil (symbol loading failure)
+- `sendIndigoHIDMessage` failing due to Mach port becoming invalid (simulator crashed/restarted)
+- `sendIndigoHIDMessage` failing due to malformed message data
+- Buffer allocation failures in `sendIndigoHIDMessage`
+- `mach_msg` returning any non-`KERN_SUCCESS` result code
+
+**User Impact**: A user calls `touch --udid <UDID> -x 100 -y 200`. The command exits with code 0 (success). Nothing happened on screen. The user has no idea why. They will retry, tweak coordinates, restart the simulator -- none of which address the real problem (e.g., the IndigoHID framework symbols were not loaded, or the Mach port is stale).
+
+**Recommendation**: At minimum, check the return value of `sendIndigoHIDMessage` and the nil result of `createTouchMessage`. When they fail, either throw an error or fall back to CGEvent with a warning printed to stderr.
+
+**Example fix for handleTouch**:
+```swift
+case .indigoHID(let client):
+    let (nx, ny) = client.coords.normalize(x: x, y: y)
+    if !downRequested && !upRequested {
+        guard let msg = client.loader.createTouchMessage(phase: .began, x: nx, y: ny) else {
+            throw NativeError.commandFailed("Failed to create IndigoHID touch-began message.")
+        }
+        guard sendIndigoHIDMessage(msg, to: client.port) else {
+            throw NativeError.commandFailed("Failed to send IndigoHID touch-began event to simulator.")
+        }
+        // ... same for ended
+    }
+```
+
+---
+
+### Issue 2: Silent failure in `IndigoHIDClient.typeText()` -- always returns `true`
+
+**Location**: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDClient.swift`, lines 102-139
+
+**Severity**: CRITICAL
+
+**Issue Description**: `typeText()` has a `guard let usage = hidUsageForCharacter(char) else { continue }` at line 106 that silently drops any character without a HID usage mapping. For characters not in the US keyboard layout, they vanish without trace. Furthermore, every `sendIndigoHIDMessage` call within the method discards its return value (`_ =`). The method unconditionally returns `true` at line 138.
+
+**Hidden Errors**:
+- Characters outside ASCII/US keyboard layout (accented characters, CJK, emoji) are silently dropped
+- Failed key-down/key-up HID message sends are ignored
+- Failed shift modifier sends are ignored -- resulting in wrong characters typed
+- If the Mach port becomes invalid mid-type, partial text is typed with no indication of failure
+
+**User Impact**: User calls `type_text` with "cafe" and gets "cafe". They call it with "cafe" and get "caf" because the accented 'e' was silently dropped. Or they type a URL with special characters and get a corrupted string. The function reports success regardless.
+
+**Recommendation**: Track dropped characters and failed sends. If any characters were skipped or sends failed, either return `false` or throw an error with specifics about what could not be typed.
+
+---
+
+### Issue 3: Silent failure in `IndigoHIDClient.tap()`, `swipe()`, `drag()` -- return value discarded by callers
+
+**Location**: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Commands/UICommands.swift`, lines 213-217 (handleTap with IndigoHID)
+
+**Severity**: CRITICAL
+
+**Issue Description**: `client.tap(x:y:)` returns `Bool` indicating success/failure, but at lines 213, 215, and 217, the return value is discarded with `_ = client.tap(...)`. The same pattern appears in `handleSwipe` (line 354), `handleTapTab` (lines 292, 294), and `handleDragDrop` in `WindowCommands.swift` (line 83).
+
+**Hidden Errors**:
+- Touch-began message creation failure
+- Touch-ended message creation failure
+- Mach IPC send failure for any phase
+- For swipe: any of the 10+ intermediate move events could fail silently
+
+**User Impact**: Every coordinate-based tap, swipe, drag, and tab-tap via IndigoHID will report success even when nothing happened. This is the most common user-facing operation in UI automation, and it silently fails.
+
+**Recommendation**: Check the return value. When false, either throw an error or fall back to CGEvent with a warning.
+
+---
+
+## HIGH Issues
+
+### Issue 4: `resolveInputBackend` silently falls back from IndigoHID to CGEvent
+
+**Location**: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Utils.swift`, lines 1179-1199
+
+**Severity**: HIGH
+
+**Issue Description**: When `BAEPSAE_INPUT_BACKEND` is not set (the default `auto` mode), the function tries `IndigoHIDClient(udid:)` and, if it returns nil, silently falls back to CGEvent. The only case where a warning is printed is when the user explicitly requests `indigo` via the environment variable. In auto mode, the user never knows which backend was used.
+
+The IndigoHIDClient init can return nil for multiple reasons: framework not found, symbol loading failure, Mach port resolution failure. The user gets no indication of which condition prevented IndigoHID from loading.
+
+**Hidden Errors**:
+- `dlopen` failing because SimulatorKit.framework is not at either expected path (different Xcode version/location)
+- Individual `dlsym` calls failing for specific symbols
+- `resolveIndigoHIDPort` failing because the simulator with that UDID is not booted
+- `isAvailable` returning false because only some of the three required symbols loaded
+
+**User Impact**: User expects IndigoHID touch events for their simulator (which would be more reliable than CGEvent for iOS input). Instead they silently get CGEvent mouse clicks. The behavior difference may be subtle (e.g., iOS gesture recognizers may not fire correctly with mouse events), leading to confusing intermittent failures.
+
+**Recommendation**: At minimum, print to stderr which backend was selected when in auto mode. Consider a `--verbose` flag or always logging to stderr.
+
+---
+
+### Issue 5: `resolveSimulatorScreenSize` silently falls back to hardcoded dimensions
+
+**Location**: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDCoordinates.swift`, lines 32-74
+
+**Severity**: HIGH
+
+**Issue Description**: This function has multiple layers of silent fallback:
+
+1. The entire `do { try process.run() ... } catch { }` block at line 68 catches all errors and falls through to the default. Process launch failures, `xcrun` not found, JSON parse errors -- all silently ignored.
+2. When the UDID is found but `deviceTypeIdentifier` does not match any of the three hardcoded patterns (iPhone 15/16, iPhone SE, iPad), it falls through to the default at line 73.
+3. When the UDID is not found in the device list at all, it falls through to the default.
+4. The `try? JSONSerialization` at line 47 swallows JSON parsing errors.
+
+**Hidden Errors**:
+- `xcrun` not being available (Xcode not installed)
+- `simctl list devices -j` returning unexpected JSON structure
+- Device UDID not found in the list (wrong UDID, device deleted)
+- iPhone 14, iPhone 13, iPad Mini, or any non-matched device type getting wrong dimensions
+- Any future device type not matching the pattern
+
+**User Impact**: If the screen dimensions are wrong, all normalized coordinates will be off. Taps will land at wrong locations. The user sees the tap happening at the wrong spot with no explanation. Since coordinates are normalized 0-1, a 393x852 default applied to an iPad (1024x1366) would cause every tap to land in the upper-left quadrant of the screen.
+
+**Recommendation**: Log the detected screen size to stderr. When falling back to defaults, print a warning. Add more device type patterns or, better yet, query the actual screen dimensions from the accessibility API or simctl.
+
+---
+
+### Issue 6: `simulatorContentBounds()` silently falls back to window bounds
+
+**Location**: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Utils.swift`, lines 988-997
+
+**Severity**: HIGH
+
+**Issue Description**: This function has two fallback layers, both silent:
+1. `try? simulatorAccessibilityRootElement()` at line 989 -- if the simulator root element cannot be obtained, it falls back to `simulatorWindowBounds()`.
+2. If the content group is found but `FrameAttribute` returns nil, it also falls back to `simulatorWindowBounds()`.
+
+The content bounds and window bounds are different -- window bounds include the simulator chrome (status bar, notch, etc.). Using window bounds when content bounds are needed will cause coordinate calculations to be off.
+
+**User Impact**: In `handleTapTab` at line 289-294, `simulatorContentBounds()` is used to convert screen coordinates to content-relative coordinates for IndigoHID. If this silently falls back to window bounds, the tap coordinate conversion will be wrong, and the tab tap will miss.
+
+**Recommendation**: At least log to stderr when falling back from content bounds to window bounds. The callers should be aware they are using an approximation.
+
+---
+
+### Issue 7: `handleTapTab` IndigoHID coordinate conversion silently falls back
+
+**Location**: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Commands/UICommands.swift`, lines 289-295
+
+**Severity**: HIGH
+
+**Issue Description**: When the IndigoHID backend is selected for tap-tab:
+```swift
+if let contentBounds = simulatorContentBounds() {
+    let relX = Double(tapX) - Double(contentBounds.origin.x)
+    let relY = Double(tapY) - Double(contentBounds.origin.y)
+    _ = client.tap(x: relX, y: relY)
+} else {
+    _ = client.tap(x: Double(tapX), y: Double(tapY))
+}
+```
+
+If `simulatorContentBounds()` returns nil, the code uses raw screen coordinates `(tapX, tapY)` directly. But IndigoHID normalizes these by dividing by screen dimensions. Using absolute screen coordinates (which could be in the thousands) divided by a screen size of 393x852 would produce normalized values well above 1.0, resulting in completely wrong tap locations. Additionally, `client.tap()` return value is discarded in both branches.
+
+**User Impact**: If content bounds cannot be determined, the tap will land at a completely wrong location (or off-screen), with no error reported.
+
+**Recommendation**: When `simulatorContentBounds()` returns nil with the IndigoHID backend, this should be an error, not a silent fallback with wrong coordinates.
+
+---
+
+## MEDIUM Issues
+
+### Issue 8: `validateTapTabParams` in TypeScript does not validate negative tabCount
+
+**Location**: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/src/tools/ui.ts`, lines 181-189
+
+**Severity**: MEDIUM
+
+**Issue Description**: The Zod schema at line 147 has `.min(1)` for tabCount, so Zod would reject `tabCount: 0`. However, `validateTapTabParams` only checks `index >= tabCount`. It does not check whether `index` might be negative (though the schema has `.min(0)` for index). The validation here is minimal -- it only catches the case where tabCount is explicitly provided AND index exceeds it. If tabCount is not provided, no validation occurs at the TS layer, deferring entirely to the native binary.
+
+This is acceptable since the Swift side validates at lines 269-275, but it means the user gets a less friendly error message (raw native binary stderr) instead of a clean MCP error response.
+
+**User Impact**: Minor -- errors are still caught, but user feedback quality could be better.
+
+**Recommendation**: Consider this acceptable as-is, since Zod handles negative values and the Swift side handles the full validation. The TS-side validation is a "fast path" optimization for the case where tabCount is known.
+
+---
+
+### Issue 9: Empty catch block for Swift toolchain detection
+
+**Location**: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/src/utils.ts`, lines 107-112
+
+**Severity**: MEDIUM (pre-existing, not introduced in this PR)
+
+**Issue Description**: The `catch {}` block at line 110-112 when checking if Swift is available is effectively empty (only has a comment). While this is reasonable for a "detection" pattern, it does suppress any error from `execFileSync("swift", ["--version"])`.
+
+**Hidden Errors**: Permission errors, timeout errors, or other unexpected failures from running `swift --version`.
+
+**Note**: This is pre-existing code, not introduced in this PR. Flagging for completeness.
+
+---
+
+### Issue 10: `IndigoHIDLoader` init swallows `dlopen`/`dlsym` errors silently
+
+**Location**: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/IndigoHID/IndigoHIDLoader.swift`, lines 47-80
+
+**Severity**: MEDIUM
+
+**Issue Description**: When `dlopen` or `dlsym` fails, the corresponding function pointer is set to nil. The `dlerror()` string (which would explain exactly why the symbol loading failed) is never captured or logged. This makes it impossible to debug IndigoHID loading issues without attaching a debugger.
+
+**Hidden Errors**:
+- Framework not found at either path
+- Framework found but specific symbol not exported (API version mismatch)
+- Architecture mismatch (trying to load x86 framework on ARM)
+- Code signing issues preventing dlopen
+
+**User Impact**: When IndigoHID silently does not load, the user has no way to diagnose why. They cannot file a useful bug report because no diagnostic information is available.
+
+**Recommendation**: Call `dlerror()` after failed `dlopen`/`dlsym` calls and store the error string. Expose it via a property or log it to stderr so users and developers can diagnose loading failures.
+
+---
+
+### Issue 11: `findTabBarElement` 3-pass heuristic could match wrong elements
+
+**Location**: `/Volumes/eyedisk/develop/oozoofrog/mcp-baepsae/native/Sources/Utils.swift`, lines 830-892
+
+**Severity**: MEDIUM
+
+**Issue Description**: The 3rd pass heuristic at line 863 looks for any `AXGroup` that is wide (>60% of screen width) and in the bottom 15% of the screen. This heuristic has no connection to tab bar semantics -- it could match a toolbar, a footer, an ad banner, or any wide bottom element. When it matches the wrong element, the subsequent division of its frame into equal tab widths will tap completely wrong locations.
+
+The function silently returns nil when no match is found across all 3 passes. The caller at `handleTapTab` line 253 does handle this with a proper error. However, false positives from pass 3 are more dangerous than false negatives, because the user gets a silent wrong tap instead of an error.
+
+Additionally, the 500-node limit in each pass (`if visited > 500 { break }`) means that in complex UIs, the tab bar might not be found even if it exists deep in the tree. This is a silent truncation.
+
+**User Impact**: For non-standard UI layouts, the heuristic might match a wrong element and the tap lands on the wrong UI component. The user gets a "success" response but incorrect behavior.
+
+**Recommendation**: Consider logging to stderr when pass 3 is used (so the user knows the match is heuristic). Consider requiring user confirmation (via tabCount or explicit tab-bar identifier) when the heuristic is used rather than an explicit AXTabGroup/AXRadioGroup match.
+
+---
+
+## Summary of Findings
+
+| Severity | Count | Key Theme |
+|----------|-------|-----------|
+| CRITICAL | 3 | IndigoHID message sends silently discarded; `typeText` always returns true |
+| HIGH | 4 | Silent fallbacks (input backend, screen size, content bounds, coordinate conversion) |
+| MEDIUM | 4 | Missing diagnostics, heuristic false positives, minor validation gaps |
+
+The dominant pattern across this PR is **discarded boolean return values from IndigoHID operations**. The IndigoHID subsystem was designed with proper Bool returns indicating success/failure, but every single caller in the command handlers uses `_ =` to discard these return values. This transforms a well-designed failure-reporting API into a pervasive silent-failure system.
+
+**Recommended priority fix**: Address all `_ = client.tap(...)`, `_ = client.swipe(...)`, `_ = client.drag(...)`, `_ = sendIndigoHIDMessage(...)` patterns. Either check the return value and throw on failure, or fall back to CGEvent with a warning. This single change would resolve Issues 1, 2, and 3.</result>
+<usage><total_tokens>81720</total_tokens><tool_uses>27</tool_uses><duration_ms>232799</duration_ms></usage>
+</task-notification>
+Full transcript available at: /private/tmp/claude-501/-Volumes-eyedisk-develop-oozoofrog-mcp-baepsae/105baf7e-c3c2-4202-9883-42e1c2d632dc/tasks/adfb6b9743ee327fb.output

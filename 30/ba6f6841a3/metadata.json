@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "30ba6f6841a3",
+  "strategy": "manual-commit",
+  "branch": "feat/simulator-improvements",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "native/Sources/Utils.swift"
+  ],
+  "sessions": [
+    {
+      "metadata": "/30/ba6f6841a3/0/metadata.json",
+      "transcript": "/30/ba6f6841a3/0/full.jsonl",
+      "content_hash": "/30/ba6f6841a3/0/content_hash.txt",
+      "prompt": "/30/ba6f6841a3/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 29,
+    "cache_creation_tokens": 28296,
+    "cache_read_tokens": 2279100,
+    "output_tokens": 6536,
+    "api_call_count": 20
+  }
+}
