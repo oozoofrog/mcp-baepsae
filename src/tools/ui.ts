@@ -44,6 +44,7 @@ type TypeParams = {
   text?: string;
   stdinText?: string;
   file?: string;
+  method?: "auto" | "paste" | "keyboard";
 };
 
 type SwipeParams = {
@@ -114,6 +115,9 @@ const typeSchema = {
   text: z.string().optional().describe("Text argument"),
   stdinText: z.string().optional().describe("Text piped to stdin mode"),
   file: z.string().optional().describe("Path for file input"),
+  method: z.enum(["auto", "paste", "keyboard"]).optional().describe(
+    "Input method: 'paste' uses clipboard to avoid iOS autocorrect, 'keyboard' types character-by-character. Default 'auto' (paste for simulators, keyboard for macOS apps)."
+  ),
 };
 
 const swipeSchema = {
@@ -259,6 +263,9 @@ function buildTypeArgs(target: string[], params: TypeParams): { args: string[]; 
   if (params.file !== undefined) {
     args.push("--file", params.file);
   }
+  if (params.method !== undefined) {
+    args.push("--method", params.method);
+  }
   args.push(...target);
   return { args, stdinText: params.stdinText };
 }
@@ -347,7 +354,7 @@ export function registerUITools(server: McpServer): void {
 
   server.tool(
     "type_text",
-    "Type text into the target app.",
+    "Type text into the target app. Use method='paste' to avoid iOS Simulator autocorrect interference (default for simulators), or method='keyboard' for character-by-character input.",
     { ...unifiedTargetSchema, ...typeSchema },
     async (params) => {
       const validationError = validateTypeParams(params as TypeParams);

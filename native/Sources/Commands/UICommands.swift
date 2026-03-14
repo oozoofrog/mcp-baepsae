@@ -321,14 +321,52 @@ func handleType(_ parsed: ParsedOptions) throws -> Int32 {
     if text.isEmpty {
         throw NativeError.invalidArguments("type requires text input.")
     }
-    let backend = resolveInputBackend(for: target)
-    switch backend {
-    case .indigoHID(let client):
-        _ = client.typeText(text)
-    case .cgevent:
-        sendText(text)
+
+    let methodStr = parsed.options["--method"] ?? "auto"
+    let usePaste: Bool
+    switch methodStr {
+    case "paste":
+        usePaste = true
+    case "keyboard":
+        usePaste = false
+    default: // auto
+        if case .simulator = target {
+            usePaste = true
+        } else {
+            usePaste = false
+        }
+    }
+
+    if usePaste {
+        try pasteText(text)
+    } else {
+        let backend = resolveInputBackend(for: target)
+        switch backend {
+        case .indigoHID(let client):
+            _ = client.typeText(text)
+        case .cgevent:
+            sendText(text)
+        }
     }
     return 0
+}
+
+func pasteText(_ text: String) throws {
+    let pasteboard = NSPasteboard.general
+    let original = pasteboard.string(forType: .string)
+
+    pasteboard.clearContents()
+    pasteboard.setString(text, forType: .string)
+
+    // Cmd+V: Command keycode=55, V keycode=9
+    sendKeyCombo(modifiers: [55], key: 9)
+    Thread.sleep(forTimeInterval: 0.15)
+
+    // Restore original clipboard content
+    pasteboard.clearContents()
+    if let original = original {
+        pasteboard.setString(original, forType: .string)
+    }
 }
 
 func handleSwipe(_ parsed: ParsedOptions) throws -> Int32 {

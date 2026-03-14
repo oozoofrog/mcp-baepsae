@@ -454,6 +454,92 @@ test("Phase 2: type_text → stdinText mode", { timeout: 45_000 }, async (t) => 
   });
 });
 
+test("Phase 2: type_text → method=paste types correctly", { timeout: 45_000 }, async (t) => {
+  await withClient(async (client) => {
+    const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+    const udid = extractBootedUdid(extractText(listResult));
+    if (!udid) {
+      t.skip("No booted simulator detected");
+      return;
+    }
+
+    // Tap the input field first
+    const tapResult = await client.callTool({
+      name: "tap",
+      arguments: { udid, id: "test-input" },
+    });
+    if (tapResult.isError) {
+      t.skip("Could not tap test-input (sample app may not be running)");
+      return;
+    }
+    await sleep(500);
+
+    // Type text using paste method (clipboard-based)
+    const typeResult = await client.callTool({
+      name: "type_text",
+      arguments: { udid, text: "Hello Baepsae!", method: "paste" },
+    });
+    assert.equal(typeResult.isError ?? false, false, "type_text with method=paste should not error");
+    await sleep(500);
+
+    // Dismiss context menu if it appeared
+    await dismissContextMenu(client, udid);
+
+    // Verify that text was entered
+    const describeResult = await client.callTool({
+      name: "analyze_ui",
+      arguments: { udid, focusId: "test-result" },
+    });
+    if (!describeResult.isError) {
+      const describeText = extractText(describeResult);
+      assert.ok(describeText.length > 0, "test-result should have content after paste type_text");
+    }
+  });
+});
+
+test("Phase 2: type_text → method=keyboard types correctly", { timeout: 45_000 }, async (t) => {
+  await withClient(async (client) => {
+    const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+    const udid = extractBootedUdid(extractText(listResult));
+    if (!udid) {
+      t.skip("No booted simulator detected");
+      return;
+    }
+
+    // Tap the input field first
+    const tapResult = await client.callTool({
+      name: "tap",
+      arguments: { udid, id: "test-input" },
+    });
+    if (tapResult.isError) {
+      t.skip("Could not tap test-input (sample app may not be running)");
+      return;
+    }
+    await sleep(500);
+
+    // Type text using keyboard method (character-by-character)
+    const typeResult = await client.callTool({
+      name: "type_text",
+      arguments: { udid, text: "Hello", method: "keyboard" },
+    });
+    assert.equal(typeResult.isError ?? false, false, "type_text with method=keyboard should not error");
+    await sleep(500);
+
+    // Dismiss context menu if it appeared after type_text
+    await dismissContextMenu(client, udid);
+
+    // Verify that some text was entered
+    const describeResult = await client.callTool({
+      name: "analyze_ui",
+      arguments: { udid, focusId: "test-result" },
+    });
+    if (!describeResult.isError) {
+      const describeText = extractText(describeResult);
+      assert.ok(describeText.length > 0, "test-result should have content after keyboard type_text");
+    }
+  });
+});
+
 test("Phase 2: type_text → empty text should error", { timeout: 30_000 }, async (t) => {
   await withClient(async (client) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });

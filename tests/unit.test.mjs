@@ -634,6 +634,52 @@ test("type_text with stdinText argument includes --stdin flag", async () => {
   });
 });
 
+test("type_text with method=paste includes --method flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "type_text",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        text: "hello",
+        method: "paste",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /--method/);
+    assert.match(text, /paste/);
+  });
+});
+
+test("type_text with method=keyboard includes --method flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "type_text",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        text: "hello",
+        method: "keyboard",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /--method/);
+    assert.match(text, /keyboard/);
+  });
+});
+
+test("type_text without method does not include --method flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "type_text",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        text: "hello",
+      },
+    });
+    const text = extractText(result);
+    assert.doesNotMatch(text, /--method/);
+  });
+});
+
 // ===========================================================================
 // Section 7: clipboard validation
 // ===========================================================================
