@@ -15,6 +15,7 @@ let supportedCommands: Set<String> = [
     "describe-ui",
     "search-ui",
     "tap",
+    "tap-tab",
     "type",
     "swipe",
     "button",
@@ -590,6 +591,20 @@ func describeAccessibilityTree(from root: UIElement, options: DescribeOptions = 
                     lines.append("\(prefix)- [hidden: no accessible content]")
                 }
                 emitted += 1
+                // Add hint for tab bar elements with unlabeled children
+                let attrs2 = copyMultipleAttributes(element, [kAXRoleAttribute as String])
+                if let roleRef = attrs2[kAXRoleAttribute as String], let role = stringFromCFTypeRef(roleRef),
+                   role == "AXTabGroup" || role == "AXRadioGroup" {
+                    let tabChildren = Children(element)
+                    let unlabeledCount = tabChildren.filter { child in
+                        let childTexts = getElementTextValues(child)
+                        return childTexts.isEmpty
+                    }.count
+                    if unlabeledCount > 0 && unlabeledCount == tabChildren.count {
+                        let hint = "\(prefix)  [Tab bar with \(tabChildren.count) unlabeled items - use tap_tab with index 0..\(tabChildren.count - 1)]"
+                        lines.append(hint)
+                    }
+                }
             }
         }
 
@@ -812,6 +827,70 @@ func simulatorContentRootElement(from appRoot: UIElement) -> UIElement? {
     return findElementBySubrole(from: appRoot, subrole: "iOSContentGroup")
 }
 
+func findTabBarElement(in root: UIElement) -> UIElement? {
+    // 1st pass: Look for AXTabGroup
+    var stack: [UIElement] = [root]
+    var visited = 0
+    while let current = stack.popLast() {
+        if visited > 500 { break }
+        visited += 1
+
+        let attrs = copyMultipleAttributes(current, [kAXRoleAttribute as String])
+        if let ref = attrs[kAXRoleAttribute as String], let role = stringFromCFTypeRef(ref), role == "AXTabGroup" {
+            return current
+        }
+        for child in Children(current).reversed() {
+            stack.append(child)
+        }
+    }
+
+    // 2nd pass: Look for AXRadioGroup
+    stack = [root]
+    visited = 0
+    while let current = stack.popLast() {
+        if visited > 500 { break }
+        visited += 1
+
+        let attrs = copyMultipleAttributes(current, [kAXRoleAttribute as String])
+        if let ref = attrs[kAXRoleAttribute as String], let role = stringFromCFTypeRef(ref), role == "AXRadioGroup" {
+            return current
+        }
+        for child in Children(current).reversed() {
+            stack.append(child)
+        }
+    }
+
+    // 3rd pass: Heuristic — wide AXGroup in bottom 15% of screen
+    guard let mainScreen = NSScreen.main else { return nil }
+    let screenHeight = mainScreen.frame.height
+    let bottomThreshold = screenHeight * 0.15
+
+    stack = [root]
+    visited = 0
+    while let current = stack.popLast() {
+        if visited > 500 { break }
+        visited += 1
+
+        let attrs = copyMultipleAttributes(current, [kAXRoleAttribute as String, "AXFrame"])
+        if let ref = attrs[kAXRoleAttribute as String], let role = stringFromCFTypeRef(ref), role == "AXGroup" {
+            if let frameRef = attrs["AXFrame"], let frame = frameFromCFTypeRef(frameRef) {
+                // AXFrame uses screen coordinates with origin at top-left.
+                // A tab bar near the bottom of the screen has a high y value.
+                // We check if the element is wide (>60% of screen width) and in the bottom 15%.
+                let screenWidth = mainScreen.frame.width
+                if frame.width > screenWidth * 0.6 && frame.origin.y > screenHeight - bottomThreshold {
+                    return current
+                }
+            }
+        }
+        for child in Children(current).reversed() {
+            stack.append(child)
+        }
+    }
+
+    return nil
+}
+
 // MARK: - Window / Coordinate Helpers
 
 func windowBounds(for target: TargetApp) -> CGRect? {
@@ -900,7 +979,29 @@ func pointInSimulatorWindow(x: Double, y: Double) throws -> CGPoint {
         throw NativeError.commandFailed("Simulator window not found. Ensure Simulator is running and visible.")
     }
     let targetX = bounds.origin.x + CGFloat(x)
-    let targetY = bounds.origin.y + bounds.size.height - CGFloat(y)
+    let targetY = bounds.origin.y + CGFloat(y)
+    return CGPoint(x: targetX, y: targetY)
+}
+
+// MARK: - Simulator Content Bounds
+
+func simulatorContentBounds() -> CGRect? {
+    guard let appRoot = try? simulatorAccessibilityRootElement() else {
+        return simulatorWindowBounds()
+    }
+    if let contentGroup = simulatorContentRootElement(from: appRoot),
+       let frame = FrameAttribute(contentGroup) {
+        return frame
+    }
+    return simulatorWindowBounds()
+}
+
+func pointInSimulatorContent(x: Double, y: Double) throws -> CGPoint {
+    guard let bounds = simulatorContentBounds() else {
+        throw NativeError.commandFailed("Simulator content area not found. Ensure Simulator is running and visible.")
+    }
+    let targetX = bounds.origin.x + CGFloat(x)
+    let targetY = bounds.origin.y + CGFloat(y)
     return CGPoint(x: targetX, y: targetY)
 }
 
@@ -1000,6 +1101,24 @@ func sendSwipe(from start: CGPoint, to end: CGPoint, duration: Double?) {
     postMouseEvent(type: .leftMouseUp, point: end)
 }
 
+func sendDrag(from start: CGPoint, to end: CGPoint, holdDuration: Double, moveDuration: Double?) {
+    postMouseEvent(type: .leftMouseDown, point: start)
+    if holdDuration > 0 {
+        Thread.sleep(forTimeInterval: holdDuration)
+    }
+    let steps = 10
+    for step in 1...steps {
+        let progress = CGFloat(step) / CGFloat(steps)
+        let x = start.x + (end.x - start.x) * progress
+        let y = start.y + (end.y - start.y) * progress
+        postMouseEvent(type: .leftMouseDragged, point: CGPoint(x: x, y: y))
+        if let moveDuration {
+            Thread.sleep(forTimeInterval: moveDuration / Double(steps))
+        }
+    }
+    postMouseEvent(type: .leftMouseUp, point: end)
+}
+
 // MARK: - Keyboard Events
 
 func sendKeyPress(keyCode: Int, duration: Double?) {
@@ -1043,6 +1162,39 @@ func sendText(_ text: String) {
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
         keyUp?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &char)
         keyUp?.post(tap: .cghidEventTap)
+    }
+}
+
+// MARK: - Input Backend
+
+enum InputBackend {
+    case cgevent
+    case indigoHID(IndigoHIDClient)
+}
+
+/// Resolve the input backend for the given target.
+/// For simulators: try IndigoHID first, fall back to CGEvent.
+/// For macOS apps: always use CGEvent.
+/// Override with BAEPSAE_INPUT_BACKEND=indigo|cgevent|auto
+func resolveInputBackend(for target: TargetApp) -> InputBackend {
+    let envOverride = ProcessInfo.processInfo.environment["BAEPSAE_INPUT_BACKEND"]?.lowercased()
+
+    switch target {
+    case .macApp:
+        return .cgevent
+    case .simulator(let udid):
+        if envOverride == "cgevent" {
+            return .cgevent
+        }
+
+        if let client = IndigoHIDClient(udid: udid) {
+            return .indigoHID(client)
+        }
+
+        if envOverride == "indigo" {
+            fputs("Warning: IndigoHID requested but not available, falling back to CGEvent\n", stderr)
+        }
+        return .cgevent
     }
 }
 

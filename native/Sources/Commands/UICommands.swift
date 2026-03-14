@@ -206,12 +206,100 @@ func handleTap(_ parsed: ParsedOptions) throws -> Int32 {
     if preDelay > 0 {
         Thread.sleep(forTimeInterval: preDelay)
     }
-    let point = try pointInWindow(x: x, y: y, for: target)
-    if isDouble {
-        sendDoubleClick(at: point)
-    } else {
-        sendClick(at: point)
+    let backend = resolveInputBackend(for: target)
+    switch backend {
+    case .indigoHID(let client):
+        if isDouble {
+            _ = client.tap(x: x, y: y)
+            Thread.sleep(forTimeInterval: 0.1)
+            _ = client.tap(x: x, y: y)
+        } else {
+            _ = client.tap(x: x, y: y)
+        }
+    case .cgevent:
+        let point = try pointInWindow(x: x, y: y, for: target)
+        if isDouble {
+            sendDoubleClick(at: point)
+        } else {
+            sendClick(at: point)
+        }
     }
+    if postDelay > 0 {
+        Thread.sleep(forTimeInterval: postDelay)
+    }
+    return 0
+}
+
+func handleTapTab(_ parsed: ParsedOptions) throws -> Int32 {
+    let target = try resolveTarget(from: parsed)
+    guard let indexStr = parsed.options["--index"], let index = Int(indexStr) else {
+        throw NativeError.invalidArguments("tap-tab requires --index <N>.")
+    }
+
+    let preDelay = try optionalDoubleOption("--pre-delay", from: parsed) ?? 0
+    let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
+
+    try ensureAccessibilityTrusted()
+    try activateTarget(target)
+
+    let appRoot = try accessibilityRootElement(for: target)
+    let searchRoot: UIElement
+    if case .simulator = target {
+        searchRoot = simulatorContentRootElement(from: appRoot) ?? appRoot
+    } else {
+        searchRoot = appRoot
+    }
+
+    guard let tabBar = findTabBarElement(in: searchRoot) else {
+        throw NativeError.commandFailed("No tab bar found in the application UI. Ensure the app has a visible tab bar.")
+    }
+
+    guard let frame = FrameAttribute(tabBar) else {
+        throw NativeError.commandFailed("Tab bar element has no frame attribute.")
+    }
+
+    let tabCount: Int
+    if let tabCountStr = parsed.options["--tab-count"], let tc = Int(tabCountStr) {
+        tabCount = tc
+    } else {
+        let children = Children(tabBar)
+        tabCount = children.count
+    }
+
+    guard tabCount > 0 else {
+        throw NativeError.commandFailed("Tab bar has no children and --tab-count was not specified.")
+    }
+
+    guard index >= 0 && index < tabCount else {
+        throw NativeError.invalidArguments("Tab index \(index) is out of range. Valid range: 0..\(tabCount - 1)")
+    }
+
+    let tabWidth = frame.width / CGFloat(tabCount)
+    let tapX = frame.origin.x + tabWidth * CGFloat(index) + tabWidth / 2.0
+    let tapY = frame.origin.y + frame.height / 2.0
+
+    if preDelay > 0 {
+        Thread.sleep(forTimeInterval: preDelay)
+    }
+
+    let backend = resolveInputBackend(for: target)
+    switch backend {
+    case .indigoHID(let client):
+        // IndigoHID normalizes coordinates against simulator screen dimensions.
+        // Since tapX/tapY are screen-absolute (from AXFrame), subtract the content
+        // area origin to make them content-relative before normalization.
+        guard let contentBounds = simulatorContentBounds() else {
+            throw NativeError.commandFailed("Cannot determine simulator content bounds for IndigoHID coordinate conversion. Ensure Simulator is running.")
+        }
+        let relX = Double(tapX) - Double(contentBounds.origin.x)
+        let relY = Double(tapY) - Double(contentBounds.origin.y)
+        if !client.tap(x: relX, y: relY) {
+            throw NativeError.commandFailed("IndigoHID tap failed. The simulator may not be responding.")
+        }
+    case .cgevent:
+        sendClick(at: CGPoint(x: tapX, y: tapY))
+    }
+
     if postDelay > 0 {
         Thread.sleep(forTimeInterval: postDelay)
     }
@@ -233,7 +321,13 @@ func handleType(_ parsed: ParsedOptions) throws -> Int32 {
     if text.isEmpty {
         throw NativeError.invalidArguments("type requires text input.")
     }
-    sendText(text)
+    let backend = resolveInputBackend(for: target)
+    switch backend {
+    case .indigoHID(let client):
+        _ = client.typeText(text)
+    case .cgevent:
+        sendText(text)
+    }
     return 0
 }
 
@@ -257,9 +351,15 @@ func handleSwipe(_ parsed: ParsedOptions) throws -> Int32 {
     if preDelay > 0 {
         Thread.sleep(forTimeInterval: preDelay)
     }
-    let start = try pointInWindow(x: startXValue, y: startYValue, for: target)
-    let end = try pointInWindow(x: endXValue, y: endYValue, for: target)
-    sendSwipe(from: start, to: end, duration: duration)
+    let backend = resolveInputBackend(for: target)
+    switch backend {
+    case .indigoHID(let client):
+        _ = client.swipe(fromX: startXValue, fromY: startYValue, toX: endXValue, toY: endYValue, duration: duration)
+    case .cgevent:
+        let start = try pointInWindow(x: startXValue, y: startYValue, for: target)
+        let end = try pointInWindow(x: endXValue, y: endYValue, for: target)
+        sendSwipe(from: start, to: end, duration: duration)
+    }
     if postDelay > 0 {
         Thread.sleep(forTimeInterval: postDelay)
     }

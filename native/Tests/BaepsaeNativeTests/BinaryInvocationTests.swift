@@ -394,6 +394,25 @@ final class BinaryInvocationTests: XCTestCase {
         )
     }
 
+    // MARK: - Drag-Drop Hold Duration
+
+    func testDragDrop_holdDurationInHelp() throws {
+        let result = try execute(["help"])
+        XCTAssertTrue(
+            result.stdout.contains("--hold-duration"),
+            "Help should mention --hold-duration option for drag-drop"
+        )
+    }
+
+    func testDragDrop_missingCoordinates() throws {
+        let result = try execute([
+            "drag-drop",
+            "--udid", "FAKE-UDID",
+            "--start-x", "10",
+        ])
+        XCTAssertNotEqual(result.exitCode, 0, "drag-drop with missing coordinates should fail")
+    }
+
     // MARK: - Help Content Completeness
 
     func testHelpMentionsAllMajorCommands() throws {
@@ -406,6 +425,7 @@ final class BinaryInvocationTests: XCTestCase {
             "screenshot",
             "record-video",
             "tap",
+            "tap-tab",
             "type",
             "swipe",
             "button",
@@ -465,5 +485,25 @@ final class BinaryInvocationTests: XCTestCase {
             result.stderr.contains("No running application found"),
             "Error should say no app found, got: \(result.stderr)"
         )
+    }
+
+    func testTapTab_missingIndex() throws {
+        let result = try execute([
+            "tap-tab",
+            "--udid", "FAKE-UDID",
+        ])
+        XCTAssertNotEqual(result.exitCode, 0, "tap-tab without --index should fail")
+        XCTAssertTrue(
+            result.stderr.contains("--index"),
+            "Error should mention --index requirement, got: \(result.stderr)"
+        )
+    }
+
+    func testTapTab_missingTarget() throws {
+        let result = try execute([
+            "tap-tab",
+            "--index", "0",
+        ])
+        XCTAssertNotEqual(result.exitCode, 0, "tap-tab without target should fail")
     }
 }

@@ -69,6 +69,14 @@ type DragDropParams = {
   endX: number;
   endY: number;
   duration?: number;
+  holdDuration?: number;
+};
+
+type TapTabParams = {
+  index: number;
+  tabCount?: number;
+  preDelay?: number;
+  postDelay?: number;
 };
 
 const describeSchema = {
@@ -131,6 +139,14 @@ const dragDropSchema = {
   endX: z.number().describe("End X"),
   endY: z.number().describe("End Y"),
   duration: z.number().optional().describe("Duration in seconds"),
+  holdDuration: z.number().optional().describe("Hold duration before drag in seconds"),
+};
+
+const tapTabSchema = {
+  index: z.number().int().min(0).describe("0-based tab index to tap"),
+  tabCount: z.number().int().min(1).optional().describe("Total number of tabs (auto-detected from tab bar children if omitted)"),
+  preDelay: z.number().optional().describe("Delay before tap in seconds"),
+  postDelay: z.number().optional().describe("Delay after tap in seconds"),
 };
 
 function validateTapParams(params: TapParams): ToolTextResult | null {
@@ -159,6 +175,16 @@ function validateTapParams(params: TapParams): ToolTextResult | null {
     };
   }
 
+  return null;
+}
+
+function validateTapTabParams(params: TapTabParams): ToolTextResult | null {
+  if (params.tabCount !== undefined && params.index >= params.tabCount) {
+    return {
+      content: [{ type: "text", text: `Tab index ${params.index} is out of range. Valid range: 0..${params.tabCount - 1}` }],
+      isError: true,
+    };
+  }
   return null;
 }
 
@@ -270,6 +296,15 @@ function buildDragDropArgs(target: string[], params: DragDropParams): string[] {
   args.push("--start-x", String(params.startX), "--start-y", String(params.startY));
   args.push("--end-x", String(params.endX), "--end-y", String(params.endY));
   pushOption(args, "--duration", params.duration);
+  pushOption(args, "--hold-duration", params.holdDuration);
+  return args;
+}
+
+function buildTapTabArgs(target: string[], params: TapTabParams): string[] {
+  const args = ["tap-tab", ...target, "--index", String(params.index)];
+  pushOption(args, "--tab-count", params.tabCount);
+  pushOption(args, "--pre-delay", params.preDelay);
+  pushOption(args, "--post-delay", params.postDelay);
   return args;
 }
 
@@ -356,6 +391,20 @@ export function registerUITools(server: McpServer): void {
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       return await runNative(buildDragDropArgs(target, params as DragDropParams));
+    }
+  );
+
+  server.tool(
+    "tap_tab",
+    "Tap a tab in a tab bar by index. Workaround for SwiftUI TabView where individual tab buttons are not exposed in the accessibility tree. Finds the tab bar element and calculates tap coordinates by dividing it equally.",
+    { ...unifiedTargetSchema, ...tapTabSchema },
+    async (params) => {
+      const validationError = validateTapTabParams(params as TapTabParams);
+      if (validationError) return validationError;
+
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      return await runNative(buildTapTabArgs(target, params as TapTabParams));
     }
   );
 }
