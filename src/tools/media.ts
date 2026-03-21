@@ -6,11 +6,15 @@ import { pushOption, ensureOutputPath, runNative, runSimctl } from "../utils.js"
 export function registerMediaTools(server: McpServer): void {
   server.tool(
     "stream_video",
-    "Stream simulator frames.",
+    "Capture a time-bounded simulator clip through the native stream-video shim.",
     {
       udid: z.string().min(1).describe("Simulator UDID"),
-      output: z.string().optional().describe("Destination output path"),
-      durationSeconds: z.number().positive().optional().describe("Capture duration in seconds"),
+      output: z.string().optional().describe("Destination MOV file path for the captured clip"),
+      durationSeconds: z
+        .number()
+        .positive()
+        .optional()
+        .describe("Requested clip duration in seconds (currently used as a timeout budget)"),
     },
     async (params) => {
       const args = ["stream-video", "--udid", params.udid];
@@ -27,7 +31,18 @@ export function registerMediaTools(server: McpServer): void {
           timeoutMs: Math.max(15_000, Math.round((durationSeconds + 15) * 1000)),
         },
         {
-          extraLines: [`Capture duration: ${durationSeconds}s`, `Output file: ${resolvedOutput}`],
+          extraLines: [
+            "Capture mode: stream-video shim.",
+            "Backend: simctl recordVideo (current implementation).",
+            `Requested duration: ${durationSeconds}s`,
+            `Output file: ${resolvedOutput}`,
+          ],
+          metadata: {
+            captureMode: "stream_video_shim",
+            backend: "simctl.recordVideo",
+            requestedDurationSeconds: durationSeconds,
+            outputPath: resolvedOutput,
+          },
         }
       );
     }
@@ -35,11 +50,15 @@ export function registerMediaTools(server: McpServer): void {
 
   server.tool(
     "record_video",
-    "Record simulator display.",
+    "Record simulator display directly with simctl recordVideo.",
     {
       udid: z.string().min(1).describe("Simulator UDID"),
       output: z.string().optional().describe("Output MOV file path"),
-      durationSeconds: z.number().positive().optional().describe("Recording duration in seconds (default: 10)"),
+      durationSeconds: z
+        .number()
+        .positive()
+        .optional()
+        .describe("Requested recording duration in seconds (default: 10)"),
     },
     async (params) => {
       const durationSeconds = params.durationSeconds ?? 10;
@@ -47,7 +66,8 @@ export function registerMediaTools(server: McpServer): void {
       const resolvedOutput = await ensureOutputPath(outputPath);
 
       const extraLines = [
-        `Recording duration: ${durationSeconds}s`,
+        "Capture mode: direct simctl recordVideo.",
+        `Requested duration: ${durationSeconds}s`,
         `Output file: ${resolvedOutput}`,
       ];
 
@@ -59,6 +79,12 @@ export function registerMediaTools(server: McpServer): void {
         {
           timeoutIsExpected: true,
           extraLines,
+          metadata: {
+            captureMode: "record_video_direct",
+            backend: "simctl.recordVideo",
+            requestedDurationSeconds: durationSeconds,
+            outputPath: resolvedOutput,
+          },
         }
       );
     }
