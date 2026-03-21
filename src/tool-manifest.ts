@@ -62,6 +62,15 @@ export const TOOL_CATEGORY_ORDER: ToolCategory[] = [
   "Utility",
 ];
 
+export const TOOL_CATEGORY_LABELS_KR: Record<ToolCategory, string> = {
+  UI: "UI",
+  Input: "Input",
+  System: "System",
+  "Simulator-only": "iOS 시뮬레이터 전용",
+  "macOS/system": "macOS / 시스템",
+  Utility: "유틸리티",
+};
+
 export function formatToolManifestMarkdown(): string {
   const lines = ["### Official public MCP surface: unified generic tools", "", "The public API surface is intentionally single-scheme: use unified generic tools with a target argument, rather than `sim_*` / `mac_*` names.", "", "| Category | Tools |", "|---|---|"];
   for (const category of TOOL_CATEGORY_ORDER) {
@@ -69,5 +78,15 @@ export function formatToolManifestMarkdown(): string {
     lines.push(`| ${category} | ${tools} |`);
   }
   lines.push("", "Target routing is explicit in the arguments: `udid` for simulator, `bundleId` / `appName` for macOS.");
+  return lines.join("\n");
+}
+
+export function formatToolManifestMarkdownKr(): string {
+  const lines = ["### 공식 공개 MCP 표면: unified generic tools", "", "공개 API 표면은 단일 스킴으로 정리되어 있으며, `sim_*` / `mac_*` 이름 대신 target 인자를 받는 unified generic tools 를 사용합니다.", "", "| 분류 | 도구 |", "|---|---|"];
+  for (const category of TOOL_CATEGORY_ORDER) {
+    const tools = TOOL_MANIFEST.filter((entry) => entry.category === category).map((entry) => `\`${entry.name}\``).join(", ");
+    lines.push(`| ${TOOL_CATEGORY_LABELS_KR[category]} | ${tools} |`);
+  }
+  lines.push("", "대상 라우팅은 인자로 명시합니다: simulator 는 `udid`, macOS 는 `bundleId` / `appName`.");
   return lines.join("\n");
 }

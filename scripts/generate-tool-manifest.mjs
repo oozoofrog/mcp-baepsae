@@ -8,7 +8,7 @@ const projectRoot = path.resolve(__dirname, "..");
 const mode = process.argv[2] ?? "--check";
 
 const manifestUrl = pathToFileURL(path.join(projectRoot, "dist", "tool-manifest.js")).href;
-const { TOOL_MANIFEST, TOOL_CATEGORY_ORDER } = await import(manifestUrl);
+const { TOOL_MANIFEST, TOOL_CATEGORY_ORDER, TOOL_CATEGORY_LABELS_KR } = await import(manifestUrl);
 
 const READMES = [
   {
@@ -53,12 +53,7 @@ for (const readme of READMES) {
     : [
         "| 분류 | 도구 |",
         "|---|---|",
-        "| UI | `analyze_ui`, `query_ui`, `tap`, `tap_tab`, `type_text`, `swipe`, `scroll`, `drag_drop` |",
-        "| Input | `key`, `key_sequence`, `key_combo`, `touch` |",
-        "| System | `list_windows`, `activate_app`, `screenshot_app`, `right_click` |",
-        "| iOS 시뮬레이터 전용 | `list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture` |",
-        "| macOS / 시스템 | `list_apps`, `menu_action`, `get_focused_app`, `clipboard` |",
-        "| 유틸리티 | `baepsae_help`, `baepsae_version` |",
+        ...TOOL_CATEGORY_ORDER.map((category) => `| ${TOOL_CATEGORY_LABELS_KR[category]} | ${TOOL_MANIFEST.filter((entry) => entry.category === category).map((entry) => `\`${entry.name}\``).join(", ")} |`),
       ];
 
   if (rows[0] !== expectedRows[0]) {

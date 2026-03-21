@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { TOOL_MANIFEST, TOOL_CATEGORY_ORDER, formatToolManifestMarkdown } from "../dist/tool-manifest.js";
+import { TOOL_MANIFEST, TOOL_CATEGORY_ORDER, formatToolManifestMarkdown, formatToolManifestMarkdownKr } from "../dist/tool-manifest.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,16 +44,7 @@ test("tool manifest is internally unique and ordered by category", () => {
 
 test("README tool status blocks match the committed manifest", () => {
   const expectedRowsEn = extractTableRows(formatToolManifestMarkdown());
-  const expectedRowsKr = [
-    "| 분류 | 도구 |",
-    "|---|---|",
-    "| UI | `analyze_ui`, `query_ui`, `tap`, `tap_tab`, `type_text`, `swipe`, `scroll`, `drag_drop` |",
-    "| Input | `key`, `key_sequence`, `key_combo`, `touch` |",
-    "| System | `list_windows`, `activate_app`, `screenshot_app`, `right_click` |",
-    "| iOS 시뮬레이터 전용 | `list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture` |",
-    "| macOS / 시스템 | `list_apps`, `menu_action`, `get_focused_app`, `clipboard` |",
-    "| 유틸리티 | `baepsae_help`, `baepsae_version` |",
-  ];
+  const expectedRowsKr = extractTableRows(formatToolManifestMarkdownKr());
 
   for (const [fileName, expectedRows, heading, usageMarker] of [
     ["README.md", expectedRowsEn, "### Official public MCP surface: unified generic tools", "\n## Usage Examples"],
