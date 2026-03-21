@@ -255,6 +255,18 @@ The public API surface is intentionally single-scheme: use unified generic tools
 
 Target routing is explicit in the arguments: `udid` for simulator, `bundleId` / `appName` for macOS.
 
+### `type_text` policy
+
+`type_text` accepts exactly one input source: `text`, `stdinText`, or `file`.
+
+- `method: "auto"` resolves to:
+  - `paste` for simulator targets
+  - `keyboard` for macOS targets
+- `method: "paste"` always uses the clipboard-backed paste path.
+- `method: "keyboard"` always types character-by-character.
+
+When `paste` is used, the tool temporarily overwrites the clipboard and restores the previous clipboard content after submission. Successful responses report the input source, target kind, requested method, used method, and any auto fallback that was applied.
+
 ## Usage Examples
 
 **Unified simulator app accessibility quickstart (inside app UI):**

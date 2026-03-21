@@ -72,6 +72,11 @@ test("tools/list exposes expected MCP tools", async () => {
     }
 
     assert.equal(result.tools.length, expected.length, "Live tool list count drifted");
+    const typeText = result.tools.find((tool) => tool.name === "type_text");
+    assert.ok(typeText, "type_text tool should exist");
+    assert.match(typeText.description ?? "", /auto resolves to paste on simulators/i);
+    assert.match(typeText.description ?? "", /clipboard/i);
+    assert.match(typeText.description ?? "", /keyboard/i);
   });
 });
 
