@@ -95,6 +95,25 @@ test("baepsae_version returns non-error response", async () => {
   });
 });
 
+test("type_text exposes policy metadata in machine-readable form", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "type_text",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        text: "hello",
+      },
+    });
+
+    assert.equal(result.metadata?.inputSource, "text");
+    assert.equal(result.metadata?.targetKind, "simulator");
+    assert.equal(result.metadata?.requestedMethod, "auto");
+    assert.equal(result.metadata?.usedMethod, "paste");
+    assert.equal(result.metadata?.clipboardSideEffect, "temporary_replace_and_restore");
+    assert.equal(result.metadata?.autoFallback, "paste");
+  });
+});
+
 test("tap validates coordinate pair before native invocation", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({

@@ -351,6 +351,7 @@ export function toToolResult(result: CommandExecutionResult, options: ResponseOp
     content: [{ type: "text", text: lines.join("\n") }],
     isError,
     error: structuredError,
+    metadata: options.metadata,
   };
 }
 

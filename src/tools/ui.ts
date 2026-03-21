@@ -421,7 +421,21 @@ export function registerUITools(server: McpServer): void {
       if (policy.requestedMethod === "auto") {
         extraLines.push(`Auto fallback: ${policy.targetKind === "simulator" ? "paste" : "keyboard"}.`);
       }
-      return await runNative(built.args, { stdinText: built.stdinText }, { extraLines });
+      return await runNative(
+        built.args,
+        { stdinText: built.stdinText },
+        {
+          extraLines,
+          metadata: {
+            inputSource: policy.inputSource,
+            targetKind: policy.targetKind,
+            requestedMethod: policy.requestedMethod,
+            usedMethod: policy.usedMethod,
+            clipboardSideEffect: policy.usedMethod === "paste" ? "temporary_replace_and_restore" : "none",
+            autoFallback: policy.requestedMethod === "auto" ? policy.usedMethod : null,
+          },
+        },
+      );
     }
   );
 

@@ -8,6 +8,7 @@ export type ToolTextResult = {
   content: Array<{ type: "text"; text: string }>;
   isError: boolean;
   error?: ToolError;
+  metadata?: Record<string, unknown>;
 };
 
 export type ToolErrorSource = "mcp" | "native" | "runtime" | "simctl";
@@ -54,4 +55,5 @@ export interface ResponseOptions {
   timeoutIsExpected?: boolean;
   extraLines?: string[];
   source?: ToolErrorSource;
+  metadata?: Record<string, unknown>;
 }
