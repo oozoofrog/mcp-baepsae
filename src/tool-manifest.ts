@@ -1,6 +1,7 @@
 export type ToolCategory =
   | "UI"
   | "Input"
+  | "Workflow"
   | "System"
   | "Simulator-only"
   | "macOS/system"
@@ -26,6 +27,8 @@ export const TOOL_MANIFEST: ToolManifestEntry[] = [
   { name: "key_sequence", category: "Input", summary: "Press multiple HID keycodes in sequence in the target app." },
   { name: "key_combo", category: "Input", summary: "Press key combo in the target app." },
   { name: "touch", category: "Input", summary: "Perform touch events in the target app." },
+
+  { name: "run_steps", category: "Workflow", summary: "Execute ordered workflow steps using existing interaction tools." },
 
   { name: "list_windows", category: "System", summary: "List windows in the target app." },
   { name: "activate_app", category: "System", summary: "Bring the target app to foreground." },
@@ -57,6 +60,7 @@ export const TOOL_MANIFEST: ToolManifestEntry[] = [
 export const TOOL_CATEGORY_ORDER: ToolCategory[] = [
   "UI",
   "Input",
+  "Workflow",
   "System",
   "Simulator-only",
   "macOS/system",
@@ -66,6 +70,7 @@ export const TOOL_CATEGORY_ORDER: ToolCategory[] = [
 export const TOOL_CATEGORY_LABELS_KR: Record<ToolCategory, string> = {
   UI: "UI",
   Input: "Input",
+  Workflow: "Workflow",
   System: "System",
   "Simulator-only": "iOS 시뮬레이터 전용",
   "macOS/system": "macOS / 시스템",

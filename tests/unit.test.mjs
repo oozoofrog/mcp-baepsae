@@ -59,7 +59,7 @@ async function withClient(run, envOverrides = {}) {
 // Section 1: Tool registry completeness
 // ===========================================================================
 
-  test("tool registry lists all 34 expected MCP tools", async () => {
+  test("tool registry lists all 35 expected MCP tools", async () => {
   await withClient(async (client) => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((t) => t.name));
@@ -91,6 +91,7 @@ async function withClient(run, envOverrides = {}) {
       "swipe",
       "scroll",
       "drag_drop",
+      "run_steps",
       "key",
       "key_sequence",
       "key_combo",

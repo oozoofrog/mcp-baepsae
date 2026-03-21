@@ -1017,6 +1017,64 @@ test("Phase 2b: integrated workflow → tap, type, verify, swipe", { timeout: 60
   });
 });
 
+test("Phase 2b: run_steps → ordered tap and type workflow", { timeout: 60_000 }, async (t) => {
+  await withClient(async (client) => {
+    const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+    const udid = extractBootedUdid(extractText(listResult));
+    if (!udid) {
+      skipTest(t, "no-booted-simulator");
+      return;
+    }
+
+    const appPath = findSampleApp();
+    if (!appPath) {
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
+      return;
+    }
+
+    await relaunchSampleApp(client, udid);
+
+    const workflowResult = await client.callTool({
+      name: "run_steps",
+      arguments: {
+        udid,
+        steps: [
+          { tool: "tap", id: "test-button" },
+          { tool: "sleep", duration: 0.2 },
+          { tool: "tap", id: "test-input" },
+          { tool: "type_text", text: "workflow batch" },
+        ],
+      },
+    });
+
+    if (workflowResult.isError && isAccessibilityDenied(extractText(workflowResult))) {
+      skipTest(t, "accessibility-denied");
+      return;
+    }
+
+    assert.equal(workflowResult.isError ?? false, false, "run_steps should not error");
+    const workflowText = extractText(workflowResult);
+    assert.match(workflowText, /Final summary: 4 succeeded, 0 failed, 0 skipped\./);
+    assert.match(workflowText, /Execution policy: fail-fast/);
+    assert.match(workflowText, /Step 1\/4 .*tap .*success/);
+    assert.match(workflowText, /Step 2\/4 .*sleep .*success/);
+    assert.match(workflowText, /Step 3\/4 .*tap .*success/);
+    assert.match(workflowText, /Step 4\/4 .*type_text .*success/);
+
+    const buttonText = await waitForUI(client, udid, "test-label", (text) => text.includes("Tapped!"), 5000);
+    assert.ok(buttonText.includes("Tapped!"), `label should be "Tapped!" after workflow tap, got: ${buttonText}`);
+
+    const resultDescribe = await client.callTool({
+      name: "analyze_ui",
+      arguments: { udid, focusId: "test-result" },
+    });
+    if (!resultDescribe.isError) {
+      const resultText = extractText(resultDescribe);
+      assert.ok(resultText.includes("workflow batch"), `test-result should contain workflow text, got: ${resultText}`);
+    }
+  });
+});
+
 // ─── Phase 2c: scroll / drag_drop tool validation ───────────────────────────
 
 test("Phase 2c: scroll → verify scroll-position text changes in ScrollTab", { timeout: 60_000 }, async (t) => {

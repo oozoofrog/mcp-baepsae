@@ -17,7 +17,7 @@ if (hasVersionFlag(process.argv)) {
 }
 
 async function main(): Promise<void> {
-  const [{ McpServer }, { StdioServerTransport }, { SERVER_NAME, SERVER_VERSION }, { registerInfoTools }, { registerSimulatorTools }, { registerUITools }, { registerInputTools }, { registerMediaTools }, { registerSystemTools }] =
+  const [{ McpServer }, { StdioServerTransport }, { SERVER_NAME, SERVER_VERSION }, { registerInfoTools }, { registerSimulatorTools }, { registerUITools }, { registerInputTools }, { registerWorkflowTools }, { registerMediaTools }, { registerSystemTools }] =
     await Promise.all([
       import("@modelcontextprotocol/sdk/server/mcp.js"),
       import("@modelcontextprotocol/sdk/server/stdio.js"),
@@ -26,6 +26,7 @@ async function main(): Promise<void> {
       import("./tools/simulator.js"),
       import("./tools/ui.js"),
       import("./tools/input.js"),
+      import("./tools/workflow.js"),
       import("./tools/media.js"),
       import("./tools/system.js"),
     ]);
@@ -39,6 +40,7 @@ async function main(): Promise<void> {
   registerSimulatorTools(server);
   registerUITools(server);
   registerInputTools(server);
+  registerWorkflowTools(server);
   registerMediaTools(server);
   registerSystemTools(server);
 

@@ -238,7 +238,7 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 
 ## MCP 도구 구현 상태
 
-총 34개 도구가 end-to-end 구현 완료되었습니다.
+총 35개 도구가 end-to-end 구현 완료되었습니다.
 
 ### 공식 공개 MCP 표면: unified generic tools
 
@@ -248,6 +248,7 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 |---|---|
 | UI | `analyze_ui`, `query_ui`, `tap`, `tap_tab`, `type_text`, `swipe`, `scroll`, `drag_drop` |
 | Input | `key`, `key_sequence`, `key_combo`, `touch` |
+| Workflow | `run_steps` |
 | System | `list_windows`, `activate_app`, `screenshot_app`, `right_click` |
 | iOS 시뮬레이터 전용 | `list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture` |
 | macOS / 시스템 | `list_apps`, `menu_action`, `get_focused_app`, `clipboard` |
