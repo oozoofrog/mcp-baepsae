@@ -8,6 +8,7 @@ import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { TOOL_MANIFEST } from "../dist/tool-manifest.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -64,45 +65,13 @@ test("tools/list exposes expected MCP tools", async () => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((tool) => tool.name));
 
-    const expected = [
-      "baepsae_help",
-      "baepsae_version",
-      "list_simulators",
-      "list_apps",
-      "open_url",
-      "install_app",
-      "launch_app",
-      "terminate_app",
-      "uninstall_app",
-      "button",
-      "gesture",
-      "stream_video",
-      "record_video",
-      "screenshot",
-      "analyze_ui",
-      "query_ui",
-      "tap",
-      "tap_tab",
-      "type_text",
-      "swipe",
-      "scroll",
-      "drag_drop",
-      "key",
-      "key_sequence",
-      "key_combo",
-      "touch",
-      "list_windows",
-      "activate_app",
-      "screenshot_app",
-      "right_click",
-      "menu_action",
-      "get_focused_app",
-      "clipboard",
-    ];
+    const expected = TOOL_MANIFEST.map((entry) => entry.name);
 
     for (const name of expected) {
       assert.equal(names.has(name), true, `Missing tool: ${name}`);
     }
+
+    assert.equal(result.tools.length, expected.length, "Live tool list count drifted");
   });
 });
 
