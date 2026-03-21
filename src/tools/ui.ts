@@ -299,7 +299,14 @@ function buildTypeArgs(target: string[], params: TypeParams): { args: string[]; 
 function resolveTypeTextPolicy(
   params: TypeParams,
   target: UnifiedTargetParams
-): { requestedMethod: "auto" | "paste" | "keyboard"; usedMethod: "paste" | "keyboard"; targetKind: "simulator" | "macOS"; inputSource: "text" | "stdinText" | "file" } {
+): {
+  requestedMethod: "auto" | "paste" | "keyboard";
+  usedMethod: "paste" | "keyboard";
+  targetKind: "simulator" | "macOS";
+  inputSource: "text" | "stdinText" | "file";
+  pasteTransport: "simulator_pasteboard" | "host_clipboard" | null;
+  clipboardSideEffect: "none" | "temporary_replace_and_restore";
+} {
   const requestedMethod = params.method ?? "auto";
   const targetKind: "simulator" | "macOS" = target.udid ? "simulator" : "macOS";
   const usedMethod =
@@ -309,7 +316,15 @@ function resolveTypeTextPolicy(
         : "keyboard"
       : requestedMethod;
   const inputSource = params.stdinText !== undefined ? "stdinText" : params.file !== undefined ? "file" : "text";
-  return { requestedMethod, usedMethod, targetKind, inputSource };
+  const pasteTransport =
+    usedMethod === "paste"
+      ? targetKind === "simulator"
+        ? "simulator_pasteboard"
+        : "host_clipboard"
+      : null;
+  const clipboardSideEffect =
+    pasteTransport === "host_clipboard" ? "temporary_replace_and_restore" : "none";
+  return { requestedMethod, usedMethod, targetKind, inputSource, pasteTransport, clipboardSideEffect };
 }
 
 function buildSwipeArgs(target: string[], params: SwipeParams): string[] {
@@ -396,7 +411,7 @@ export function registerUITools(server: McpServer): void {
 
   server.tool(
     "type_text",
-    "Type text into the target app. auto resolves to paste on simulators and keyboard on macOS; paste temporarily uses the clipboard; keyboard types character-by-character.",
+    "Type text into the target app. auto resolves to paste on simulators and keyboard on macOS; simulator paste uses the simulator pasteboard, macOS paste temporarily uses the host clipboard; keyboard types character-by-character.",
     { ...unifiedTargetSchema, ...typeSchema },
     async (params) => {
       const validationError = validateTypeParams(params as TypeParams);
@@ -414,8 +429,15 @@ export function registerUITools(server: McpServer): void {
         `Used method: ${policy.usedMethod}`,
       ];
       if (policy.usedMethod === "paste") {
-        extraLines.push("Clipboard side effect: clipboard is temporarily replaced with the input text and restored after paste.");
+        if (policy.pasteTransport === "simulator_pasteboard") {
+          extraLines.push("Paste transport: simulator pasteboard.");
+          extraLines.push("Clipboard side effect: host clipboard is unchanged; the simulator pasteboard is updated for paste.");
+        } else {
+          extraLines.push("Paste transport: host clipboard.");
+          extraLines.push("Clipboard side effect: host clipboard is temporarily replaced with the input text and restored after paste.");
+        }
       } else {
+        extraLines.push("Paste transport: none.");
         extraLines.push("Clipboard side effect: none.");
       }
       if (policy.requestedMethod === "auto") {
@@ -431,7 +453,8 @@ export function registerUITools(server: McpServer): void {
             targetKind: policy.targetKind,
             requestedMethod: policy.requestedMethod,
             usedMethod: policy.usedMethod,
-            clipboardSideEffect: policy.usedMethod === "paste" ? "temporary_replace_and_restore" : "none",
+            pasteTransport: policy.pasteTransport,
+            clipboardSideEffect: policy.clipboardSideEffect,
             autoFallback: policy.requestedMethod === "auto" ? policy.usedMethod : null,
           },
         },

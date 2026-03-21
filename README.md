@@ -262,10 +262,10 @@ Target routing is explicit in the arguments: `udid` for simulator, `bundleId` / 
 - `method: "auto"` resolves to:
   - `paste` for simulator targets
   - `keyboard` for macOS targets
-- `method: "paste"` always uses the clipboard-backed paste path.
+- `method: "paste"` uses the simulator pasteboard for simulator targets and a temporary host clipboard replace/restore flow for macOS targets.
 - `method: "keyboard"` always types character-by-character.
 
-When `paste` is used, the tool temporarily overwrites the clipboard and restores the previous clipboard content after submission. Successful responses report the input source, target kind, requested method, used method, and any auto fallback that was applied.
+When `paste` is used, simulator targets update the simulator pasteboard without touching the host clipboard, while macOS targets temporarily overwrite the host clipboard and restore it after submission. Successful responses report the input source, target kind, requested method, used method, paste transport, and any auto fallback that was applied.
 
 ## Usage Examples
 
