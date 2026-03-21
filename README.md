@@ -53,7 +53,7 @@ The Swift native bridge (`baepsae-native`) uses macOS-specific frameworks (AppKi
 
 ## Permissions
 
-**Accessibility permission is required** for UI inspection and input automation features (use `sim_*` / `mac_*` scoped tools such as `sim_describe_ui`, `mac_tap`, `sim_right_click`).
+**Accessibility permission is required** for UI inspection and input automation features (use unified generic tools such as `analyze_ui`, `tap`, `right_click`).
 
 The important detail is that permission usually needs to be granted to the **automation host / runtime process**, not to the target app you are automating.
 
@@ -82,7 +82,7 @@ The important detail is that permission usually needs to be granted to the **aut
 After granting permission, the launching process may need to be restarted before macOS applies the change.  
 If the error persists, quit and relaunch the terminal, MCP client, or runtime process that started `mcp-baepsae`.
 
-For simulator targets, selector-based actions (`sim_tap` / `sim_right_click` with `id` or `label`) search **in-app content** by default. Set `all: true` to include Simulator chrome UI.
+For simulator targets, selector-based actions (`tap` / `right_click` with `id` or `label`) search **in-app content** by default. Set `all: true` to include Simulator chrome UI.
 
 ## Install
 
@@ -235,58 +235,39 @@ npm run setup:mcp   # Alias for scripts/install.sh
 
 ## MCP Tool Status
 
-47 tools implemented end-to-end.
+33 tools implemented end-to-end.
 
-### Explicit target-scoped tools (30, recommended)
+### Official public MCP surface: unified generic tools
 
-Use these first to avoid simulator/macOS target ambiguity.
+The public API surface is intentionally single-scheme: use unified generic tools with a target argument, rather than `sim_*` / `mac_*` names.
 
-| Simulator-scoped | macOS-scoped |
+| Category | Tools |
 |---|---|
-| `sim_describe_ui` | `mac_describe_ui` |
-| `sim_search_ui` | `mac_search_ui` |
-| `sim_tap` | `mac_tap` |
-| `sim_type_text` | `mac_type_text` |
-| `sim_swipe` | `mac_swipe` |
-| `sim_key` | `mac_key` |
-| `sim_key_sequence` | `mac_key_sequence` |
-| `sim_key_combo` | `mac_key_combo` |
-| `sim_touch` | `mac_touch` |
-| `sim_right_click` | `mac_right_click` |
-| `sim_scroll` | `mac_scroll` |
-| `sim_drag_drop` | `mac_drag_drop` |
-| `sim_list_windows` | `mac_list_windows` |
-| `sim_activate_app` | `mac_activate_app` |
-| `sim_screenshot_app` | `mac_screenshot_app` |
+| UI | `analyze_ui`, `query_ui`, `tap`, `tap_tab`, `type_text`, `swipe`, `scroll`, `drag_drop` |
+| Input | `key`, `key_sequence`, `key_combo`, `touch` |
+| System | `list_windows`, `activate_app`, `screenshot_app`, `right_click` |
+| Simulator-only | `list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture` |
+| macOS/system | `list_apps`, `menu_action`, `get_focused_app`, `clipboard` |
+| Utility | `baepsae_help`, `baepsae_version` |
 
-### iOS Simulator Only (11)
-
-`list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture`
-
-### macOS / System Only (4)
-
-`list_apps`, `menu_action`, `get_focused_app`, `clipboard`
-
-### Utility (2)
-
-`baepsae_help`, `baepsae_version`
+Target routing is explicit in the arguments: `udid` for simulator, `bundleId` / `appName` for macOS.
 
 ## Usage Examples
 
-**Simulator app accessibility quickstart (inside app UI):**
+**Unified simulator app accessibility quickstart (inside app UI):**
 ```javascript
 // 1) Launch your app in the target simulator
 launch_app({ udid: "...", bundleId: "com.example.app" })
 
 // 2) Inspect or search accessibility tree (in-app content scope by default)
-sim_describe_ui({ udid: "..." })
-sim_search_ui({ udid: "...", query: "Login" })
+analyze_ui({ udid: "..." })
+query_ui({ udid: "...", query: "Login" })
 
 // 3) Interact by accessibility identifier/label
-sim_tap({ udid: "...", id: "login-button" })
+tap({ udid: "...", id: "login-button" })
 
 // Optional: include Simulator chrome/system UI in selector lookup
-sim_tap({ udid: "...", label: "Home", all: true })
+tap({ udid: "...", label: "Home", all: true })
 ```
 
 **Open a URL (iOS Simulator):**
@@ -313,7 +294,7 @@ terminate_app({ udid: "...", bundleId: "com.apple.mobilesafari" })
 list_apps({})
 
 // Take screenshot of a macOS app
-mac_screenshot_app({ bundleId: "com.apple.Safari" })
+screenshot_app({ bundleId: "com.apple.Safari" })
 ```
 
 ## Troubleshooting

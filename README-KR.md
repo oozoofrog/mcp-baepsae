@@ -53,7 +53,7 @@ Swift 네이티브 브리지(`baepsae-native`)는 iOS 시뮬레이터 및 macOS 
 
 ## 권한
 
-**접근성(Accessibility) 권한이 필요합니다.** UI 조회/입력 자동화 도구(`sim_*` / `mac_*` 스코프 도구, 예: `sim_describe_ui`, `mac_tap`, `sim_right_click`)를 사용할 때 필수입니다.
+**접근성(Accessibility) 권한이 필요합니다.** UI 조회/입력 자동화 도구(예: `analyze_ui`, `tap`, `right_click`)를 사용할 때 필수입니다.
 
 중요한 점은, 보통 권한 대상이 **자동화 대상 앱**이 아니라 **automation host / runtime process** 쪽이라는 것입니다.
 
@@ -82,7 +82,7 @@ Swift 네이티브 브리지(`baepsae-native`)는 iOS 시뮬레이터 및 macOS 
 권한을 켠 뒤에도 macOS가 즉시 반영하지 않는 경우가 있습니다.  
 오류가 계속되면 `mcp-baepsae` 를 시작한 터미널, MCP client, 또는 runtime process 를 종료 후 다시 실행하세요.
 
-시뮬레이터 타깃에서 선택자 기반 액션(`sim_tap`/`sim_right_click`의 `id`/`label`)은 기본적으로 **앱 내부 콘텐츠**를 탐색합니다. Simulator 크롬/시스템 UI까지 포함하려면 `all: true`를 사용하세요.
+시뮬레이터 타깃에서 선택자 기반 액션(`tap`/`right_click`의 `id`/`label`)은 기본적으로 **앱 내부 콘텐츠**를 탐색합니다. Simulator 크롬/시스템 UI까지 포함하려면 `all: true`를 사용하세요.
 
 ## 설치
 
@@ -235,41 +235,22 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 
 ## MCP 도구 구현 상태
 
-총 47개 도구가 end-to-end 구현 완료되었습니다.
+총 33개 도구가 end-to-end 구현 완료되었습니다.
 
-### 타깃 분리 스코프 도구 (30개, 권장)
+### 공식 공개 MCP 표면: unified generic tools
 
-시뮬레이터/맥 타깃 혼동을 줄이려면 아래 `sim_*` / `mac_*` 도구를 우선 사용하세요.
+공개 API 표면은 단일 스킴으로 정리되어 있으며, `sim_*` / `mac_*` 이름 대신 target 인자를 받는 unified generic tools 를 사용합니다.
 
-| 시뮬레이터 스코프 | macOS 스코프 |
+| 분류 | 도구 |
 |---|---|
-| `sim_describe_ui` | `mac_describe_ui` |
-| `sim_search_ui` | `mac_search_ui` |
-| `sim_tap` | `mac_tap` |
-| `sim_type_text` | `mac_type_text` |
-| `sim_swipe` | `mac_swipe` |
-| `sim_key` | `mac_key` |
-| `sim_key_sequence` | `mac_key_sequence` |
-| `sim_key_combo` | `mac_key_combo` |
-| `sim_touch` | `mac_touch` |
-| `sim_right_click` | `mac_right_click` |
-| `sim_scroll` | `mac_scroll` |
-| `sim_drag_drop` | `mac_drag_drop` |
-| `sim_list_windows` | `mac_list_windows` |
-| `sim_activate_app` | `mac_activate_app` |
-| `sim_screenshot_app` | `mac_screenshot_app` |
+| UI | `analyze_ui`, `query_ui`, `tap`, `tap_tab`, `type_text`, `swipe`, `scroll`, `drag_drop` |
+| Input | `key`, `key_sequence`, `key_combo`, `touch` |
+| System | `list_windows`, `activate_app`, `screenshot_app`, `right_click` |
+| iOS 시뮬레이터 전용 | `list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture` |
+| macOS / 시스템 | `list_apps`, `menu_action`, `get_focused_app`, `clipboard` |
+| 유틸리티 | `baepsae_help`, `baepsae_version` |
 
-### iOS 시뮬레이터 전용 (11개)
-
-`list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture`
-
-### macOS / 시스템 전용 (4개)
-
-`list_apps`, `menu_action`, `get_focused_app`, `clipboard`
-
-### 유틸리티 (2개)
-
-`baepsae_help`, `baepsae_version`
+대상 라우팅은 인자로 명시합니다: simulator 는 `udid`, macOS 는 `bundleId` / `appName`.
 
 ## 사용 예시
 
@@ -279,14 +260,14 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 launch_app({ udid: "...", bundleId: "com.example.app" })
 
 // 2) 접근성 트리 조회/검색 (기본: 앱 내부 콘텐츠 스코프)
-sim_describe_ui({ udid: "..." })
-sim_search_ui({ udid: "...", query: "로그인" })
+analyze_ui({ udid: "..." })
+query_ui({ udid: "...", query: "로그인" })
 
 // 3) 접근성 ID/라벨로 상호작용
-sim_tap({ udid: "...", id: "login-button" })
+tap({ udid: "...", id: "login-button" })
 
 // 선택: Simulator 크롬/시스템 UI까지 탐색하려면
-sim_tap({ udid: "...", label: "Home", all: true })
+tap({ udid: "...", label: "Home", all: true })
 ```
 
 ## 트러블슈팅
