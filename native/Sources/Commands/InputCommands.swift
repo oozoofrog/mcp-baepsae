@@ -138,11 +138,11 @@ func handleGesture(_ parsed: ParsedOptions) throws -> Int32 {
     let screenHeight = try optionalDoubleOption("--screen-height", from: parsed)
     try ensureAccessibilityTrusted()
     try activateTarget(target)
-    let contentBounds = simulatorContentAreaBounds()
-    let width = screenWidth ?? Double(contentBounds?.width ?? 0)
-    let height = screenHeight ?? Double(contentBounds?.height ?? 0)
+    let preferredBounds = simulatorContentBounds()
+    let width = screenWidth ?? Double(preferredBounds?.width ?? 0)
+    let height = screenHeight ?? Double(preferredBounds?.height ?? 0)
     if width <= 0 || height <= 0 {
-        throw NativeError.commandFailed("Unable to determine simulator content area size; provide screenWidth/screenHeight.")
+        throw NativeError.commandFailed("Unable to determine simulator content size; provide screenWidth/screenHeight.")
     }
     let start: CGPoint
     let end: CGPoint

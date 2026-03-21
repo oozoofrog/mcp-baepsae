@@ -996,19 +996,8 @@ func simulatorContentBounds() -> CGRect? {
     return simulatorWindowBounds()
 }
 
-func simulatorContentAreaBounds() -> CGRect? {
-    guard let appRoot = try? simulatorAccessibilityRootElement() else {
-        return nil
-    }
-    guard let contentGroup = simulatorContentRootElement(from: appRoot),
-          let frame = FrameAttribute(contentGroup) else {
-        return nil
-    }
-    return frame
-}
-
 func pointInSimulatorContent(x: Double, y: Double) throws -> CGPoint {
-    guard let bounds = simulatorContentAreaBounds() else {
+    guard let bounds = simulatorContentBounds() else {
         throw NativeError.commandFailed("Simulator content area not found. Ensure Simulator is running and visible.")
     }
     let targetX = bounds.origin.x + CGFloat(x)
