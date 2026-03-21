@@ -1262,56 +1262,107 @@ test("screenshot_app forwards output option", async () => {
 });
 
 // ===========================================================================
-// Section 22: record_video extra lines and timeout
+// Section 22: record_video capture semantics
 // ===========================================================================
 
-test("record_video output includes recording duration and output file", async () => {
+test("record_video output includes capture mode, requested duration, and output file", async () => {
   await withClient(async (client) => {
+    const outputPath = ".tmp-test-artifacts/test-record.mov";
     const result = await client.callTool({
       name: "record_video",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         durationSeconds: 2,
-        output: ".tmp-test-artifacts/test-record.mov",
+        output: outputPath,
       },
     });
     const text = extractText(result);
-    assert.match(text, /Recording duration: 2s/);
+    assert.match(text, /Capture mode: direct simctl recordVideo\./);
+    assert.match(text, /Requested duration: 2s/);
     assert.match(text, /Output file:.*test-record\.mov/);
+    assert.equal(result.metadata?.captureMode, "record_video_direct");
+    assert.equal(result.metadata?.backend, "simctl.recordVideo");
+    assert.equal(result.metadata?.requestedDurationSeconds, 2);
+    assert.equal(result.metadata?.outputPath, path.resolve(outputPath));
   });
 });
 
 test("record_video defaults to 10s duration when not specified", async () => {
   await withClient(async (client) => {
+    const outputPath = ".tmp-test-artifacts/test-record-default.mov";
     const result = await client.callTool({
       name: "record_video",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
-        output: ".tmp-test-artifacts/test-record-default.mov",
+        output: outputPath,
       },
     });
     const text = extractText(result);
-    assert.match(text, /Recording duration: 10s/);
+    assert.match(text, /Capture mode: direct simctl recordVideo\./);
+    assert.match(text, /Requested duration: 10s/);
+    assert.equal(result.metadata?.captureMode, "record_video_direct");
+    assert.equal(result.metadata?.requestedDurationSeconds, 10);
+    assert.equal(result.metadata?.outputPath, path.resolve(outputPath));
   });
 });
 
 // ===========================================================================
-// Section 23: stream_video extra lines
+// Section 23: stream_video capture semantics
 // ===========================================================================
 
-test("stream_video output includes capture duration and output file", async () => {
+test("stream_video output explains the current shim and output file", async () => {
   await withClient(async (client) => {
+    const outputPath = ".tmp-test-artifacts/test-stream.mov";
     const result = await client.callTool({
       name: "stream_video",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
         durationSeconds: 2,
-        output: ".tmp-test-artifacts/test-stream.mov",
+        output: outputPath,
       },
     });
     const text = extractText(result);
-    assert.match(text, /Capture duration: 2s/);
+    assert.match(text, /Capture mode: stream-video shim\./);
+    assert.match(text, /Backend: simctl recordVideo \(current implementation\)\./);
+    assert.match(text, /Requested duration: 2s/);
     assert.match(text, /Output file:.*test-stream\.mov/);
+    assert.equal(result.metadata?.captureMode, "stream_video_shim");
+    assert.equal(result.metadata?.backend, "simctl.recordVideo");
+    assert.equal(result.metadata?.requestedDurationSeconds, 2);
+    assert.equal(result.metadata?.outputPath, path.resolve(outputPath));
+  });
+});
+
+test("stream_video and record_video expose different capture semantics", async () => {
+  await withClient(async (client) => {
+    const streamOutput = ".tmp-test-artifacts/test-stream-diff.mov";
+    const recordOutput = ".tmp-test-artifacts/test-record-diff.mov";
+
+    const streamResult = await client.callTool({
+      name: "stream_video",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        durationSeconds: 1,
+        output: streamOutput,
+      },
+    });
+    const recordResult = await client.callTool({
+      name: "record_video",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        durationSeconds: 1,
+        output: recordOutput,
+      },
+    });
+
+    assert.equal(streamResult.metadata?.captureMode, "stream_video_shim");
+    assert.equal(recordResult.metadata?.captureMode, "record_video_direct");
+    assert.notEqual(streamResult.metadata?.captureMode, recordResult.metadata?.captureMode);
+
+    const streamText = extractText(streamResult);
+    const recordText = extractText(recordResult);
+    assert.match(streamText, /Capture mode: stream-video shim\./);
+    assert.match(recordText, /Capture mode: direct simctl recordVideo\./);
   });
 });
 
