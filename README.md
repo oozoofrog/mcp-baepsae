@@ -229,6 +229,9 @@ If you invoke `baepsae-native` directly for debugging, check permission on the n
 npm run build       # Build TypeScript + native Swift binary
 npm test            # Contract/integration tests
 npm run test:real   # Real simulator smoke test (requires booted simulator)
+npm run test:real:preflight  # Environment diagnostics only
+npm run test:real:sim        # iOS simulator phases only (skips Phase 4)
+npm run test:real:mac        # macOS Safari phase only
 npm run verify      # test + test:real
 npm run setup:mcp   # Alias for scripts/install.sh
 ```
@@ -316,6 +319,9 @@ screenshot_app({ bundleId: "com.apple.Safari" })
   - Run `npm run build` and confirm `native/.build/release/baepsae-native` exists.
 - Accessibility permission error is ambiguous:
   - Current versions include host/parent process diagnostics and inferred launch mode in the error text so you can see which executable path likely needs permission.
+- Real smoke test diagnostics:
+  - Run `npm run test:real:preflight` to print environment and capability diagnostics without executing the full suite.
+  - Run `npm run test:real:sim` to focus on simulator-capability coverage, or `npm run test:real:mac` for the macOS Safari subset.
 - OpenCode does not show `baepsae`:
   - Re-run `bash scripts/install.sh --tool opencode --skip-install --skip-build` and check `~/.config/opencode/opencode.json`.
 - Copilot not auto-registered:

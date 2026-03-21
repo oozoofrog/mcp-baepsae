@@ -229,6 +229,9 @@ gemini mcp add --scope user --transport stdio -e BAEPSAE_NATIVE_PATH=/ABS/PATH/n
 npm run build       # TypeScript + Swift 네이티브 빌드
 npm test            # 계약/통합 테스트
 npm run test:real   # 실제 시뮬레이터 스모크 테스트 (부팅된 시뮬레이터 필요)
+npm run test:real:preflight  # 환경 진단만 출력
+npm run test:real:sim        # iOS 시뮬레이터 단계만 실행 (Phase 4 제외)
+npm run test:real:mac        # macOS Safari 단계만 실행
 npm run verify      # test + test:real
 npm run setup:mcp   # scripts/install.sh 실행 alias
 ```
@@ -289,6 +292,9 @@ tap({ udid: "...", label: "Home", all: true })
   - `npm run build` 실행 후 `native/.build/release/baepsae-native` 파일 존재 여부를 확인하세요.
 - 접근성 권한 오류가 모호한 경우:
   - 현재 버전은 오류 메시지에 host / parent process 진단 정보와 inferred launch mode 를 함께 보여주므로 어떤 실행 파일에 권한을 줘야 할지 추적할 수 있습니다.
+- 실제 스모크 테스트 진단:
+  - `npm run test:real:preflight`로 전체 스위트를 돌리지 않고 환경/기능(capability) 진단만 출력할 수 있습니다.
+  - `npm run test:real:sim`으로 시뮬레이터 중심 범위만, `npm run test:real:mac`으로 macOS Safari 범위만 실행할 수 있습니다.
 - OpenCode에서 `baepsae`가 보이지 않는 경우:
   - `bash scripts/install.sh --tool opencode --skip-install --skip-build`를 다시 실행하고 `~/.config/opencode/opencode.json`을 확인하세요.
 - Copilot 자동 등록이 안 되는 경우:

@@ -109,12 +109,91 @@ function findSampleApp() {
 }
 
 const sampleAppProject = path.join(projectRoot, "test-fixtures", "SampleApp", "SampleApp.xcodeproj");
+const REAL_TEST_CAPABILITIES = {
+  simulator: "simulator",
+  booted: "booted-simulator",
+  accessibility: "accessibility",
+  sampleApp: "sample-app",
+  macos: "macos",
+  ci: "ci",
+};
+
+function formatSkipCode(code) {
+  return `skip:${code}`;
+}
+
+function skipTest(t, code, detail) {
+  const message = detail ? `${formatSkipCode(code)}: ${detail}` : formatSkipCode(code);
+  t.skip(message);
+}
+
+async function collectEnvironmentDiagnostics() {
+  const diagnostics = {
+    platform: process.platform,
+    nodeVersion: process.version,
+    ci: !!(process.env.CI || process.env.GITHUB_ACTIONS || process.env.JENKINS_URL),
+    sampleAppProjectExists: existsSync(sampleAppProject),
+    sampleAppBuilt: !!findSampleApp(),
+    bootedSimulatorUdid: null,
+    simulatorAccessibility: "unknown",
+    safariAvailable: false,
+    macAccessibility: "unknown",
+  };
+
+  try {
+    await withClient(async (client) => {
+      const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+      diagnostics.bootedSimulatorUdid = extractBootedUdid(extractText(listResult));
+
+      if (diagnostics.bootedSimulatorUdid) {
+        const analyzeResult = await client.callTool({
+          name: "analyze_ui",
+          arguments: { udid: diagnostics.bootedSimulatorUdid },
+        });
+        const analyzeText = extractText(analyzeResult);
+        diagnostics.simulatorAccessibility =
+          analyzeResult.isError && isAccessibilityDenied(analyzeText) ? "denied" : "granted";
+      }
+
+      if (isMacOS() && !diagnostics.ci) {
+        diagnostics.safariAvailable = await isSafariAvailable();
+        if (diagnostics.safariAvailable) {
+          const safariResult = await client.callTool({
+            name: "analyze_ui",
+            arguments: { bundleId: "com.apple.Safari" },
+          });
+          const safariText = extractText(safariResult);
+          diagnostics.macAccessibility =
+            safariResult.isError && isAccessibilityDenied(safariText) ? "denied" : "granted";
+        }
+      }
+    });
+  } catch (error) {
+    diagnostics.simulatorProbeError = error instanceof Error ? error.message : String(error);
+  }
+
+  diagnostics.capabilities = [
+    diagnostics.bootedSimulatorUdid ? REAL_TEST_CAPABILITIES.booted : null,
+    diagnostics.sampleAppBuilt ? REAL_TEST_CAPABILITIES.sampleApp : null,
+    diagnostics.simulatorAccessibility === "granted" ? REAL_TEST_CAPABILITIES.accessibility : null,
+    diagnostics.safariAvailable ? REAL_TEST_CAPABILITIES.macos : null,
+    REAL_TEST_CAPABILITIES.simulator,
+    diagnostics.ci ? REAL_TEST_CAPABILITIES.ci : null,
+  ].filter(Boolean);
+
+  return diagnostics;
+}
+
+test("Preflight diagnostics: environment and capability tags", { timeout: 30_000 }, async (t) => {
+  const diagnostics = await collectEnvironmentDiagnostics();
+  t.diagnostic(JSON.stringify(diagnostics, null, 2));
+});
 
 // ─── Setup: Build and install SampleApp ──────────────────────────────────────
 
 test("Setup: build SampleApp for simulator", { timeout: 120_000 }, async (t) => {
   if (!existsSync(sampleAppProject)) {
-    t.skip("SampleApp.xcodeproj not found");
+    skipTest(t, "sample-app-project-missing");
     return;
   }
 
@@ -122,7 +201,7 @@ test("Setup: build SampleApp for simulator", { timeout: 120_000 }, async (t) => 
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -166,7 +245,7 @@ test("Phase 1: list_simulators → get booted udid", { timeout: 30_000 }, async 
 
     const udid = extractBootedUdid(text);
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
     }
   });
 });
@@ -176,7 +255,7 @@ test("Phase 1: open_url → open sample web page in simulator", { timeout: 30_00
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -196,7 +275,7 @@ test("Phase 1: screenshot → file created and non-empty", { timeout: 30_000 }, 
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -220,7 +299,7 @@ test("Phase 1: record_video → 2s recording, file created", { timeout: 60_000 }
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -244,7 +323,7 @@ test("Phase 1: stream_video → 2s stream, file created", { timeout: 60_000 }, a
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -268,7 +347,7 @@ test("Phase 2: analyze_ui → contains page elements", { timeout: 30_000 }, asyn
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -279,7 +358,7 @@ test("Phase 2: analyze_ui → contains page elements", { timeout: 30_000 }, asyn
     const text = extractText(result);
 
     if (result.isError && isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(result.isError ?? false, false, "analyze_ui should not error");
@@ -292,7 +371,7 @@ test("Phase 2: query_ui → find 'Baepsae' on page", { timeout: 30_000 }, async 
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -303,7 +382,7 @@ test("Phase 2: query_ui → find 'Baepsae' on page", { timeout: 30_000 }, async 
     const text = extractText(result);
 
     if (result.isError && isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(result.isError ?? false, false, "query_ui should not error");
@@ -316,13 +395,13 @@ test("Phase 2: tap → tap by label 'Tap Me'", { timeout: 45_000 }, async (t) =>
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
     const appPath = findSampleApp();
     if (!appPath) {
-      t.skip("SampleApp.app not built — run xcodebuild first");
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
       return;
     }
 
@@ -336,7 +415,7 @@ test("Phase 2: tap → tap by label 'Tap Me'", { timeout: 45_000 }, async (t) =>
     const text = extractText(result);
 
     if (result.isError && isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(result.isError ?? false, false, "tap should not error");
@@ -351,13 +430,13 @@ test("Phase 2: type_text → tap input, type text, verify result", { timeout: 45
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
     const appPath = findSampleApp();
     if (!appPath) {
-      t.skip("SampleApp.app not built — run xcodebuild first");
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
       return;
     }
 
@@ -370,7 +449,7 @@ test("Phase 2: type_text → tap input, type text, verify result", { timeout: 45
       arguments: { udid, id: "test-input" },
     });
     if (tapResult.isError && isAccessibilityDenied(extractText(tapResult))) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(tapResult.isError ?? false, false, "tap on test-input should not error");
@@ -406,13 +485,13 @@ test("Phase 2: type_text → stdinText mode", { timeout: 45_000 }, async (t) => 
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
     const appPath = findSampleApp();
     if (!appPath) {
-      t.skip("SampleApp.app not built — run xcodebuild first");
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
       return;
     }
 
@@ -425,7 +504,7 @@ test("Phase 2: type_text → stdinText mode", { timeout: 45_000 }, async (t) => 
       arguments: { udid, id: "test-input" },
     });
     if (tapResult.isError && isAccessibilityDenied(extractText(tapResult))) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     await sleep(500);
@@ -459,7 +538,7 @@ test("Phase 2: type_text → method=paste types correctly", { timeout: 45_000 },
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -469,7 +548,7 @@ test("Phase 2: type_text → method=paste types correctly", { timeout: 45_000 },
       arguments: { udid, id: "test-input" },
     });
     if (tapResult.isError) {
-      t.skip("Could not tap test-input (sample app may not be running)");
+      skipTest(t, "sample-app-not-running", "could not tap test-input");
       return;
     }
     await sleep(500);
@@ -502,7 +581,7 @@ test("Phase 2: type_text → method=keyboard types correctly", { timeout: 45_000
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -512,7 +591,7 @@ test("Phase 2: type_text → method=keyboard types correctly", { timeout: 45_000
       arguments: { udid, id: "test-input" },
     });
     if (tapResult.isError) {
-      t.skip("Could not tap test-input (sample app may not be running)");
+      skipTest(t, "sample-app-not-running", "could not tap test-input");
       return;
     }
     await sleep(500);
@@ -545,7 +624,7 @@ test("Phase 2: type_text → empty text should error", { timeout: 30_000 }, asyn
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -563,7 +642,7 @@ test("Phase 2: swipe → coordinate-based swipe", { timeout: 30_000 }, async (t)
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -574,7 +653,7 @@ test("Phase 2: swipe → coordinate-based swipe", { timeout: 30_000 }, async (t)
     const text = extractText(result);
 
     if (result.isError && isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(result.isError ?? false, false, "swipe should not error");
@@ -587,7 +666,7 @@ test("Phase 2: gesture → scroll-down preset", { timeout: 30_000 }, async (t) =
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -598,7 +677,7 @@ test("Phase 2: gesture → scroll-down preset", { timeout: 30_000 }, async (t) =
     const text = extractText(result);
 
     if (result.isError && isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(result.isError ?? false, false, "gesture should not error");
@@ -610,7 +689,7 @@ test("Phase 2: key → send keycode", { timeout: 30_000 }, async (t) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -622,7 +701,7 @@ test("Phase 2: key → send keycode", { timeout: 30_000 }, async (t) => {
     const text = extractText(result);
 
     if (result.isError && isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(result.isError ?? false, false, "key should not error");
@@ -634,7 +713,7 @@ test("Phase 2: key_sequence → send multiple keycodes", { timeout: 30_000 }, as
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -646,7 +725,7 @@ test("Phase 2: key_sequence → send multiple keycodes", { timeout: 30_000 }, as
     const text = extractText(result);
 
     if (result.isError && isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(result.isError ?? false, false, "key_sequence should not error");
@@ -658,7 +737,7 @@ test("Phase 2: key_combo → modifier + key", { timeout: 30_000 }, async (t) => 
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -670,7 +749,7 @@ test("Phase 2: key_combo → modifier + key", { timeout: 30_000 }, async (t) => 
     const text = extractText(result);
 
     if (result.isError && isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(result.isError ?? false, false, "key_combo should not error");
@@ -682,7 +761,7 @@ test("Phase 2: button → home button", { timeout: 30_000 }, async (t) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -693,7 +772,7 @@ test("Phase 2: button → home button", { timeout: 30_000 }, async (t) => {
     const text = extractText(result);
 
     if (result.isError && isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(result.isError ?? false, false, "button should not error");
@@ -705,7 +784,7 @@ test("Phase 2: touch → down/up events", { timeout: 30_000 }, async (t) => {
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
@@ -716,7 +795,7 @@ test("Phase 2: touch → down/up events", { timeout: 30_000 }, async (t) => {
     const text = extractText(result);
 
     if (result.isError && isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(result.isError ?? false, false, "touch should not error");
@@ -753,13 +832,13 @@ test("Phase 2b: tap by id → verify label changes to 'Tapped!'", { timeout: 45_
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
     const appPath = findSampleApp();
     if (!appPath) {
-      t.skip("SampleApp.app not built — run xcodebuild first");
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
       return;
     }
 
@@ -773,7 +852,7 @@ test("Phase 2b: tap by id → verify label changes to 'Tapped!'", { timeout: 45_
     });
     const beforeText = extractText(beforeResult);
     if (beforeResult.isError && isAccessibilityDenied(beforeText)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.ok(beforeText.includes("Ready"), `label should initially be "Ready", got: ${beforeText}`);
@@ -796,13 +875,13 @@ test("Phase 2b: swipe → verify list scroll changes visible items", { timeout: 
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
     const appPath = findSampleApp();
     if (!appPath) {
-      t.skip("SampleApp.app not built — run xcodebuild first");
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
       return;
     }
 
@@ -816,7 +895,7 @@ test("Phase 2b: swipe → verify list scroll changes visible items", { timeout: 
     });
     const beforeText = extractText(beforeResult);
     if (beforeResult.isError && isAccessibilityDenied(beforeText)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(beforeResult.isError ?? false, false, "analyze_ui before swipe should not error");
@@ -854,13 +933,13 @@ test("Phase 2b: integrated workflow → tap, type, verify, swipe", { timeout: 60
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
     const appPath = findSampleApp();
     if (!appPath) {
-      t.skip("SampleApp.app not built — run xcodebuild first");
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
       return;
     }
 
@@ -873,7 +952,7 @@ test("Phase 2b: integrated workflow → tap, type, verify, swipe", { timeout: 60
       arguments: { udid, id: "test-button" },
     });
     if (tapBtnResult.isError && isAccessibilityDenied(extractText(tapBtnResult))) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(tapBtnResult.isError ?? false, false, "tap test-button should not error");
@@ -945,13 +1024,13 @@ test("Phase 2c: scroll → verify scroll-position text changes in ScrollTab", { 
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
     const appPath = findSampleApp();
     if (!appPath) {
-      t.skip("SampleApp.app not built — run xcodebuild first");
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
       return;
     }
 
@@ -964,7 +1043,7 @@ test("Phase 2c: scroll → verify scroll-position text changes in ScrollTab", { 
       arguments: { udid, label: "Scroll" },
     });
     if (tapScrollTab.isError && isAccessibilityDenied(extractText(tapScrollTab))) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(tapScrollTab.isError ?? false, false, "tap Scroll tab should not error");
@@ -977,7 +1056,7 @@ test("Phase 2c: scroll → verify scroll-position text changes in ScrollTab", { 
     });
     const beforeText = extractText(beforeResult);
     if (beforeResult.isError && isAccessibilityDenied(beforeText)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
 
@@ -1017,13 +1096,13 @@ test("Phase 2c: drag_drop → drag item to drop zone and verify drop-result", { 
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
     const appPath = findSampleApp();
     if (!appPath) {
-      t.skip("SampleApp.app not built — run xcodebuild first");
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
       return;
     }
 
@@ -1036,7 +1115,7 @@ test("Phase 2c: drag_drop → drag item to drop zone and verify drop-result", { 
       arguments: { udid, label: "Drag" },
     });
     if (tapDragTab.isError && isAccessibilityDenied(extractText(tapDragTab))) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(tapDragTab.isError ?? false, false, "tap Drag tab should not error");
@@ -1050,7 +1129,7 @@ test("Phase 2c: drag_drop → drag item to drop zone and verify drop-result", { 
       arguments: { udid, focusId: "drag-item-0" },
     });
     if (item0Result.isError && isAccessibilityDenied(extractText(item0Result))) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
 
@@ -1059,7 +1138,7 @@ test("Phase 2c: drag_drop → drag item to drop zone and verify drop-result", { 
       arguments: { udid, focusId: "drop-zone" },
     });
     if (dropZoneResult.isError && isAccessibilityDenied(extractText(dropZoneResult))) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
 
@@ -1079,7 +1158,7 @@ test("Phase 2c: drag_drop → drag item to drop zone and verify drop-result", { 
     const item0Center = parseCenterFromText(extractText(item0Result));
     const dropZoneCenter = parseCenterFromText(extractText(dropZoneResult));
     if (!item0Center || !dropZoneCenter) {
-      t.skip(`Could not parse coordinates: item0=${!!item0Center}, dropZone=${!!dropZoneCenter}`);
+      skipTest(t, "coordinate-parse-failed", `item0=${!!item0Center}, dropZone=${!!dropZoneCenter}`);
       return;
     }
 
@@ -1120,13 +1199,13 @@ test("Phase 3: install_app → install sample app", { timeout: 60_000 }, async (
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
     const appPath = findSampleApp();
     if (!appPath) {
-      t.skip("SampleApp.app not built — run xcodebuild first");
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
       return;
     }
 
@@ -1143,13 +1222,13 @@ test("Phase 3: launch_app → launch sample app", { timeout: 30_000 }, async (t)
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
     const appPath = findSampleApp();
     if (!appPath) {
-      t.skip("SampleApp.app not built — run xcodebuild first");
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
       return;
     }
 
@@ -1169,13 +1248,13 @@ test("Phase 3: terminate_app → terminate sample app", { timeout: 30_000 }, asy
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
     const appPath = findSampleApp();
     if (!appPath) {
-      t.skip("SampleApp.app not built — run xcodebuild first");
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
       return;
     }
 
@@ -1194,13 +1273,13 @@ test("Phase 3: uninstall_app → uninstall sample app", { timeout: 30_000 }, asy
     const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
     const udid = extractBootedUdid(extractText(listResult));
     if (!udid) {
-      t.skip("No booted simulator detected");
+      skipTest(t, "no-booted-simulator");
       return;
     }
 
     const appPath = findSampleApp();
     if (!appPath) {
-      t.skip("SampleApp.app not built — run xcodebuild first");
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
       return;
     }
 
@@ -1264,7 +1343,7 @@ async function waitForMacUI(client, bundleId, query, check, timeoutMs = 5000) {
 
 test("Phase 4: macOS Safari → list_apps includes Safari", { timeout: 30_000 }, async (t) => {
   if (!isMacOS() || isCI()) {
-    t.skip("macOS-only test, skipped in CI");
+    skipTest(t, "ci-macos-only");
     return;
   }
 
@@ -1279,7 +1358,7 @@ test("Phase 4: macOS Safari → list_apps includes Safari", { timeout: 30_000 },
     const text = extractText(result);
 
     if (result.isError && isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(result.isError ?? false, false, "list_apps should not error");
@@ -1289,14 +1368,14 @@ test("Phase 4: macOS Safari → list_apps includes Safari", { timeout: 30_000 },
 
 test("Phase 4: macOS Safari → query_ui finds Ready status", { timeout: 30_000 }, async (t) => {
   if (!isMacOS() || isCI()) {
-    t.skip("macOS-only test, skipped in CI");
+    skipTest(t, "ci-macos-only");
     return;
   }
 
   await withClient(async (client) => {
     const safariAvail = await isSafariAvailable();
     if (!safariAvail) {
-      t.skip("Safari not available");
+      skipTest(t, "safari-unavailable");
       return;
     }
 
@@ -1309,7 +1388,7 @@ test("Phase 4: macOS Safari → query_ui finds Ready status", { timeout: 30_000 
     );
 
     if (isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.ok(text.includes("Ready"), `query_ui should find 'Ready' status, got: ${text}`);
@@ -1318,14 +1397,14 @@ test("Phase 4: macOS Safari → query_ui finds Ready status", { timeout: 30_000 
 
 test("Phase 4: macOS Safari → tap button and verify state change", { timeout: 45_000 }, async (t) => {
   if (!isMacOS() || isCI()) {
-    t.skip("macOS-only test, skipped in CI");
+    skipTest(t, "ci-macos-only");
     return;
   }
 
   await withClient(async (client) => {
     const safariAvail = await isSafariAvailable();
     if (!safariAvail) {
-      t.skip("Safari not available");
+      skipTest(t, "safari-unavailable");
       return;
     }
 
@@ -1335,7 +1414,7 @@ test("Phase 4: macOS Safari → tap button and verify state change", { timeout: 
       arguments: { bundleId: "com.apple.Safari", label: "Reset All" },
     });
     if (resetResult.isError && isAccessibilityDenied(extractText(resetResult))) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     await sleep(500);
@@ -1372,14 +1451,14 @@ test("Phase 4: macOS Safari → tap button and verify state change", { timeout: 
 
 test("Phase 4: macOS Safari → analyze_ui returns window hierarchy", { timeout: 30_000 }, async (t) => {
   if (!isMacOS() || isCI()) {
-    t.skip("macOS-only test, skipped in CI");
+    skipTest(t, "ci-macos-only");
     return;
   }
 
   await withClient(async (client) => {
     const safariAvail = await isSafariAvailable();
     if (!safariAvail) {
-      t.skip("Safari not available");
+      skipTest(t, "safari-unavailable");
       return;
     }
 
@@ -1390,7 +1469,7 @@ test("Phase 4: macOS Safari → analyze_ui returns window hierarchy", { timeout:
     const text = extractText(result);
 
     if (result.isError && isAccessibilityDenied(text)) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     assert.equal(result.isError ?? false, false, "analyze_ui should not error");
@@ -1401,14 +1480,14 @@ test("Phase 4: macOS Safari → analyze_ui returns window hierarchy", { timeout:
 
 test("Phase 4: macOS Safari → tap Reset All restores Ready state", { timeout: 45_000 }, async (t) => {
   if (!isMacOS() || isCI()) {
-    t.skip("macOS-only test, skipped in CI");
+    skipTest(t, "ci-macos-only");
     return;
   }
 
   await withClient(async (client) => {
     const safariAvail = await isSafariAvailable();
     if (!safariAvail) {
-      t.skip("Safari not available");
+      skipTest(t, "safari-unavailable");
       return;
     }
 
@@ -1418,7 +1497,7 @@ test("Phase 4: macOS Safari → tap Reset All restores Ready state", { timeout: 
       arguments: { bundleId: "com.apple.Safari", label: "Click Me" },
     });
     if (tapResult.isError && isAccessibilityDenied(extractText(tapResult))) {
-      t.skip("Accessibility permission denied");
+      skipTest(t, "accessibility-denied");
       return;
     }
     await sleep(500);
