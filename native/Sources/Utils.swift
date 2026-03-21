@@ -734,6 +734,21 @@ func findAccessibilityElement(
     return nil
 }
 
+func findAccessibilityElement(
+    in roots: [UIElement],
+    identifier: String?,
+    label: String?,
+    maxDepth: Int = Int.max,
+    maxNodes: Int = Int.max
+) -> UIElement? {
+    for root in roots {
+        if let match = findAccessibilityElement(in: root, identifier: identifier, label: label, maxDepth: maxDepth, maxNodes: maxNodes) {
+            return match
+        }
+    }
+    return nil
+}
+
 func searchAccessibilityElements(in root: UIElement, query: String, options: SearchOptions = SearchOptions()) -> [String] {
     var results: [String] = []
     var stack: [(element: UIElement, depth: Int)] = [(root, 0)]
@@ -822,6 +837,14 @@ func searchAccessibilityElements(in root: UIElement, query: String, options: Sea
     return results
 }
 
+func searchAccessibilityElements(in roots: [UIElement], query: String, options: SearchOptions = SearchOptions()) -> [String] {
+    var results: [String] = []
+    for root in roots {
+        results.append(contentsOf: searchAccessibilityElements(in: root, query: query, options: options))
+    }
+    return results
+}
+
 func findElementBySubrole(from root: UIElement, subrole: String) -> UIElement? {
     var stack: [UIElement] = [root]
     var visited = 0
@@ -843,6 +866,151 @@ func findElementBySubrole(from root: UIElement, subrole: String) -> UIElement? {
 
 func simulatorContentRootElement(from appRoot: UIElement) -> UIElement? {
     return findElementBySubrole(from: appRoot, subrole: "iOSContentGroup")
+}
+
+struct SimulatorAuxiliaryContainerCandidate {
+    let element: UIElement
+    let label: String
+}
+
+func elementsAreEqual(_ lhs: UIElement, _ rhs: UIElement) -> Bool {
+    CFEqual(lhs, rhs)
+}
+
+func collectElements(
+    in root: UIElement,
+    matching predicate: (UIElement, Int) -> Bool,
+    maxVisited: Int = 500,
+    maxMatches: Int = 8
+) -> [UIElement] {
+    var stack: [(element: UIElement, depth: Int)] = [(root, 0)]
+    var visited = 0
+    var matches: [UIElement] = []
+
+    while let current = stack.popLast() {
+        if visited >= maxVisited || matches.count >= maxMatches {
+            break
+        }
+        visited += 1
+
+        if predicate(current.element, current.depth) {
+            matches.append(current.element)
+        }
+
+        for child in Children(current.element).reversed() {
+            stack.append((child, current.depth + 1))
+        }
+    }
+
+    return matches
+}
+
+func collectElementsByRole(in root: UIElement, role: String, maxMatches: Int = 4) -> [UIElement] {
+    collectElements(
+        in: root,
+        matching: { element, _ in
+            let attrs = copyMultipleAttributes(element, [kAXRoleAttribute as String])
+            if let ref = attrs[kAXRoleAttribute as String], let value = stringFromCFTypeRef(ref) {
+                return value == role
+            }
+            return false
+        },
+        maxMatches: maxMatches
+    )
+}
+
+func collectWideAuxiliaryGroups(in root: UIElement, contentRootFrame: CGRect? = nil, maxMatches: Int = 4) -> [UIElement] {
+    guard let mainScreen = NSScreen.main else { return [] }
+    let screenWidth = mainScreen.frame.width
+    let screenHeight = mainScreen.frame.height
+    let topThreshold = screenHeight * 0.20
+    let bottomThreshold = screenHeight * 0.20
+
+    return collectElements(
+        in: root,
+        matching: { element, _ in
+            let attrs = copyMultipleAttributes(element, [kAXRoleAttribute as String, "AXFrame"])
+            guard let ref = attrs[kAXRoleAttribute as String], let role = stringFromCFTypeRef(ref), role == "AXGroup" else {
+                return false
+            }
+            guard let frameRef = attrs["AXFrame"], let frame = frameFromCFTypeRef(frameRef) else {
+                return false
+            }
+            guard frame.width > screenWidth * 0.6 else {
+                return false
+            }
+            guard frame.origin.y < topThreshold || frame.origin.y > screenHeight - bottomThreshold else {
+                return false
+            }
+            if let contentRootFrame, contentRootFrame.contains(frame) {
+                return false
+            }
+            return Children(element).count >= 2
+        },
+        maxMatches: maxMatches
+    )
+}
+
+func simulatorAuxiliaryContainerCandidates(from appRoot: UIElement, excluding contentRoot: UIElement? = nil) -> [SimulatorAuxiliaryContainerCandidate] {
+    let contentRootFrame = contentRoot.flatMap(FrameAttribute)
+    let roleCandidates: [(role: String, label: String)] = [
+        ("AXTabGroup", "tab bar"),
+        ("AXRadioGroup", "radio group"),
+        ("AXSegmentedControl", "segmented control"),
+        ("AXToolbar", "toolbar"),
+    ]
+
+    var candidates: [SimulatorAuxiliaryContainerCandidate] = []
+
+    func appendCandidate(_ element: UIElement, label: String) {
+        if let contentRoot, elementsAreEqual(element, contentRoot) {
+            return
+        }
+        if let candidateFrame = FrameAttribute(element), let contentRootFrame, contentRootFrame.contains(candidateFrame) {
+            return
+        }
+        if candidates.contains(where: { elementsAreEqual($0.element, element) }) {
+            return
+        }
+        candidates.append(SimulatorAuxiliaryContainerCandidate(element: element, label: label))
+    }
+
+    for roleCandidate in roleCandidates {
+        for element in collectElementsByRole(in: appRoot, role: roleCandidate.role) {
+            appendCandidate(element, label: roleCandidate.label)
+        }
+    }
+
+    for element in collectWideAuxiliaryGroups(in: appRoot, contentRootFrame: contentRootFrame) {
+        appendCandidate(element, label: "auxiliary group")
+    }
+
+    return candidates
+}
+
+func simulatorAuxiliaryContainerLabels(from appRoot: UIElement, excluding contentRoot: UIElement? = nil) -> [String] {
+    simulatorAuxiliaryContainerCandidates(from: appRoot, excluding: contentRoot).map(\.label)
+}
+
+func formatSimulatorAuxiliaryContainerHint(_ labels: [String]) -> String? {
+    var seen: Set<String> = []
+    let uniqueLabels = labels.filter { label in
+        let normalized = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return false }
+        return seen.insert(normalized).inserted
+    }
+    guard !uniqueLabels.isEmpty else {
+        return nil
+    }
+    let containerList = uniqueLabels.joined(separator: ", ")
+    return "[Hint] Simulator auxiliary containers outside iOSContentGroup: \(containerList). Use --all to inspect Simulator chrome UI."
+}
+
+func simulatorSelectorNotFoundMessage(selectorText: String, auxiliaryLabels: [String]) -> String {
+    if let hint = formatSimulatorAuxiliaryContainerHint(auxiliaryLabels) {
+        return "No accessibility element matched \(selectorText) in simulator app content or auxiliary containers. \(hint)"
+    }
+    return "No accessibility element matched \(selectorText) in simulator app content. Try --all to include Simulator chrome UI."
 }
 
 func findTabBarElement(in root: UIElement) -> UIElement? {

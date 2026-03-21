@@ -14,7 +14,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { writeFileSync, chmodSync, mkdirSync, rmSync, rmdirSync, readFileSync } from "node:fs";
+import { writeFileSync, chmodSync, mkdirSync, rmSync, rmdirSync, readFileSync, mkdtempSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -35,6 +36,62 @@ function extractText(result) {
     .filter((item) => item.type === "text")
     .map((item) => item.text)
     .join("\n");
+}
+
+function listSwiftSources(directory) {
+  const entries = readdirSync(directory, { withFileTypes: true });
+  return entries
+    .flatMap((entry) => {
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        return listSwiftSources(fullPath);
+      }
+      if (entry.isFile() && entry.name.endsWith(".swift") && entry.name !== "main.swift") {
+        return [fullPath];
+      }
+      return [];
+    })
+    .sort();
+}
+
+let swiftProbeBinaryInfo = null;
+
+process.on("exit", () => {
+  if (swiftProbeBinaryInfo?.tempDir) {
+    rmSync(swiftProbeBinaryInfo.tempDir, { recursive: true, force: true });
+  }
+});
+
+function ensureSwiftProbeBinary() {
+  if (swiftProbeBinaryInfo) {
+    return swiftProbeBinaryInfo;
+  }
+
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "baepsae-swift-probe-"));
+  const binaryPath = path.join(tempDir, "probe");
+  const harnessPath = path.join(tempDir, "Probe.swift");
+  const sourceFiles = listSwiftSources(path.join(projectRoot, "native", "Sources"));
+  const harnessSource = `
+import Foundation
+
+@main
+struct Probe {
+  static func main() {
+    print(formatSimulatorAuxiliaryContainerHint([]) ?? "nil")
+    print(formatSimulatorAuxiliaryContainerHint(["tab bar", "toolbar", "tab bar"]) ?? "nil")
+    print(simulatorSelectorNotFoundMessage(selectorText: "label='Settings'", auxiliaryLabels: ["tab bar", "toolbar"]))
+    print(simulatorSelectorNotFoundMessage(selectorText: "id='foo'", auxiliaryLabels: []))
+  }
+}
+`;
+
+  writeFileSync(harnessPath, harnessSource);
+  execFileSync("swiftc", [...sourceFiles, harnessPath, "-o", binaryPath], {
+    stdio: "pipe",
+  });
+
+  swiftProbeBinaryInfo = { tempDir, binaryPath };
+  return swiftProbeBinaryInfo;
 }
 
 async function withClient(run, envOverrides = {}) {
@@ -921,6 +978,40 @@ test("query_ui forwards optional filter parameters", async () => {
     assert.match(text, /--visible-only/, "Should forward --visible-only");
     assert.match(text, /--max-depth/, "Should forward --max-depth");
   });
+});
+
+// ===========================================================================
+// Section 11b: Swift helper formatting for simulator auxiliary containers
+// ===========================================================================
+
+test("Swift helper formats simulator auxiliary container hints without duplicates", async () => {
+  const { binaryPath } = ensureSwiftProbeBinary();
+  const output = execFileSync(binaryPath, [], { encoding: "utf8" });
+  const [emptyHint, dedupHint] = output.trim().split("\n");
+
+  assert.equal(emptyHint, "nil", "Empty auxiliary label list should return nil");
+  assert.match(dedupHint, /tab bar/);
+  assert.match(dedupHint, /toolbar/);
+  assert.equal((dedupHint.match(/tab bar/g) ?? []).length, 1, "Duplicate labels should be removed");
+  assert.match(dedupHint, /Use --all/);
+});
+
+test("Swift helper selector fallback message mentions auxiliary containers when available", async () => {
+  const { binaryPath } = ensureSwiftProbeBinary();
+  const output = execFileSync(binaryPath, [], { encoding: "utf8" });
+  const lines = output.trim().split("\n");
+  const auxiliaryMessage = lines[2];
+  const contentOnlyMessage = lines[3];
+
+  assert.match(auxiliaryMessage, /label='Settings'/);
+  assert.match(auxiliaryMessage, /auxiliary containers/);
+  assert.match(auxiliaryMessage, /tab bar/);
+  assert.match(auxiliaryMessage, /toolbar/);
+  assert.match(auxiliaryMessage, /Use --all|Try --all/);
+
+  assert.match(contentOnlyMessage, /id='foo'/);
+  assert.match(contentOnlyMessage, /simulator app content/);
+  assert.match(contentOnlyMessage, /Try --all/);
 });
 
 // ===========================================================================
