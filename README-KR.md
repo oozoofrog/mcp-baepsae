@@ -238,7 +238,7 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 
 ## MCP 도구 구현 상태
 
-총 33개 도구가 end-to-end 구현 완료되었습니다.
+총 34개 도구가 end-to-end 구현 완료되었습니다.
 
 ### 공식 공개 MCP 표면: unified generic tools
 
@@ -251,7 +251,7 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 | System | `list_windows`, `activate_app`, `screenshot_app`, `right_click` |
 | iOS 시뮬레이터 전용 | `list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture` |
 | macOS / 시스템 | `list_apps`, `menu_action`, `get_focused_app`, `clipboard` |
-| 유틸리티 | `baepsae_help`, `baepsae_version` |
+| 유틸리티 | `baepsae_help`, `baepsae_version`, `doctor` |
 
 대상 라우팅은 인자로 명시합니다: simulator 는 `udid`, macOS 는 `bundleId` / `appName`.
 
@@ -290,6 +290,7 @@ tap({ udid: "...", label: "Home", all: true })
 ### 접근성 권한 체크리스트
 
 - 권한 대상은 보통 **target app** 이 아니라 **automation host/runtime process** 입니다.
+- 먼저 `doctor` 를 실행해서 host process, parent process, native binary, booted simulator availability, accessibility readiness 를 한 번에 확인하세요.
 - 오류 메시지에서 다음 항목을 먼저 확인하세요.
   - **current host process**
   - **parent process**

@@ -59,7 +59,7 @@ async function withClient(run, envOverrides = {}) {
 // Section 1: Tool registry completeness
 // ===========================================================================
 
-test("tool registry lists all 33 expected MCP tools", async () => {
+  test("tool registry lists all 34 expected MCP tools", async () => {
   await withClient(async (client) => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((t) => t.name));
@@ -67,6 +67,7 @@ test("tool registry lists all 33 expected MCP tools", async () => {
     const allExpected = [
       "baepsae_help",
       "baepsae_version",
+      "doctor",
       "list_simulators",
       "list_apps",
       "open_url",

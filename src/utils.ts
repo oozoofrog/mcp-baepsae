@@ -31,6 +31,7 @@ export const BAEPSAE_SUBCOMMANDS = [
   "search-ui",
   "list-simulators",
   "list-apps",
+  "doctor",
   "tap",
   "tap-tab",
   "type",
@@ -460,4 +461,12 @@ export async function runNative(
     }
   }
   return result;
+}
+
+export function tryResolveNativeBinaryPath(): { ok: true; path: string } | { ok: false; error: string } {
+  try {
+    return { ok: true, path: resolveNativeBinary() };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }

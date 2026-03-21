@@ -26,6 +26,7 @@ let supportedCommands: Set<String> = [
     "gesture",
     "stream-video",
     "list-apps",
+    "doctor",
     "list-windows",
     "activate-app",
     "screenshot-app",
