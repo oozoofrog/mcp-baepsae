@@ -10,7 +10,7 @@ export type ToolTextResult = {
   error?: ToolError;
 };
 
-export type ToolErrorSource = "mcp" | "native" | "runtime";
+export type ToolErrorSource = "mcp" | "native" | "runtime" | "simctl";
 export type ToolErrorCategory =
   | "validation"
   | "environment"
@@ -53,4 +53,5 @@ export interface CommandExecutionResult {
 export interface ResponseOptions {
   timeoutIsExpected?: boolean;
   extraLines?: string[];
+  source?: ToolErrorSource;
 }

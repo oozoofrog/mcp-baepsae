@@ -331,17 +331,19 @@ export function toToolResult(result: CommandExecutionResult, options: ResponseOp
     lines.push("", "STDOUT:", result.stdout);
   }
 
-  if (result.stderr.length > 0) {
-    lines.push("", "STDERR:", result.stderr);
+  const parsedStructured = parseNativeStructuredError(result.stderr);
+  const humanReadableStderr = parsedStructured ? stripNativeStructuredErrorLine(result.stderr) : result.stderr;
+  if (humanReadableStderr.length > 0) {
+    lines.push("", "STDERR:", humanReadableStderr);
   }
 
   const structuredError = isError
     ? makeToolError({
         code: expectedTimeoutSignal || result.timedOut ? "execution.timeout" : result.exitCode === 0 ? "unknown" : "execution.command_failed",
         category: result.timedOut ? "timeout" : "execution",
-        message: result.stderr || result.stdout || "Command failed.",
+        message: humanReadableStderr || result.stdout || "Command failed.",
         retryable: result.timedOut || (result.signal !== null && !expectedTimeoutSignal),
-        source: "native",
+        source: options.source ?? "native",
       })
     : undefined;
 
@@ -413,8 +415,16 @@ function parseNativeStructuredError(stderr: string): ToolError | undefined {
   }
 }
 
+function stripNativeStructuredErrorLine(stderr: string): string {
+  const lines = stderr.split(/\r?\n/);
+  if (lines[0]?.startsWith("BAEPSAE_ERROR ")) {
+    return lines.slice(1).join("\n").trim();
+  }
+  return stderr;
+}
+
 export async function runSimctl(args: string[], options?: CommandExecutionOptions, responseOptions?: ResponseOptions): Promise<ToolTextResult> {
-  return await runCommand("xcrun", ["simctl", ...args], options, responseOptions);
+  return await runCommand("xcrun", ["simctl", ...args], options, { ...responseOptions, source: "simctl" });
 }
 
 export async function runNative(
@@ -439,7 +449,7 @@ export async function runNative(
       }),
     };
   }
-  const result = await runCommand(binary, args, options, responseOptions);
+  const result = await runCommand(binary, args, options, { ...responseOptions, source: "native" });
   if (result.isError && !result.error) {
     const text = result.content.map((item) => item.text).join("\n");
     const stderr = text.includes("STDERR:") ? text.split("STDERR:").slice(1).join("STDERR:").trim() : text;
