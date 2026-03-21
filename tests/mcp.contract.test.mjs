@@ -286,6 +286,7 @@ test("stream_video allows omitted output and auto-generates output path", async 
       name: "stream_video",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
+        durationSeconds: 1,
       },
     });
 
