@@ -1106,6 +1106,22 @@ func sendDrag(from start: CGPoint, to end: CGPoint, holdDuration: Double, moveDu
     if holdDuration > 0 {
         Thread.sleep(forTimeInterval: holdDuration)
     }
+
+    // iOS drag & drop is often sensitive to the exact event sequence.
+    // A tiny initial move helps the simulator/app transition from the
+    // long-press state into an actual drag session before the full move.
+    let warmupOffset: CGFloat = 1.0
+    let warmupPoint = CGPoint(
+        x: start.x + (end.x >= start.x ? warmupOffset : -warmupOffset),
+        y: start.y + (end.y >= start.y ? warmupOffset : -warmupOffset)
+    )
+    postMouseEvent(type: .leftMouseDragged, point: warmupPoint)
+    if let moveDuration {
+        Thread.sleep(forTimeInterval: min(max(moveDuration / 20.0, 0.01), 0.05))
+    } else {
+        Thread.sleep(forTimeInterval: 0.03)
+    }
+
     let steps = 10
     for step in 1...steps {
         let progress = CGFloat(step) / CGFloat(steps)
