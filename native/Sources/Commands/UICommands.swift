@@ -9,6 +9,7 @@ func handleDescribeUI(_ parsed: ParsedOptions) throws -> Int32 {
 
     let appRoot = try accessibilityRootElement(for: target)
     var targetRoot = appRoot
+    var usedSimulatorContentScope = false
 
     switch target {
     case .simulator:
@@ -16,6 +17,7 @@ func handleDescribeUI(_ parsed: ParsedOptions) throws -> Int32 {
         if !parsed.flags.contains("--all") {
             if let contentGroup = simulatorContentRootElement(from: appRoot) {
                 targetRoot = contentGroup
+                usedSimulatorContentScope = true
             }
         }
     case .macApp:
@@ -32,6 +34,7 @@ func handleDescribeUI(_ parsed: ParsedOptions) throws -> Int32 {
     if let focusId = parsed.options["--focus-id"] {
         if let found = findAccessibilityElement(in: appRoot, identifier: focusId, label: nil) {
             targetRoot = found
+            usedSimulatorContentScope = false
         } else {
             throw NativeError.commandFailed("Could not find element with id: \(focusId)")
         }
@@ -41,6 +44,7 @@ func handleDescribeUI(_ parsed: ParsedOptions) throws -> Int32 {
     if let rootElementId = parsed.options["--root-element-id"] {
         if let found = findAccessibilityElement(in: appRoot, identifier: rootElementId, label: nil) {
             targetRoot = found
+            usedSimulatorContentScope = false
         } else {
             throw NativeError.commandFailed("Could not find element with id: \(rootElementId)")
         }
@@ -68,9 +72,15 @@ func handleDescribeUI(_ parsed: ParsedOptions) throws -> Int32 {
         }
     }
 
-    let lines = describeAccessibilityTree(from: targetRoot, options: descOpts)
+    var lines = describeAccessibilityTree(from: targetRoot, options: descOpts)
     if lines.isEmpty {
         throw NativeError.commandFailed("No accessibility elements found.")
+    }
+    if usedSimulatorContentScope {
+        let auxiliaryLabels = simulatorAuxiliaryContainerLabels(from: appRoot, excluding: targetRoot)
+        if let hint = formatSimulatorAuxiliaryContainerHint(auxiliaryLabels) {
+            lines.append(hint)
+        }
     }
     let report = lines.joined(separator: "\n")
 
@@ -95,8 +105,10 @@ func handleSearchUI(_ parsed: ParsedOptions) throws -> Int32 {
 
     let appRoot = try accessibilityRootElement(for: target)
     var searchRoot = appRoot
+    var simulatorContentRoot: UIElement? = nil
     if case .simulator = target {
         if let contentGroup = simulatorContentRootElement(from: appRoot) {
+            simulatorContentRoot = contentGroup
             searchRoot = contentGroup
         }
     }
@@ -117,7 +129,23 @@ func handleSearchUI(_ parsed: ParsedOptions) throws -> Int32 {
     }
 
     let results = searchAccessibilityElements(in: searchRoot, query: query, options: searchOpts)
-    if results.isEmpty {
+    if results.isEmpty, case .simulator = target, let simulatorContentRoot {
+        let auxiliaryCandidates = simulatorAuxiliaryContainerCandidates(from: appRoot, excluding: simulatorContentRoot)
+        let auxiliaryResults = searchAccessibilityElements(
+            in: auxiliaryCandidates.map(\.element),
+            query: query,
+            options: searchOpts
+        )
+        if auxiliaryResults.isEmpty {
+            print("No elements found matching query: \(query) in simulator app content or auxiliary containers.")
+            if let hint = formatSimulatorAuxiliaryContainerHint(auxiliaryCandidates.map(\.label)) {
+                print(hint)
+            }
+        } else {
+            print("[Fallback] No matches in simulator content scope; searched auxiliary containers outside iOSContentGroup.")
+            print(auxiliaryResults.joined(separator: "\n"))
+        }
+    } else if results.isEmpty {
         print("No elements found matching query: \(query)")
     } else {
         print(results.joined(separator: "\n"))
@@ -142,15 +170,21 @@ func handleTap(_ parsed: ParsedOptions) throws -> Int32 {
         }
 
         let root = try accessibilityRootElement(for: target)
-        let searchRoot: UIElement
+        let simulatorContentRoot = simulatorContentRootElement(from: root)
+        let searchRoots: [UIElement]
         if case .simulator = target, !includeAll {
-            searchRoot = simulatorContentRootElement(from: root) ?? root
+            if let contentRoot = simulatorContentRoot {
+                let auxiliaryRoots = simulatorAuxiliaryContainerCandidates(from: root, excluding: contentRoot).map(\.element)
+                searchRoots = [contentRoot] + auxiliaryRoots
+            } else {
+                searchRoots = [root]
+            }
         } else {
-            searchRoot = root
+            searchRoots = [root]
         }
 
         guard let matchedElement = findAccessibilityElement(
-            in: searchRoot,
+            in: searchRoots,
             identifier: accessibilityId,
             label: accessibilityLabel
         ) else {
@@ -163,7 +197,10 @@ func handleTap(_ parsed: ParsedOptions) throws -> Int32 {
             }
             let selectorText = selectors.joined(separator: " and ")
             if case .simulator = target, !includeAll {
-                throw NativeError.commandFailed("No accessibility element matched \(selectorText) in simulator app content. Try --all to include Simulator chrome UI.")
+                let auxiliaryLabels = simulatorContentRoot.map {
+                    simulatorAuxiliaryContainerLabels(from: root, excluding: $0)
+                } ?? []
+                throw NativeError.commandFailed(simulatorSelectorNotFoundMessage(selectorText: selectorText, auxiliaryLabels: auxiliaryLabels))
             }
             throw NativeError.commandFailed("No accessibility element matched \(selectorText).")
         }
@@ -243,12 +280,7 @@ func handleTapTab(_ parsed: ParsedOptions) throws -> Int32 {
     try activateTarget(target)
 
     let appRoot = try accessibilityRootElement(for: target)
-    let searchRoot: UIElement
-    if case .simulator = target {
-        searchRoot = simulatorContentRootElement(from: appRoot) ?? appRoot
-    } else {
-        searchRoot = appRoot
-    }
+    let searchRoot: UIElement = appRoot
 
     guard let tabBar = findTabBarElement(in: searchRoot) else {
         throw NativeError.commandFailed("No tab bar found in the application UI. Ensure the app has a visible tab bar.")
