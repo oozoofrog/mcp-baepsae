@@ -71,20 +71,62 @@ function extractText(result) {
     .join("\n");
 }
 
-function createFakeNativeBinary(failCommands = []) {
+function countMatches(text, pattern) {
+  const matches = text.match(pattern);
+  return matches ? matches.length : 0;
+}
+
+function createFakeNativeBinary(options = {}) {
+  const {
+    failCommands = [],
+    selectorFailuresBeforeSuccess = 0,
+    selectorFailureMode = "selector_not_found",
+  } = Array.isArray(options) ? { failCommands: options } : options;
   const dir = mkdtempSync(path.join(os.tmpdir(), "baepsae-workflow-contract-"));
   const binaryPath = path.join(dir, "fake-baepsae-native.sh");
   const logPath = path.join(dir, "native.log");
+  const selectorStatePath = path.join(dir, "selector.state");
+  const selectorNotFoundPayload =
+    'BAEPSAE_ERROR {"code":"availability.target_unavailable","category":"availability","retryable":true,"source":"native","message":"No accessibility element matched selector.","nativeCode":"command_failed"}';
+  const permissionPayload =
+    'BAEPSAE_ERROR {"code":"permission.accessibility_required","category":"permission","retryable":false,"source":"native","message":"Permission Denied: Accessibility access is required.","nativeCode":"command_failed"}';
   const script = [
     "#!/usr/bin/env bash",
     "set -euo pipefail",
     'log_file="${BAEPSAE_FAKE_NATIVE_LOG:?missing log file}"',
     'fail_commands="${BAEPSAE_FAKE_NATIVE_FAIL_COMMANDS:-}"',
+    'selector_failures="${BAEPSAE_FAKE_NATIVE_SELECTOR_FAILURES_BEFORE_SUCCESS:-0}"',
+    'selector_failure_mode="${BAEPSAE_FAKE_NATIVE_SELECTOR_FAILURE_MODE:-selector_not_found}"',
+    'selector_state_file="${BAEPSAE_FAKE_NATIVE_SELECTOR_STATE_FILE:-}"',
     'cmd="${1:-}"',
     'printf \'%s\\n\' "$*" >> "$log_file"',
     'if [[ "$cmd" == "--version" ]]; then',
     '  echo "baepsae-native 0.0.0"',
     "  exit 0",
+    "fi",
+    'if [[ -n "$selector_state_file" ]]; then',
+    '  touch "$selector_state_file" 2>/dev/null || true',
+    "fi",
+    'if [[ "$cmd" == "tap" && ( " $* " == *" --id "* || " $* " == *" --label "* ) ]]; then',
+    '  if [[ -z "$selector_state_file" ]]; then',
+    '    selector_state_file="${BAEPSAE_FAKE_NATIVE_LOG}.selector.state"',
+    "  fi",
+    '  current_failures=0',
+    '  if [[ -f "$selector_state_file" ]]; then',
+    '    current_failures="$(cat "$selector_state_file" 2>/dev/null || echo 0)"',
+    "  fi",
+    '  if (( current_failures < selector_failures )); then',
+    '    next_failures=$((current_failures + 1))',
+    '    printf \'%s\\n\' "$next_failures" > "$selector_state_file"',
+    '    if [[ "$selector_failure_mode" == "permission_denied" ]]; then',
+    `      printf '%s\\n' '${permissionPayload}' >&2`,
+    '      printf \'Permission Denied: Accessibility access is required.\\n\' >&2',
+    "      exit 1",
+    "    fi",
+    `    printf '%s\\n' '${selectorNotFoundPayload}' >&2`,
+    '    printf \'No accessibility element matched selector.\\n\' >&2',
+    "    exit 1",
+    "  fi",
     "fi",
     'if [[ " $fail_commands " == *" $cmd "* ]]; then',
     '  echo "forced failure for $cmd" >&2',
@@ -94,11 +136,12 @@ function createFakeNativeBinary(failCommands = []) {
   ].join("\n");
   writeFileSync(binaryPath, script);
   chmodSync(binaryPath, 0o755);
+  writeFileSync(selectorStatePath, "0\n");
   return { dir, binaryPath, logPath };
 }
 
-async function withFakeNativeClient(run, failCommands = []) {
-  const fake = createFakeNativeBinary(failCommands);
+async function withFakeNativeClient(run, failCommands = [], fakeOptions = {}) {
+  const fake = createFakeNativeBinary({ ...fakeOptions, failCommands });
   try {
     return await withClient(
       (client) => run(client, fake),
@@ -106,6 +149,9 @@ async function withFakeNativeClient(run, failCommands = []) {
         BAEPSAE_NATIVE_PATH: fake.binaryPath,
         BAEPSAE_FAKE_NATIVE_LOG: fake.logPath,
         BAEPSAE_FAKE_NATIVE_FAIL_COMMANDS: failCommands.join(" "),
+        BAEPSAE_FAKE_NATIVE_SELECTOR_FAILURES_BEFORE_SUCCESS: String(fakeOptions.selectorFailuresBeforeSuccess ?? 0),
+        BAEPSAE_FAKE_NATIVE_SELECTOR_FAILURE_MODE: fakeOptions.selectorFailureMode ?? "selector_not_found",
+        BAEPSAE_FAKE_NATIVE_SELECTOR_STATE_FILE: path.join(fake.dir, "selector.state"),
       },
     );
   } finally {
@@ -149,7 +195,7 @@ test("baepsae_version returns non-error response", async () => {
 });
 
 test("type_text exposes policy metadata in machine-readable form", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client) => {
     const result = await client.callTool({
       name: "type_text",
       arguments: {
@@ -267,6 +313,66 @@ test("run_steps can continue after failures when continueOnError is enabled", as
     assert.match(log, /key 41/);
     assert.match(log, /swipe .*10 .*20/);
   }, ["key"]);
+});
+
+test("run_steps retries selector taps until the element appears", async () => {
+  await withFakeNativeClient(
+    async (client, fake) => {
+      const result = await client.callTool({
+        name: "run_steps",
+        arguments: {
+          udid: "00000000-0000-0000-0000-000000000000",
+          steps: [
+            { tool: "tap", id: "login-button", waitTimeout: 400, pollInterval: 50 },
+            { tool: "sleep", duration: 0.01 },
+          ],
+        },
+      });
+
+      assert.equal(result.isError ?? false, false);
+      const text = extractText(result);
+      assert.match(text, /Execution policy: fail-fast/);
+      assert.match(text, /Step 1\/2 .*tap .*success/);
+      assert.match(text, /Step 2\/2 .*sleep .*success/);
+      assert.match(text, /completed after 3 attempt\(s\)/);
+      assert.match(text, /Final summary: 2 succeeded, 0 failed, 0 skipped\./);
+
+      const log = readFileSync(fake.logPath, "utf8");
+      assert.equal(countMatches(log, /^tap .*login-button.*$/gm), 3);
+    },
+    [],
+    { selectorFailuresBeforeSuccess: 2 },
+  );
+});
+
+test("run_steps treats permission failures as immediate even with selector retry configured", async () => {
+  await withFakeNativeClient(
+    async (client, fake) => {
+      const result = await client.callTool({
+        name: "run_steps",
+        arguments: {
+          udid: "00000000-0000-0000-0000-000000000000",
+          continueOnError: true,
+          steps: [
+            { tool: "tap", id: "danger-button", waitTimeout: 120, pollInterval: 20 },
+            { tool: "sleep", duration: 0.01 },
+          ],
+        },
+      });
+
+      assert.equal(result.isError ?? false, true);
+      const text = extractText(result);
+      assert.match(text, /Execution policy: continue_on_error/);
+      assert.match(text, /Step 1\/2 .*tap .*failed/);
+      assert.match(text, /Step 2\/2 .*sleep .*success/);
+      assert.match(text, /Final summary: 1 succeeded, 1 failed, 0 skipped\./);
+
+      const log = readFileSync(fake.logPath, "utf8");
+      assert.equal(countMatches(log, /^tap .*danger-button.*$/gm), 1);
+    },
+    [],
+    { selectorFailureMode: "permission_denied", selectorFailuresBeforeSuccess: 1 },
+  );
 });
 
 test("analyze_ui call is routed to native layer (simulator target)", async () => {

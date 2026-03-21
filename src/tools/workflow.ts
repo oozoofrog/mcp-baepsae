@@ -24,6 +24,8 @@ type WorkflowStep = {
   double?: boolean;
   preDelay?: number;
   postDelay?: number;
+  waitTimeout?: number;
+  pollInterval?: number;
   text?: string;
   stdinText?: string;
   file?: string;
@@ -50,6 +52,8 @@ type WorkflowStepResult = {
   durationMs: number;
   message: string;
   nativeText?: string;
+  attempts?: number;
+  retryableFailure?: boolean;
 };
 
 const workflowStepSchema = z.object({
@@ -62,6 +66,8 @@ const workflowStepSchema = z.object({
   double: z.boolean().optional().describe("Send double-click instead of single click"),
   preDelay: z.number().optional().describe("Delay before tap or swipe in seconds"),
   postDelay: z.number().optional().describe("Delay after tap or swipe in seconds"),
+  waitTimeout: z.number().min(0).optional().describe("Selector wait/retry window for tap steps, in milliseconds"),
+  pollInterval: z.number().min(1).optional().describe("Polling interval for selector wait/retry, in milliseconds"),
   text: z.string().optional().describe("Text argument"),
   stdinText: z.string().optional().describe("Text piped to stdin mode"),
   file: z.string().optional().describe("Path for file input"),
@@ -207,6 +213,10 @@ function buildSwipeArgs(targetArgs: string[], step: WorkflowStep): string[] {
   return args;
 }
 
+function sleepMs(durationMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, durationMs));
+}
+
 function indent(text: string, prefix = "  "): string {
   return text
     .split(/\r?\n/)
@@ -220,6 +230,32 @@ function extractText(result: ToolTextResult): string {
     .map((item) => item.text)
     .join("\n")
     .trim();
+}
+
+function hasSelectorTap(step: WorkflowStep): boolean {
+  return step.tool === "tap" && (step.id !== undefined || step.label !== undefined);
+}
+
+function isRetryableSelectorTapFailure(step: WorkflowStep, result: ToolTextResult): boolean {
+  if (!hasSelectorTap(step) || !result.isError || !result.error) return false;
+
+  const error = result.error;
+  if (error.source !== "native") return false;
+  if (error.category === "validation" || error.category === "permission" || error.category === "unsupported" || error.category === "environment") {
+    return false;
+  }
+
+  const code = error.code.toLowerCase();
+  const text = `${error.message}\n${extractText(result)}`.toLowerCase();
+  return (
+    code.includes("selector_not_found") ||
+    (error.category === "availability" && code === "availability.target_unavailable" && text.includes("no accessibility element matched"))
+  );
+}
+
+function formatAttemptMessage(baseMessage: string, attempts: number): string {
+  if (attempts <= 1) return baseMessage;
+  return `${baseMessage} after ${attempts} attempt(s)`;
 }
 
 function formatStepLabel(step: WorkflowStep): string {
@@ -260,16 +296,49 @@ async function executeWorkflowStep(
     case "tap": {
       const validationError = validateTapStep(step, stepIndex);
       if (validationError) return validationError;
-      const result = await runNative(buildTapArgs(targetArgs!, step));
-      return {
-        index: stepIndex,
-        total,
-        tool: step.tool,
-        status: result.isError ? "failed" : "success",
-        durationMs: Date.now() - startedAt,
-        message: result.isError ? extractText(result) || `${stepLabel} failed` : `${stepLabel} completed`,
-        nativeText: result.isError ? extractText(result) : undefined,
-      };
+      const waitTimeoutMs = step.waitTimeout ?? 0;
+      const pollIntervalMs = step.pollInterval ?? 250;
+      const shouldWaitForSelector = hasSelectorTap(step) && waitTimeoutMs > 0;
+      const deadlineMs = startedAt + waitTimeoutMs;
+
+      let attempts = 0;
+
+      while (true) {
+        attempts += 1;
+        const result = await runNative(buildTapArgs(targetArgs!, step));
+        if (!result.isError) {
+          return {
+            index: stepIndex,
+            total,
+            tool: step.tool,
+            status: "success",
+            durationMs: Date.now() - startedAt,
+            message: formatAttemptMessage(`${stepLabel} completed`, attempts),
+            attempts,
+          };
+        }
+
+        const retryableFailure = isRetryableSelectorTapFailure(step, result);
+        if (!shouldWaitForSelector || !retryableFailure || Date.now() >= deadlineMs) {
+          const text = extractText(result);
+          return {
+            index: stepIndex,
+            total,
+            tool: step.tool,
+            status: "failed",
+            durationMs: Date.now() - startedAt,
+            message: formatAttemptMessage(text || `${stepLabel} failed`, attempts),
+            nativeText: text || undefined,
+            attempts,
+            retryableFailure: result.error?.retryable ?? false,
+          };
+        }
+
+        const remainingMs = deadlineMs - Date.now();
+        if (remainingMs > 0) {
+          await sleepMs(Math.min(Math.max(1, pollIntervalMs), remainingMs));
+        }
+      }
     }
     case "type_text": {
       const validationError = validateTypeStep(step, stepIndex);
@@ -284,6 +353,8 @@ async function executeWorkflowStep(
         durationMs: Date.now() - startedAt,
         message: result.isError ? extractText(result) || `${stepLabel} failed` : `${stepLabel} completed`,
         nativeText: result.isError ? extractText(result) : undefined,
+        attempts: 1,
+        retryableFailure: result.error?.retryable ?? false,
       };
     }
     case "key": {
@@ -298,6 +369,8 @@ async function executeWorkflowStep(
         durationMs: Date.now() - startedAt,
         message: result.isError ? extractText(result) || `${stepLabel} failed` : `${stepLabel} completed`,
         nativeText: result.isError ? extractText(result) : undefined,
+        attempts: 1,
+        retryableFailure: result.error?.retryable ?? false,
       };
     }
     case "swipe": {
@@ -312,6 +385,8 @@ async function executeWorkflowStep(
         durationMs: Date.now() - startedAt,
         message: result.isError ? extractText(result) || `${stepLabel} failed` : `${stepLabel} completed`,
         nativeText: result.isError ? extractText(result) : undefined,
+        attempts: 1,
+        retryableFailure: result.error?.retryable ?? false,
       };
     }
     case "sleep": {
@@ -324,6 +399,8 @@ async function executeWorkflowStep(
         status: "success",
         durationMs: Date.now() - startedAt,
         message: `slept for ${durationSeconds}s`,
+        attempts: 1,
+        retryableFailure: false,
       };
     }
   }
@@ -333,10 +410,11 @@ function buildWorkflowSummary(
   stepResults: WorkflowStepResult[],
   continueOnError: boolean,
   targetLabel: string,
-): { text: string; failedCount: number; successCount: number; skippedCount: number } {
+): { text: string; failedCount: number; successCount: number; skippedCount: number; retryableFailureCount: number } {
   const successCount = stepResults.filter((step) => step.status === "success").length;
   const failedCount = stepResults.filter((step) => step.status === "failed").length;
   const skippedCount = stepResults.filter((step) => step.status === "skipped").length;
+  const retryableFailureCount = stepResults.filter((step) => step.status === "failed" && step.retryableFailure).length;
 
   const lines = [
     `Workflow target: ${targetLabel}`,
@@ -357,7 +435,7 @@ function buildWorkflowSummary(
     `Final summary: ${successCount} succeeded, ${failedCount} failed, ${skippedCount} skipped. Status: ${failedCount > 0 ? "failure" : "success"}.`,
   );
 
-  return { text: lines.join("\n"), failedCount, successCount, skippedCount };
+  return { text: lines.join("\n"), failedCount, successCount, skippedCount, retryableFailureCount };
 }
 
 export function registerWorkflowTools(server: McpServer): void {
@@ -432,7 +510,7 @@ export function registerWorkflowTools(server: McpServer): void {
               code: summary.failedCount > 1 ? "workflow.steps_failed" : "workflow.step_failed",
               category: "execution",
               message: `${summary.failedCount} workflow step(s) failed.`,
-              retryable: true,
+              retryable: summary.failedCount === summary.retryableFailureCount,
             })
           : undefined,
         metadata: {
