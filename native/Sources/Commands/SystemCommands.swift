@@ -2,6 +2,37 @@ import AppKit
 import CoreGraphics
 import Foundation
 
+private struct DoctorReport: Codable {
+    struct Check: Codable {
+        let ok: Bool
+        let detail: String
+    }
+
+    let host: Check
+    let parent: Check
+    let nativeBinary: Check
+    let simulator: Check
+    let accessibility: Check
+}
+
+private func shellCapture(_ command: String, _ arguments: [String]) -> String? {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: command)
+    process.arguments = arguments
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    do {
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    } catch {
+        return nil
+    }
+}
+
 func handleListApps(_ parsed: ParsedOptions) throws -> Int32 {
     let apps = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
     for app in apps {
@@ -10,6 +41,61 @@ func handleListApps(_ parsed: ParsedOptions) throws -> Int32 {
         let pid = app.processIdentifier
         print("\(bundleId) | \(name) | \(pid)")
     }
+    return 0
+}
+
+func handleDoctor(_ parsed: ParsedOptions) throws -> Int32 {
+    var systemInfo = utsname()
+    uname(&systemInfo)
+    let machine = withUnsafePointer(to: &systemInfo.machine) {
+        $0.withMemoryRebound(to: CChar.self, capacity: 1) { String(cString: $0) }
+    }
+    let hostDetail = "\(ProcessInfo.processInfo.operatingSystemVersionString); arch=\(machine)"
+    let parentPid = getppid()
+    let parentDetail = shellCapture("/bin/ps", ["-p", String(parentPid), "-o", "pid=,ppid=,comm="]) ?? "unknown"
+
+    let nativeBinaryDetail = CommandLine.arguments.first ?? "baepsae-native"
+    let nativeBinaryOk = !nativeBinaryDetail.isEmpty
+
+    let simulatorAppRunning = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.iphonesimulator").first != nil
+    let bootedDevicesOutput = shellCapture("/usr/bin/xcrun", ["simctl", "list", "devices", "booted"])
+    let bootedSimulatorAvailable = bootedDevicesOutput?.contains("(Booted)") ?? false
+    let simulatorDetail: String
+    if bootedSimulatorAvailable {
+        simulatorDetail = simulatorAppRunning
+            ? "Booted simulator available and Simulator app is running"
+            : "Booted simulator available"
+    } else if simulatorAppRunning {
+        simulatorDetail = "Simulator app is running, but no booted simulator was detected"
+    } else if bootedDevicesOutput == nil {
+        simulatorDetail = "Could not query booted simulators via simctl"
+    } else {
+        simulatorDetail = "Simulator app is not running and no booted simulator was detected"
+    }
+
+    let accessibilityTrusted = AXIsProcessTrusted()
+    let accessibilityDetail = accessibilityTrusted
+        ? "Accessibility permission granted"
+        : "Accessibility permission missing"
+
+    let report = DoctorReport(
+        host: .init(ok: true, detail: hostDetail),
+        parent: .init(ok: !parentDetail.isEmpty, detail: parentDetail),
+        nativeBinary: .init(ok: nativeBinaryOk, detail: nativeBinaryDetail),
+        simulator: .init(ok: bootedSimulatorAvailable, detail: simulatorDetail),
+        accessibility: .init(ok: accessibilityTrusted, detail: accessibilityDetail)
+    )
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    guard let data = try? encoder.encode(report), let json = String(data: data, encoding: .utf8) else {
+        throw NativeError.commandFailed("Failed to encode doctor report.")
+    }
+
+    print("Doctor check completed.")
+    print("host=\(report.host.ok ? "ok" : "warn") parent=\(report.parent.ok ? "ok" : "warn") native=\(report.nativeBinary.ok ? "ok" : "warn") simulator=\(report.simulator.ok ? "ok" : "warn") accessibility=\(report.accessibility.ok ? "ok" : "warn")")
+    print("")
+    print(json)
     return 0
 }
 

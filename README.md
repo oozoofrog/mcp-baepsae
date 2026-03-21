@@ -238,7 +238,7 @@ npm run setup:mcp   # Alias for scripts/install.sh
 
 ## MCP Tool Status
 
-33 tools implemented end-to-end.
+34 tools implemented end-to-end.
 
 ### Official public MCP surface: unified generic tools
 
@@ -251,7 +251,7 @@ The public API surface is intentionally single-scheme: use unified generic tools
 | System | `list_windows`, `activate_app`, `screenshot_app`, `right_click` |
 | Simulator-only | `list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture` |
 | macOS/system | `list_apps`, `menu_action`, `get_focused_app`, `clipboard` |
-| Utility | `baepsae_help`, `baepsae_version` |
+| Utility | `baepsae_help`, `baepsae_version`, `doctor` |
 
 Target routing is explicit in the arguments: `udid` for simulator, `bundleId` / `appName` for macOS.
 
@@ -317,6 +317,7 @@ screenshot_app({ bundleId: "com.apple.Safari" })
 ### Accessibility permission checklist
 
 - The permission target is usually the **automation host/runtime process**, not the target app.
+- Run `doctor` first to inspect host process, parent process, native binary, booted simulator availability, and accessibility readiness in one place.
 - Check the error message for:
   - **current host process**
   - **parent process**

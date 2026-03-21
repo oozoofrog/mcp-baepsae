@@ -13,6 +13,7 @@ func printHelp() {
       baepsae-native --version
       baepsae-native list-simulators
       baepsae-native list-apps
+      baepsae-native doctor
       baepsae-native describe-ui <TARGET> [--all] [--focus-id <ID>] [--root-element-id <ID>]
                      [--offset <N>] [--limit <M>] [--max-depth <N>]
                      [--role <ROLE>] [--visible-only] [--summary] [--output <path>]
@@ -103,6 +104,9 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
 
     case "list-apps":
         return try handleListApps(parsed)
+
+    case "doctor":
+        return try handleDoctor(parsed)
 
     case "screenshot":
         return try handleScreenshot(parsed)

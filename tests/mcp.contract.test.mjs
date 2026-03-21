@@ -117,6 +117,20 @@ test("type_text exposes policy metadata in machine-readable form", async () => {
   });
 });
 
+test("doctor returns structured readiness report", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({ name: "doctor", arguments: {} });
+    const text = result.content
+      .filter((item) => item.type === "text")
+      .map((item) => item.text)
+      .join("\n");
+
+    assert.match(text, /Doctor check completed\./);
+    assert.match(text, /"host":/);
+    assert.match(text, /"accessibility":/);
+  });
+});
+
 test("tap validates coordinate pair before native invocation", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({

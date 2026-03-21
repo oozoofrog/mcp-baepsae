@@ -51,6 +51,7 @@ export const TOOL_MANIFEST: ToolManifestEntry[] = [
 
   { name: "baepsae_help", category: "Utility", summary: "Show help." },
   { name: "baepsae_version", category: "Utility", summary: "Show server and native binary versions." },
+  { name: "doctor", category: "Utility", summary: "Run readiness self-checks for host process, native binary, simulator, and accessibility." },
 ];
 
 export const TOOL_CATEGORY_ORDER: ToolCategory[] = [
