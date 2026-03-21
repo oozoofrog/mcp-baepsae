@@ -9,8 +9,8 @@ import {
   unifiedTargetSchema,
   resolveUnifiedTargetArgs,
   pushOption,
-  runNative,
 } from "../utils.js";
+import { runBackend } from "../backend.js";
 
 type KeyParams = {
   keycode: number;
@@ -119,7 +119,7 @@ export function registerInputTools(server: McpServer): void {
       const args = ["button", params.buttonType];
       pushOption(args, "--duration", params.duration);
       args.push("--udid", params.udid);
-      return await runNative(args);
+      return await runBackend("input", args);
     }
   );
 
@@ -130,7 +130,7 @@ export function registerInputTools(server: McpServer): void {
     async (params) => {
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
-      return await runNative(buildKeyArgs(target, params as KeyParams));
+      return await runBackend("input", buildKeyArgs(target, params as KeyParams));
     }
   );
 
@@ -141,7 +141,7 @@ export function registerInputTools(server: McpServer): void {
     async (params) => {
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
-      return await runNative(buildKeySequenceArgs(target, params as KeySequenceParams));
+      return await runBackend("input", buildKeySequenceArgs(target, params as KeySequenceParams));
     }
   );
 
@@ -152,7 +152,7 @@ export function registerInputTools(server: McpServer): void {
     async (params) => {
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
-      return await runNative(buildKeyComboArgs(target, params as KeyComboParams));
+      return await runBackend("input", buildKeyComboArgs(target, params as KeyComboParams));
     }
   );
 
@@ -163,7 +163,7 @@ export function registerInputTools(server: McpServer): void {
     async (params) => {
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
-      return await runNative(buildTouchArgs(target, params as TouchParams));
+      return await runBackend("input", buildTouchArgs(target, params as TouchParams));
     }
   );
 
@@ -187,7 +187,7 @@ export function registerInputTools(server: McpServer): void {
       pushOption(args, "--pre-delay", params.preDelay);
       pushOption(args, "--post-delay", params.postDelay);
       args.push("--udid", params.udid);
-      return await runNative(args);
+      return await runBackend("input", args);
     }
   );
 }

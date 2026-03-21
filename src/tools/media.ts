@@ -1,7 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { pushOption, ensureOutputPath, runNative, runSimctl } from "../utils.js";
+import { pushOption, ensureOutputPath } from "../utils.js";
+import { runBackend } from "../backend.js";
 
 export function registerMediaTools(server: McpServer): void {
   server.tool(
@@ -25,7 +26,8 @@ export function registerMediaTools(server: McpServer): void {
       pushOption(args, "--duration", durationSeconds);
       args.push("--output", resolvedOutput);
 
-      return await runNative(
+      return await runBackend(
+        "utility",
         args,
         {
           timeoutMs: Math.max(15_000, Math.round((durationSeconds + 15) * 1000)),
@@ -71,7 +73,8 @@ export function registerMediaTools(server: McpServer): void {
         `Output file: ${resolvedOutput}`,
       ];
 
-      return await runSimctl(
+      return await runBackend(
+        "simulator",
         ["io", params.udid, "recordVideo", "--force", resolvedOutput],
         {
           timeoutMs: Math.max(15_000, Math.round((durationSeconds + 5) * 1000)),
@@ -101,7 +104,7 @@ export function registerMediaTools(server: McpServer): void {
       const outputPath = params.output ?? `simulator-screenshot-${Date.now()}.png`;
       const resolvedOutput = await ensureOutputPath(outputPath);
 
-      return await runSimctl(["io", params.udid, "screenshot", resolvedOutput], undefined, {
+      return await runBackend("simulator", ["io", params.udid, "screenshot", resolvedOutput], undefined, {
         extraLines: [`Output file: ${resolvedOutput}`],
       });
     }

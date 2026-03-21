@@ -6,9 +6,9 @@ import {
   unifiedTargetSchema,
   resolveUnifiedTargetArgs,
   pushOption,
-  runNative,
   makeToolError,
 } from "../utils.js";
+import { runBackend } from "../backend.js";
 
 type DescribeParams = {
   output?: string;
@@ -380,7 +380,7 @@ export function registerUITools(server: McpServer): void {
     async (params) => {
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
-      return await runNative(buildDescribeArgs(target, params as DescribeParams));
+      return await runBackend("accessibility", buildDescribeArgs(target, params as DescribeParams));
     }
   );
 
@@ -391,7 +391,7 @@ export function registerUITools(server: McpServer): void {
     async (params) => {
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
-      return await runNative(buildSearchArgs(target, params as SearchParams));
+      return await runBackend("accessibility", buildSearchArgs(target, params as SearchParams));
     }
   );
 
@@ -405,7 +405,7 @@ export function registerUITools(server: McpServer): void {
 
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
-      return await runNative(buildTapArgs(target, params as TapParams));
+      return await runBackend("accessibility", buildTapArgs(target, params as TapParams));
     }
   );
 
@@ -443,7 +443,8 @@ export function registerUITools(server: McpServer): void {
       if (policy.requestedMethod === "auto") {
         extraLines.push(`Auto fallback: ${policy.targetKind === "simulator" ? "paste" : "keyboard"}.`);
       }
-      return await runNative(
+      return await runBackend(
+        "accessibility",
         built.args,
         { stdinText: built.stdinText },
         {
@@ -469,7 +470,7 @@ export function registerUITools(server: McpServer): void {
     async (params) => {
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
-      return await runNative(buildSwipeArgs(target, params as SwipeParams));
+      return await runBackend("accessibility", buildSwipeArgs(target, params as SwipeParams));
     }
   );
 
@@ -480,7 +481,7 @@ export function registerUITools(server: McpServer): void {
     async (params) => {
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
-      return await runNative(buildScrollArgs(target, params as ScrollParams));
+      return await runBackend("accessibility", buildScrollArgs(target, params as ScrollParams));
     }
   );
 
@@ -491,7 +492,7 @@ export function registerUITools(server: McpServer): void {
     async (params) => {
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
-      return await runNative(buildDragDropArgs(target, params as DragDropParams));
+      return await runBackend("accessibility", buildDragDropArgs(target, params as DragDropParams));
     }
   );
 
@@ -505,7 +506,7 @@ export function registerUITools(server: McpServer): void {
 
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
-      return await runNative(buildTapTabArgs(target, params as TapTabParams));
+      return await runBackend("accessibility", buildTapTabArgs(target, params as TapTabParams));
     }
   );
 }

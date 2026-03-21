@@ -112,6 +112,24 @@ async function withClient(run, envOverrides = {}) {
   }
 }
 
+const backendModule = await import(new URL("../dist/backend.js", import.meta.url).href);
+
+// ===========================================================================
+// Section 0: Backend abstraction catalog
+// ===========================================================================
+
+test("backend catalog exposes distinct simulator, accessibility, input, and utility domains", () => {
+  assert.equal(backendModule.resolveBackendKind("simulator"), "simctl");
+  assert.equal(backendModule.resolveBackendKind("accessibility"), "native_accessibility");
+  assert.equal(backendModule.resolveBackendKind("input"), "simulator_input");
+  assert.equal(backendModule.resolveBackendKind("utility"), "utility/runtime");
+
+  assert.equal(backendModule.BACKENDS.simctl.executorKind, "simctl");
+  assert.equal(backendModule.BACKENDS.native_accessibility.executorKind, "native");
+  assert.equal(backendModule.BACKENDS.simulator_input.executorKind, "native");
+  assert.equal(backendModule.BACKENDS["utility/runtime"].executorKind, "native");
+});
+
 // ===========================================================================
 // Section 1: Tool registry completeness
 // ===========================================================================
@@ -1374,6 +1392,8 @@ test("record_video output includes capture mode, requested duration, and output 
     assert.match(text, /Output file:.*test-record\.mov/);
     assert.equal(result.metadata?.captureMode, "record_video_direct");
     assert.equal(result.metadata?.backend, "simctl.recordVideo");
+    assert.equal(result.metadata?.backendKind, "simctl");
+    assert.equal(result.metadata?.backendExecutor, "simctl");
     assert.equal(result.metadata?.requestedDurationSeconds, 2);
     assert.equal(result.metadata?.outputPath, path.resolve(outputPath));
   });
@@ -1393,6 +1413,7 @@ test("record_video defaults to 10s duration when not specified", async () => {
     assert.match(text, /Capture mode: direct simctl recordVideo\./);
     assert.match(text, /Requested duration: 10s/);
     assert.equal(result.metadata?.captureMode, "record_video_direct");
+    assert.equal(result.metadata?.backendKind, "simctl");
     assert.equal(result.metadata?.requestedDurationSeconds, 10);
     assert.equal(result.metadata?.outputPath, path.resolve(outputPath));
   });
@@ -1420,6 +1441,8 @@ test("stream_video output explains the current shim and output file", async () =
     assert.match(text, /Output file:.*test-stream\.mov/);
     assert.equal(result.metadata?.captureMode, "stream_video_shim");
     assert.equal(result.metadata?.backend, "simctl.recordVideo");
+    assert.equal(result.metadata?.backendKind, "utility/runtime");
+    assert.equal(result.metadata?.backendExecutor, "native");
     assert.equal(result.metadata?.requestedDurationSeconds, 2);
     assert.equal(result.metadata?.outputPath, path.resolve(outputPath));
   });
@@ -1717,6 +1740,8 @@ test("list_simulators routes through xcrun simctl", async () => {
     assert.match(text, /Executable:.*xcrun/, "Should execute through xcrun");
     assert.match(text, /simctl/, "Command should include simctl");
     assert.match(text, /list/, "Command should include list");
+    assert.equal(result.metadata?.backendKind, "simctl");
+    assert.equal(result.metadata?.backendExecutor, "simctl");
   });
 });
 
