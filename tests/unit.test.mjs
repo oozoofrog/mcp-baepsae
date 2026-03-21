@@ -313,6 +313,8 @@ test("analyze_ui routes correctly with bundleId target", async () => {
     assert.match(text, /baepsae-native/);
     assert.match(text, /--bundle-id/);
     assert.match(text, /com\.example\.nonexistent/);
+    assert.equal(result.metadata?.backendKind, "native_accessibility");
+    assert.equal(result.metadata?.backendExecutor, "native");
   });
 });
 
@@ -326,6 +328,7 @@ test("analyze_ui routes correctly with appName target", async () => {
     assert.match(text, /baepsae-native/);
     assert.match(text, /--app-name/);
     assert.match(text, /NonexistentApp/);
+    assert.equal(result.metadata?.backendKind, "native_accessibility");
   });
 });
 
@@ -424,6 +427,8 @@ test("tap with label-only routes correctly to native binary", async () => {
     const text = extractText(result);
     assert.match(text, /baepsae-native/);
     assert.match(text, /--label/);
+    assert.equal(result.metadata?.backendKind, "native_accessibility");
+    assert.equal(result.metadata?.backendExecutor, "native");
   });
 });
 
@@ -441,6 +446,8 @@ test("tap with coordinates passes x and y to native", async () => {
     assert.match(text, /baepsae-native/);
     assert.match(text, /-x/);
     assert.match(text, /-y/);
+    assert.equal(result.metadata?.backendKind, "simulator_input");
+    assert.equal(result.metadata?.backendExecutor, "native");
   });
 });
 
@@ -542,6 +549,7 @@ test("tap_tab forwards index and target to native", async () => {
     const text = extractText(result);
     assert.match(text, /tap-tab/);
     assert.match(text, /--index/);
+    assert.equal(result.metadata?.backendKind, undefined);
   });
 });
 
@@ -690,6 +698,8 @@ test("type_text with text argument routes to native with correct args", async ()
     const text = extractText(result);
     assert.match(text, /baepsae-native/);
     assert.match(text, /type/);
+    assert.equal(result.metadata?.backendKind, "simulator_input");
+    assert.equal(result.metadata?.backendExecutor, "native");
   });
 });
 
@@ -740,6 +750,7 @@ test("type_text with method=paste includes --method flag", async () => {
     assert.equal(result.metadata?.usedMethod, "paste");
     assert.equal(result.metadata?.pasteTransport, "simulator_pasteboard");
     assert.equal(result.metadata?.clipboardSideEffect, "none");
+    assert.equal(result.metadata?.backendKind, "simulator_input");
   });
 });
 
@@ -760,6 +771,7 @@ test("type_text with method=keyboard includes --method flag", async () => {
     assert.match(text, /Clipboard side effect: none\./);
     assert.equal(result.metadata?.usedMethod, "keyboard");
     assert.equal(result.metadata?.clipboardSideEffect, "none");
+    assert.equal(result.metadata?.backendKind, "simulator_input");
   });
 });
 
@@ -781,6 +793,7 @@ test("type_text without method does not include --method flag", async () => {
     assert.equal(result.metadata?.usedMethod, "paste");
     assert.equal(result.metadata?.pasteTransport, "simulator_pasteboard");
     assert.equal(result.metadata?.autoFallback, "paste");
+    assert.equal(result.metadata?.backendKind, "simulator_input");
   });
 });
 
@@ -1152,6 +1165,8 @@ test("swipe forwards all coordinates and optional parameters", async () => {
     assert.match(text, /--duration/);
     assert.match(text, /--pre-delay/);
     assert.match(text, /--post-delay/);
+    assert.equal(result.metadata?.backendKind, "simulator_input");
+    assert.equal(result.metadata?.backendExecutor, "native");
   });
 });
 
@@ -1251,6 +1266,7 @@ test("drag_drop forwards all coordinates and optional duration", async () => {
     assert.match(text, /--end-x/);
     assert.match(text, /--end-y/);
     assert.match(text, /--duration/);
+    assert.equal(result.metadata?.backendKind, "simulator_input");
   });
 });
 
@@ -1295,6 +1311,7 @@ test("scroll forwards delta and coordinate options", async () => {
     assert.match(text, /--delta-y/);
     assert.match(text, /-x/);
     assert.match(text, /-y/);
+    assert.equal(result.metadata?.backendKind, "simulator_input");
   });
 });
 

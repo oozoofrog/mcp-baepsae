@@ -20,6 +20,8 @@ talk about execution families explicitly without removing the existing
 - Tool handlers can select a backend domain with `runBackend("simulator" | "accessibility" | "input" | "utility", ...)`.
 - The abstraction stays thin so the current native bridge remains the source of
   truth for command execution.
+- Mixed native commands can stay on direct `runNative()` temporarily when a
+  single backend label would be misleading for current behavior.
 
 ## Extension point
 
