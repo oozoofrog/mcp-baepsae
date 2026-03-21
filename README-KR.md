@@ -262,10 +262,10 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 - `method: "auto"`는 다음처럼 해석됩니다.
   - 시뮬레이터 대상: `paste`
   - macOS 대상: `keyboard`
-- `method: "paste"`는 항상 클립보드 기반 붙여넣기 경로를 사용합니다.
+- `method: "paste"`는 시뮬레이터 대상에서는 simulator pasteboard를, macOS 대상에서는 host clipboard를 잠시 바꿨다가 복원하는 경로를 사용합니다.
 - `method: "keyboard"`는 항상 문자 단위 타이핑을 사용합니다.
 
-`paste`를 사용하면 도구가 클립보드를 잠시 덮어쓴 뒤 이전 내용을 복원합니다. 성공 응답에는 입력 소스, 대상 종류, 요청한 method, 실제 사용한 method, auto fallback이 함께 보고됩니다.
+`paste`를 사용하면 시뮬레이터 대상은 host clipboard를 건드리지 않고 simulator pasteboard를 갱신하며, macOS 대상은 host clipboard를 잠시 덮어쓴 뒤 복원합니다. 성공 응답에는 입력 소스, 대상 종류, 요청한 method, 실제 사용한 method, paste transport, auto fallback이 함께 보고됩니다.
 
 ## 사용 예시
 

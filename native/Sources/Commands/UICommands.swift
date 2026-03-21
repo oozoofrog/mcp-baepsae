@@ -338,7 +338,7 @@ func handleType(_ parsed: ParsedOptions) throws -> Int32 {
     }
 
     if usePaste {
-        try pasteText(text)
+        try pasteText(text, target: target)
     } else {
         let backend = resolveInputBackend(for: target)
         switch backend {
@@ -351,21 +351,36 @@ func handleType(_ parsed: ParsedOptions) throws -> Int32 {
     return 0
 }
 
-func pasteText(_ text: String) throws {
-    let pasteboard = NSPasteboard.general
-    let original = pasteboard.string(forType: .string)
+func pasteText(_ text: String, target: TargetApp) throws {
+    switch target {
+    case .simulator(let udid):
+        try setSimulatorPasteboard(text, udid: udid)
+        // Cmd+V: Command keycode=55, V keycode=9
+        sendKeyCombo(modifiers: [55], key: 9)
+        Thread.sleep(forTimeInterval: 0.2)
+    case .macApp:
+        let pasteboard = NSPasteboard.general
+        let original = pasteboard.string(forType: .string)
 
-    pasteboard.clearContents()
-    pasteboard.setString(text, forType: .string)
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
 
-    // Cmd+V: Command keycode=55, V keycode=9
-    sendKeyCombo(modifiers: [55], key: 9)
-    Thread.sleep(forTimeInterval: 0.15)
+        // Cmd+V: Command keycode=55, V keycode=9
+        sendKeyCombo(modifiers: [55], key: 9)
+        Thread.sleep(forTimeInterval: 0.15)
 
-    // Restore original clipboard content
-    pasteboard.clearContents()
-    if let original = original {
-        pasteboard.setString(original, forType: .string)
+        // Restore original clipboard content
+        pasteboard.clearContents()
+        if let original = original {
+            pasteboard.setString(original, forType: .string)
+        }
+    }
+}
+
+func setSimulatorPasteboard(_ text: String, udid: String) throws {
+    let status = try runProcess("/usr/bin/xcrun", ["simctl", "pbcopy", udid], stdinText: text)
+    if status != 0 {
+        throw NativeError.commandFailed("Failed to set simulator pasteboard (exit code \(status)).")
     }
 }
 

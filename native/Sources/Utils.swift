@@ -133,10 +133,27 @@ func readFileText(_ path: String) throws -> String {
 // MARK: - Process Execution
 
 @discardableResult
-func runProcess(_ command: String, _ arguments: [String]) throws -> Int32 {
+func runProcess(_ command: String, _ arguments: [String], stdinText: String? = nil) throws -> Int32 {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: command)
     process.arguments = arguments
+    if let stdinText {
+        let pipe = Pipe()
+        process.standardInput = pipe
+        process.standardOutput = FileHandle.standardOutput
+        process.standardError = FileHandle.standardError
+        do {
+            try process.run()
+        } catch {
+            throw NativeError.commandFailed("Failed to launch process: \(command) \(arguments.joined(separator: " "))")
+        }
+        if let data = stdinText.data(using: .utf8) {
+            pipe.fileHandleForWriting.write(data)
+        }
+        pipe.fileHandleForWriting.closeFile()
+        process.waitUntilExit()
+        return process.terminationStatus
+    }
     process.standardInput = FileHandle.standardInput
     process.standardOutput = FileHandle.standardOutput
     process.standardError = FileHandle.standardError

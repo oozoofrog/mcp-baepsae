@@ -658,9 +658,11 @@ test("type_text with method=paste includes --method flag", async () => {
     assert.match(text, /--method/);
     assert.match(text, /paste/);
     assert.match(text, /Used method: paste/);
-    assert.match(text, /Clipboard side effect: clipboard is temporarily replaced/);
+    assert.match(text, /Paste transport: simulator pasteboard\./);
+    assert.match(text, /Clipboard side effect: host clipboard is unchanged/);
     assert.equal(result.metadata?.usedMethod, "paste");
-    assert.equal(result.metadata?.clipboardSideEffect, "temporary_replace_and_restore");
+    assert.equal(result.metadata?.pasteTransport, "simulator_pasteboard");
+    assert.equal(result.metadata?.clipboardSideEffect, "none");
   });
 });
 
@@ -700,6 +702,7 @@ test("type_text without method does not include --method flag", async () => {
     assert.match(text, /Auto fallback: paste\./);
     assert.equal(result.metadata?.requestedMethod, "auto");
     assert.equal(result.metadata?.usedMethod, "paste");
+    assert.equal(result.metadata?.pasteTransport, "simulator_pasteboard");
     assert.equal(result.metadata?.autoFallback, "paste");
   });
 });
