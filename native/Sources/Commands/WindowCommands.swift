@@ -71,7 +71,7 @@ func handleDragDrop(_ parsed: ParsedOptions) throws -> Int32 {
         throw NativeError.invalidArguments("drag-drop requires numeric start/end coordinates.")
     }
     let duration = try optionalDoubleOption("--duration", from: parsed) ?? 0.5
-    let holdDuration = try optionalDoubleOption("--hold-duration", from: parsed) ?? 0.5
+    let holdDuration = try optionalDoubleOption("--hold-duration", from: parsed) ?? 0.7
     let preDelay = try optionalDoubleOption("--pre-delay", from: parsed) ?? 0
     let postDelay = try optionalDoubleOption("--post-delay", from: parsed) ?? 0
     if preDelay > 0 {
