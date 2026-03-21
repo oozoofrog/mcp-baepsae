@@ -255,6 +255,18 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 
 대상 라우팅은 인자로 명시합니다: simulator 는 `udid`, macOS 는 `bundleId` / `appName`.
 
+### `type_text` 정책
+
+`type_text`는 다음 입력 소스 중 정확히 하나만 받습니다: `text`, `stdinText`, `file`.
+
+- `method: "auto"`는 다음처럼 해석됩니다.
+  - 시뮬레이터 대상: `paste`
+  - macOS 대상: `keyboard`
+- `method: "paste"`는 항상 클립보드 기반 붙여넣기 경로를 사용합니다.
+- `method: "keyboard"`는 항상 문자 단위 타이핑을 사용합니다.
+
+`paste`를 사용하면 도구가 클립보드를 잠시 덮어쓴 뒤 이전 내용을 복원합니다. 성공 응답에는 입력 소스, 대상 종류, 요청한 method, 실제 사용한 method, auto fallback이 함께 보고됩니다.
+
 ## 사용 예시
 
 **시뮬레이터 내부 앱 접근성 퀵스타트:**

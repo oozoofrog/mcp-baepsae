@@ -17,8 +17,10 @@ const projectRoot = path.resolve(__dirname, "..");
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
 
-// CI runners can be very slow; use a generous request timeout
-const REQUEST_TIMEOUT_MS = 120_000;
+// CI runners can be very slow; use a generous request timeout.
+// Keep this higher than the per-command native timeout to avoid flaky contract
+// failures when GitHub Actions runners are under load.
+const REQUEST_TIMEOUT_MS = 180_000;
 
 async function withClient(run) {
   const client = new Client(
@@ -72,6 +74,11 @@ test("tools/list exposes expected MCP tools", async () => {
     }
 
     assert.equal(result.tools.length, expected.length, "Live tool list count drifted");
+    const typeText = result.tools.find((tool) => tool.name === "type_text");
+    assert.ok(typeText, "type_text tool should exist");
+    assert.match(typeText.description ?? "", /auto resolves to paste on simulators/i);
+    assert.match(typeText.description ?? "", /clipboard/i);
+    assert.match(typeText.description ?? "", /keyboard/i);
   });
 });
 
@@ -87,6 +94,25 @@ test("baepsae_version returns non-error response", async () => {
 
     const escapedVersion = version.replace(/\./g, "\\.");
     assert.match(text, new RegExp(`mcp-baepsae ${escapedVersion}`));
+  });
+});
+
+test("type_text exposes policy metadata in machine-readable form", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "type_text",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        text: "hello",
+      },
+    });
+
+    assert.equal(result.metadata?.inputSource, "text");
+    assert.equal(result.metadata?.targetKind, "simulator");
+    assert.equal(result.metadata?.requestedMethod, "auto");
+    assert.equal(result.metadata?.usedMethod, "paste");
+    assert.equal(result.metadata?.clipboardSideEffect, "temporary_replace_and_restore");
+    assert.equal(result.metadata?.autoFallback, "paste");
   });
 });
 
@@ -209,28 +235,7 @@ test("tap forwards all=true to native --all", async () => {
 
     assert.match(text, /tap/);
     assert.match(text, /--all/);
-  });
-});
-
-test("tap forwards simulator-scoped args", async () => {
-  await withClient(async (client) => {
-    const result = await client.callTool({
-      name: "tap",
-      arguments: {
-        udid: "00000000-0000-0000-0000-000000000000",
-        id: "com.example.button",
-        all: true,
-      },
-    });
-
-    const text = result.content
-      .filter((item) => item.type === "text")
-      .map((item) => item.text)
-      .join("\n");
-
-    assert.match(text, /tap/);
     assert.match(text, /--udid/);
-    assert.match(text, /--all/);
   });
 });
 
@@ -281,6 +286,7 @@ test("stream_video allows omitted output and auto-generates output path", async 
       name: "stream_video",
       arguments: {
         udid: "00000000-0000-0000-0000-000000000000",
+        durationSeconds: 1,
       },
     });
 

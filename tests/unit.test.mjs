@@ -657,6 +657,10 @@ test("type_text with method=paste includes --method flag", async () => {
     const text = extractText(result);
     assert.match(text, /--method/);
     assert.match(text, /paste/);
+    assert.match(text, /Used method: paste/);
+    assert.match(text, /Clipboard side effect: clipboard is temporarily replaced/);
+    assert.equal(result.metadata?.usedMethod, "paste");
+    assert.equal(result.metadata?.clipboardSideEffect, "temporary_replace_and_restore");
   });
 });
 
@@ -673,6 +677,10 @@ test("type_text with method=keyboard includes --method flag", async () => {
     const text = extractText(result);
     assert.match(text, /--method/);
     assert.match(text, /keyboard/);
+    assert.match(text, /Used method: keyboard/);
+    assert.match(text, /Clipboard side effect: none\./);
+    assert.equal(result.metadata?.usedMethod, "keyboard");
+    assert.equal(result.metadata?.clipboardSideEffect, "none");
   });
 });
 
@@ -687,6 +695,12 @@ test("type_text without method does not include --method flag", async () => {
     });
     const text = extractText(result);
     assert.doesNotMatch(text, /--method/);
+    assert.match(text, /Requested method: auto/);
+    assert.match(text, /Used method: paste/);
+    assert.match(text, /Auto fallback: paste\./);
+    assert.equal(result.metadata?.requestedMethod, "auto");
+    assert.equal(result.metadata?.usedMethod, "paste");
+    assert.equal(result.metadata?.autoFallback, "paste");
   });
 });
 

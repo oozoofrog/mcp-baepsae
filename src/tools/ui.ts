@@ -117,7 +117,7 @@ const typeSchema = {
   stdinText: z.string().optional().describe("Text piped to stdin mode"),
   file: z.string().optional().describe("Path for file input"),
   method: z.enum(["auto", "paste", "keyboard"]).optional().describe(
-    "Input method: 'paste' uses clipboard to avoid iOS autocorrect, 'keyboard' types character-by-character. Default 'auto' (paste for simulators, keyboard for macOS apps)."
+    "Input method policy: 'auto' chooses paste for simulator targets and keyboard for macOS targets; 'paste' always uses the clipboard-backed paste path; 'keyboard' always types character-by-character. Paste temporarily overwrites the clipboard and restores it after submission."
   ),
 };
 
@@ -296,6 +296,22 @@ function buildTypeArgs(target: string[], params: TypeParams): { args: string[]; 
   return { args, stdinText: params.stdinText };
 }
 
+function resolveTypeTextPolicy(
+  params: TypeParams,
+  target: UnifiedTargetParams
+): { requestedMethod: "auto" | "paste" | "keyboard"; usedMethod: "paste" | "keyboard"; targetKind: "simulator" | "macOS"; inputSource: "text" | "stdinText" | "file" } {
+  const requestedMethod = params.method ?? "auto";
+  const targetKind: "simulator" | "macOS" = target.udid ? "simulator" : "macOS";
+  const usedMethod =
+    requestedMethod === "auto"
+      ? targetKind === "simulator"
+        ? "paste"
+        : "keyboard"
+      : requestedMethod;
+  const inputSource = params.stdinText !== undefined ? "stdinText" : params.file !== undefined ? "file" : "text";
+  return { requestedMethod, usedMethod, targetKind, inputSource };
+}
+
 function buildSwipeArgs(target: string[], params: SwipeParams): string[] {
   const args = [
     "swipe",
@@ -380,7 +396,7 @@ export function registerUITools(server: McpServer): void {
 
   server.tool(
     "type_text",
-    "Type text into the target app. Use method='paste' to avoid iOS Simulator autocorrect interference (default for simulators), or method='keyboard' for character-by-character input.",
+    "Type text into the target app. auto resolves to paste on simulators and keyboard on macOS; paste temporarily uses the clipboard; keyboard types character-by-character.",
     { ...unifiedTargetSchema, ...typeSchema },
     async (params) => {
       const validationError = validateTypeParams(params as TypeParams);
@@ -390,7 +406,36 @@ export function registerUITools(server: McpServer): void {
       if (!Array.isArray(target)) return target;
 
       const built = buildTypeArgs(target, params as TypeParams);
-      return await runNative(built.args, { stdinText: built.stdinText });
+      const policy = resolveTypeTextPolicy(params as TypeParams, params as UnifiedTargetParams);
+      const extraLines = [
+        `Input source: ${policy.inputSource}`,
+        `Target kind: ${policy.targetKind}`,
+        `Requested method: ${policy.requestedMethod}`,
+        `Used method: ${policy.usedMethod}`,
+      ];
+      if (policy.usedMethod === "paste") {
+        extraLines.push("Clipboard side effect: clipboard is temporarily replaced with the input text and restored after paste.");
+      } else {
+        extraLines.push("Clipboard side effect: none.");
+      }
+      if (policy.requestedMethod === "auto") {
+        extraLines.push(`Auto fallback: ${policy.targetKind === "simulator" ? "paste" : "keyboard"}.`);
+      }
+      return await runNative(
+        built.args,
+        { stdinText: built.stdinText },
+        {
+          extraLines,
+          metadata: {
+            inputSource: policy.inputSource,
+            targetKind: policy.targetKind,
+            requestedMethod: policy.requestedMethod,
+            usedMethod: policy.usedMethod,
+            clipboardSideEffect: policy.usedMethod === "paste" ? "temporary_replace_and_restore" : "none",
+            autoFallback: policy.requestedMethod === "auto" ? policy.usedMethod : null,
+          },
+        },
+      );
     }
   );
 
