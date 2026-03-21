@@ -135,12 +135,38 @@ async function collectEnvironmentDiagnostics() {
     sampleAppProjectExists: existsSync(sampleAppProject),
     sampleAppBuilt: !!findSampleApp(),
     bootedSimulatorUdid: null,
+    simulatorAccessibility: "unknown",
+    safariAvailable: false,
+    macAccessibility: "unknown",
   };
 
   try {
     await withClient(async (client) => {
       const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
       diagnostics.bootedSimulatorUdid = extractBootedUdid(extractText(listResult));
+
+      if (diagnostics.bootedSimulatorUdid) {
+        const analyzeResult = await client.callTool({
+          name: "analyze_ui",
+          arguments: { udid: diagnostics.bootedSimulatorUdid },
+        });
+        const analyzeText = extractText(analyzeResult);
+        diagnostics.simulatorAccessibility =
+          analyzeResult.isError && isAccessibilityDenied(analyzeText) ? "denied" : "granted";
+      }
+
+      if (isMacOS() && !diagnostics.ci) {
+        diagnostics.safariAvailable = await isSafariAvailable();
+        if (diagnostics.safariAvailable) {
+          const safariResult = await client.callTool({
+            name: "analyze_ui",
+            arguments: { bundleId: "com.apple.Safari" },
+          });
+          const safariText = extractText(safariResult);
+          diagnostics.macAccessibility =
+            safariResult.isError && isAccessibilityDenied(safariText) ? "denied" : "granted";
+        }
+      }
     });
   } catch (error) {
     diagnostics.simulatorProbeError = error instanceof Error ? error.message : String(error);
@@ -149,6 +175,8 @@ async function collectEnvironmentDiagnostics() {
   diagnostics.capabilities = [
     diagnostics.bootedSimulatorUdid ? REAL_TEST_CAPABILITIES.booted : null,
     diagnostics.sampleAppBuilt ? REAL_TEST_CAPABILITIES.sampleApp : null,
+    diagnostics.simulatorAccessibility === "granted" ? REAL_TEST_CAPABILITIES.accessibility : null,
+    diagnostics.safariAvailable ? REAL_TEST_CAPABILITIES.macos : null,
     REAL_TEST_CAPABILITIES.simulator,
     diagnostics.ci ? REAL_TEST_CAPABILITIES.ci : null,
   ].filter(Boolean);
