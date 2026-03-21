@@ -55,9 +55,32 @@ The Swift native bridge (`baepsae-native`) uses macOS-specific frameworks (AppKi
 
 **Accessibility permission is required** for UI inspection and input automation features (use `sim_*` / `mac_*` scoped tools such as `sim_describe_ui`, `mac_tap`, `sim_right_click`).
 
+The important detail is that permission usually needs to be granted to the **automation host / runtime process**, not to the target app you are automating.
+
+### Which process usually needs permission?
+
+- **Direct native binary invocation**
+  - Example: `baepsae-native ...`
+  - Most relevant entry: the `baepsae-native` binary itself, plus the terminal/shell app that launched it
+- **Node / npx MCP runtime**
+  - Example: `node dist/index.js`, `npx -y mcp-baepsae@latest`
+  - Most relevant entry: the runtime process (`node`), plus the terminal or MCP client app that launched it
+- **Desktop / CLI MCP clients**
+  - Example: Claude Code, Codex CLI/Desktop, Gemini CLI
+  - Relevant entries can include the MCP client app, the terminal host, and the runtime process depending on launch path
+
+### Recommended setup flow
+
 1. Open **System Settings** > **Privacy & Security** > **Accessibility**.
-2. Enable the MCP client app and terminal you actually use, and also the runtime process (`node`) if listed.
-3. If the app is missing, click `+` and add it manually.
+2. Enable the terminal or MCP client app you actually use.
+3. Enable the runtime process if listed (`node`, `bun`, etc.).
+4. For direct native invocation, also enable the `baepsae-native` binary entry if it appears separately.
+5. If an entry is missing, click `+` and add it manually.
+
+### Important note
+
+After granting permission, the launching process may need to be restarted before macOS applies the change.  
+If the error persists, quit and relaunch the terminal, MCP client, or runtime process that started `mcp-baepsae`.
 
 For simulator targets, selector-based actions (`sim_tap` / `sim_right_click` with `id` or `label`) search **in-app content** by default. Set `all: true` to include Simulator chrome UI.
 
@@ -74,6 +97,8 @@ npm install -g mcp-baepsae
 ```
 
 > On macOS, the Swift native binary is built automatically during install. If Swift is not available, the server still works with simctl-based features.
+>
+> If you plan to use UI inspection or input automation right away, grant Accessibility permission to the terminal / MCP client / runtime process you will actually launch the server with.
 
 ### Option B) From source
 
@@ -108,6 +133,8 @@ bash scripts/install.sh --tool all
 ## For LLM
 
 If you are an LLM agent setting up this MCP server, here is everything you need:
+
+> Before trying UI automation tools, remember that Accessibility permission usually belongs to the **host/runtime process** (`node`, terminal, MCP client), not the target app under automation.
 
 ### Quick start (one command)
 
@@ -167,6 +194,8 @@ codex mcp add baepsae -- npx -y mcp-baepsae@latest
 gemini mcp add --scope user --transport stdio baepsae npx -y mcp-baepsae@latest
 ```
 
+When using `npx`, the relevant Accessibility entry is commonly the spawned `node` runtime plus the terminal / MCP client that launched it.
+
 ### Using local build
 
 ```bash
@@ -179,6 +208,9 @@ codex mcp add baepsae --env BAEPSAE_NATIVE_PATH=/ABS/PATH/native/.build/release/
 # Gemini CLI
 gemini mcp add --scope user --transport stdio -e BAEPSAE_NATIVE_PATH=/ABS/PATH/native/.build/release/baepsae-native baepsae node /ABS/PATH/dist/index.js
 ```
+
+When using a local build, check permission on both the runtime (`node`) and the app that launched it.  
+If you invoke `baepsae-native` directly for debugging, check permission on the native binary entry itself as well.
 
 ## Project Structure
 
@@ -286,10 +318,23 @@ mac_screenshot_app({ bundleId: "com.apple.Safari" })
 
 ## Troubleshooting
 
+### Accessibility permission checklist
+
+- The permission target is usually the **automation host/runtime process**, not the target app.
+- Check the error message for:
+  - **current host process**
+  - **parent process**
+  - **inferred launch mode**
+- If you launched through `npx` / `node`, grant permission to the runtime and the launching terminal / MCP client.
+- If you launched `baepsae-native` directly, grant permission to the native binary entry and the launching terminal / shell app.
+- After changing permission, restart the launching process before retrying.
+
 - `Invalid environment variable format` on Claude setup:
   - Use current script (`scripts/install.sh`) or `claude mcp add --env="KEY=value" ...` format.
 - `Missing native binary` error:
   - Run `npm run build` and confirm `native/.build/release/baepsae-native` exists.
+- Accessibility permission error is ambiguous:
+  - Current versions include host/parent process diagnostics and inferred launch mode in the error text so you can see which executable path likely needs permission.
 - OpenCode does not show `baepsae`:
   - Re-run `bash scripts/install.sh --tool opencode --skip-install --skip-build` and check `~/.config/opencode/opencode.json`.
 - Copilot not auto-registered:

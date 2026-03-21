@@ -55,9 +55,32 @@ Swift 네이티브 브리지(`baepsae-native`)는 iOS 시뮬레이터 및 macOS 
 
 **접근성(Accessibility) 권한이 필요합니다.** UI 조회/입력 자동화 도구(`sim_*` / `mac_*` 스코프 도구, 예: `sim_describe_ui`, `mac_tap`, `sim_right_click`)를 사용할 때 필수입니다.
 
+중요한 점은, 보통 권한 대상이 **자동화 대상 앱**이 아니라 **automation host / runtime process** 쪽이라는 것입니다.
+
+### 보통 어떤 프로세스에 권한이 필요한가?
+
+- **네이티브 바이너리를 직접 실행하는 경우**
+  - 예: `baepsae-native ...`
+  - 보통 `baepsae-native` 바이너리 자체와, 이를 실행한 터미널/셸 앱이 관련됩니다
+- **Node / npx 런타임으로 실행하는 경우**
+  - 예: `node dist/index.js`, `npx -y mcp-baepsae@latest`
+  - 보통 런타임 프로세스(`node`)와, 이를 실행한 터미널 또는 MCP client 앱이 관련됩니다
+- **Desktop / CLI MCP client를 통해 실행하는 경우**
+  - 예: Claude Code, Codex CLI/Desktop, Gemini CLI
+  - launch path 에 따라 MCP client 앱, 터미널 host, runtime process 중 여러 항목이 관련될 수 있습니다
+
+### 권장 설정 순서
+
 1. **시스템 설정** > **개인정보 보호 및 보안** > **손쉬운 사용(Accessibility)** 로 이동합니다.
-2. 사용 중인 터미널/실행기(Terminal, iTerm2, VSCode, `node`, `openclaw`)를 허용합니다.
-3. 목록에 없으면 `+` 버튼으로 수동 추가합니다.
+2. 실제로 사용하는 터미널 또는 MCP client 앱을 허용합니다.
+3. 목록에 보이면 런타임 프로세스(`node`, `bun` 등)도 허용합니다.
+4. 네이티브 바이너리를 직접 실행하는 경우 `baepsae-native` 항목도 별도로 확인합니다.
+5. 목록에 없으면 `+` 버튼으로 수동 추가합니다.
+
+### 중요
+
+권한을 켠 뒤에도 macOS가 즉시 반영하지 않는 경우가 있습니다.  
+오류가 계속되면 `mcp-baepsae` 를 시작한 터미널, MCP client, 또는 runtime process 를 종료 후 다시 실행하세요.
 
 시뮬레이터 타깃에서 선택자 기반 액션(`sim_tap`/`sim_right_click`의 `id`/`label`)은 기본적으로 **앱 내부 콘텐츠**를 탐색합니다. Simulator 크롬/시스템 UI까지 포함하려면 `all: true`를 사용하세요.
 
@@ -74,6 +97,8 @@ npm install -g mcp-baepsae
 ```
 
 > macOS에서는 설치 시 Swift 네이티브 바이너리가 자동 빌드됩니다. Swift가 없어도 simctl 기반 기능은 정상 작동합니다.
+>
+> UI 조회/입력 자동화를 바로 사용할 계획이라면, 실제로 서버를 실행할 터미널 / MCP client / runtime process 에 먼저 접근성 권한을 부여해두는 것이 좋습니다.
 
 ### 옵션 B) 소스에서 빌드
 
@@ -108,6 +133,8 @@ bash scripts/install.sh --tool all
 ## For LLM
 
 LLM 에이전트가 이 MCP 서버를 설정할 때 필요한 모든 정보입니다.
+
+> UI 자동화 도구를 사용하기 전에, 접근성 권한은 보통 **자동화 대상 앱**이 아니라 **host/runtime process** (`node`, terminal, MCP client) 에 필요하다는 점을 먼저 확인하세요.
 
 ### 빠른 시작 (한 줄)
 
@@ -167,6 +194,8 @@ codex mcp add baepsae -- npx -y mcp-baepsae@latest
 gemini mcp add --scope user --transport stdio baepsae npx -y mcp-baepsae@latest
 ```
 
+`npx` 경로에서는 보통 spawn된 `node` 런타임과, 이를 실행한 터미널 / MCP client 가 관련 권한 대상입니다.
+
 ### 로컬 빌드 사용
 
 ```bash
@@ -179,6 +208,9 @@ codex mcp add baepsae --env BAEPSAE_NATIVE_PATH=/ABS/PATH/native/.build/release/
 # Gemini CLI
 gemini mcp add --scope user --transport stdio -e BAEPSAE_NATIVE_PATH=/ABS/PATH/native/.build/release/baepsae-native baepsae node /ABS/PATH/dist/index.js
 ```
+
+로컬 빌드를 사용할 때는 보통 런타임(`node`)과 이를 실행한 앱을 함께 확인해야 합니다.  
+디버깅 중 `baepsae-native` 를 직접 호출한다면 native binary 항목도 별도로 확인하세요.
 
 ## 프로젝트 구조
 
@@ -259,10 +291,23 @@ sim_tap({ udid: "...", label: "Home", all: true })
 
 ## 트러블슈팅
 
+### 접근성 권한 체크리스트
+
+- 권한 대상은 보통 **target app** 이 아니라 **automation host/runtime process** 입니다.
+- 오류 메시지에서 다음 항목을 먼저 확인하세요.
+  - **current host process**
+  - **parent process**
+  - **inferred launch mode**
+- `npx` / `node` 경유 실행이라면 런타임과 이를 실행한 터미널 / MCP client 에 권한을 줍니다.
+- `baepsae-native` 직접 실행이라면 native binary 항목과 이를 실행한 터미널 / 셸 앱을 확인합니다.
+- 권한 변경 후에는 launching process 를 재시작한 뒤 다시 시도하세요.
+
 - Claude 설정 중 `Invalid environment variable format` 오류:
   - 최신 `scripts/install.sh`를 사용하거나 `--env="KEY=value"` 형식을 사용하세요.
 - `Missing native binary` 오류:
   - `npm run build` 실행 후 `native/.build/release/baepsae-native` 파일 존재 여부를 확인하세요.
+- 접근성 권한 오류가 모호한 경우:
+  - 현재 버전은 오류 메시지에 host / parent process 진단 정보와 inferred launch mode 를 함께 보여주므로 어떤 실행 파일에 권한을 줘야 할지 추적할 수 있습니다.
 - OpenCode에서 `baepsae`가 보이지 않는 경우:
   - `bash scripts/install.sh --tool opencode --skip-install --skip-build`를 다시 실행하고 `~/.config/opencode/opencode.json`을 확인하세요.
 - Copilot 자동 등록이 안 되는 경우:
