@@ -25,7 +25,8 @@
     "prepublishOnly": "npm run build:ts",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
-    "test": "npm run build && node --test tests/mcp.contract.test.mjs",
+    "test": "npm run build && node scripts/generate-tool-manifest.mjs --check && node --test tests/mcp.contract.test.mjs tests/tool.manifest.test.mjs",
+    "test:drift": "npm run build && node scripts/generate-tool-manifest.mjs --check && node --test tests/tool.manifest.test.mjs",
     "test:real": "npm run build && node --test tests/mcp.real.test.mjs",
     "test:real:preflight": "npm run build && node --test --test-name-pattern=\"Preflight diagnostics\" tests/mcp.real.test.mjs",
     "test:real:sim": "npm run build && node --test --test-name-pattern=\"^(Preflight diagnostics|Setup:|Phase 1:|Phase 2:|Phase 2b:|Phase 2c:|Phase 3:|cleanup:)\" tests/mcp.real.test.mjs",
@@ -33,7 +34,7 @@
     "bundle:native": "bash scripts/bundle-native.sh",
     "build:sample-app": "bash scripts/build-sample-app.sh",
     "test:e2e": "npm run build:sample-app && npm run test:real",
-    "verify": "npm run test && npm run test:real",
+    "verify": "npm run test && npm run test:drift && npm run test:real",
     "setup:mcp": "bash scripts/install.sh",
     "prepare": "npm run build:ts"
   },
