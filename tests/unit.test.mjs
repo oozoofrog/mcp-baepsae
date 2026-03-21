@@ -187,6 +187,10 @@ test("analyze_ui errors when no target is provided", async () => {
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
     assert.match(text, /No target specified/);
+    assert.equal(result.error?.code, "validation.target.required");
+    assert.equal(result.error?.category, "validation");
+    assert.equal(result.error?.retryable, false);
+    assert.equal(result.error?.source, "mcp");
   });
 });
 
@@ -202,6 +206,7 @@ test("analyze_ui errors when multiple targets are provided", async () => {
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
     assert.match(text, /Multiple targets specified/);
+    assert.equal(result.error?.code, "validation.target.multiple");
   });
 });
 
@@ -293,6 +298,7 @@ test("tap errors when only y is provided (missing x)", async () => {
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
     assert.match(text, /Both x and y must be provided together\./);
+    assert.equal(result.error?.code, "validation.tap.coordinate_pair");
   });
 });
 
@@ -307,6 +313,7 @@ test("tap errors when no coordinate or selector is provided", async () => {
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
     assert.match(text, /Provide either x\/y coordinates, id, or label\./);
+    assert.equal(result.error?.code, "validation.tap.selector_required");
   });
 });
 
@@ -324,6 +331,7 @@ test("tap errors when coordinates and label are both given", async () => {
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
     assert.match(text, /Provide either x\/y coordinates or id\/label, not both\./);
+    assert.equal(result.error?.code, "validation.tap.selector_conflict");
   });
 });
 
@@ -488,6 +496,7 @@ test("tap_tab errors when index >= tabCount", async () => {
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
     assert.match(text, /out of range/);
+    assert.equal(result.error?.code, "validation.tap_tab.out_of_range");
   });
 });
 
@@ -555,6 +564,7 @@ test("type_text errors when no text source is provided", async () => {
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
     assert.match(text, /Provide exactly one of text, stdinText, or file\./);
+    assert.equal(result.error?.code, "validation.type.source_required");
   });
 });
 
@@ -693,6 +703,7 @@ test("clipboard write without text returns error", async () => {
     assert.equal(result.isError ?? false, true);
     const text = extractText(result);
     assert.match(text, /text is required for write action\./);
+    assert.equal(result.error?.code, "validation.clipboard.write_requires_text");
   });
 });
 

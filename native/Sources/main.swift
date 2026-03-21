@@ -48,6 +48,46 @@ func printHelp() {
     print(help)
 }
 
+func structuredNativeError(for error: Error) -> StructuredNativeError {
+    if let nativeError = error as? NativeError {
+        switch nativeError {
+        case .invalidArguments(let message):
+            return StructuredNativeError(code: "validation.native.invalid_arguments", category: .validation, retryable: false, source: "native", message: message, nativeCode: .invalidArguments)
+        case .unsupported(let message):
+            return StructuredNativeError(code: "unsupported.native.command", category: .unsupported, retryable: false, source: "native", message: message, nativeCode: .unsupported)
+        case .commandFailed(let message):
+            let category: NativeErrorCategory
+            let retryable: Bool
+            let code: String
+            if message.contains("Permission Denied") || message.contains("Accessibility access is required") {
+                category = .permission
+                retryable = false
+                code = "permission.accessibility_required"
+            } else if message.contains("not running") || message.contains("not found") {
+                category = .availability
+                retryable = true
+                code = "availability.target_unavailable"
+            } else {
+                category = .execution
+                retryable = true
+                code = "execution.native_command_failed"
+            }
+            return StructuredNativeError(code: code, category: category, retryable: retryable, source: "native", message: message, nativeCode: .commandFailed)
+        }
+    }
+
+    return StructuredNativeError(code: "runtime.unexpected", category: .unknown, retryable: false, source: "runtime", message: error.localizedDescription, nativeCode: .commandFailed)
+}
+
+struct StructuredErrorPayload: Codable {
+    let code: String
+    let category: String
+    let retryable: Bool
+    let source: String
+    let message: String
+    let nativeCode: String
+}
+
 func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
     switch parsed.command {
     case "help", "--help", "-h":
@@ -146,14 +186,13 @@ do {
     let status = try runParsed(parsed)
     exit(status)
 } catch {
-    let message: String
-    if let nativeError = error as? NativeError {
-        message = nativeError.description
-    } else {
-        message = error.localizedDescription
+    let structured = structuredNativeError(for: error)
+    if let data = try? JSONEncoder().encode(StructuredErrorPayload(code: structured.code, category: structured.category.rawValue, retryable: structured.retryable, source: structured.source, message: structured.message, nativeCode: structured.nativeCode.rawValue)) {
+        FileHandle.standardError.write(Data("BAEPSAE_ERROR ".utf8))
+        FileHandle.standardError.write(data)
+        FileHandle.standardError.write(Data("\n".utf8))
     }
-
-    FileHandle.standardError.write(Data((message + "\n").utf8))
+    FileHandle.standardError.write(Data((structured.message + "\n").utf8))
     if case NativeError.unsupported = error {
         exit(2)
     }

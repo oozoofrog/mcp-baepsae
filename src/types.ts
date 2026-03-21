@@ -7,6 +7,28 @@ export type UnifiedTargetParams = {
 export type ToolTextResult = {
   content: Array<{ type: "text"; text: string }>;
   isError: boolean;
+  error?: ToolError;
+};
+
+export type ToolErrorSource = "mcp" | "native" | "runtime";
+export type ToolErrorCategory =
+  | "validation"
+  | "environment"
+  | "execution"
+  | "permission"
+  | "availability"
+  | "unsupported"
+  | "timeout"
+  | "unknown";
+
+export type ToolError = {
+  code: string;
+  category: ToolErrorCategory;
+  retryable: boolean;
+  source: ToolErrorSource;
+  message: string;
+  nativeCode?: string;
+  details?: string[];
 };
 
 export interface CommandExecutionOptions {

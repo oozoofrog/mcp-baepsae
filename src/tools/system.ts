@@ -7,6 +7,7 @@ import {
   resolveUnifiedTargetArgs,
   pushOption,
   runNative,
+  makeToolError,
 } from "../utils.js";
 
 type ScreenshotParams = {
@@ -107,7 +108,7 @@ export function registerSystemTools(server: McpServer): void {
       const args = ["menu-action"];
       if (params.bundleId) args.push("--bundle-id", params.bundleId);
       else if (params.appName) args.push("--app-name", params.appName);
-      else return { content: [{ type: "text", text: "Provide bundleId or appName." }], isError: true };
+      else return { content: [{ type: "text", text: "Provide bundleId or appName." }], isError: true, error: makeToolError({ code: "validation.menu_action.target_required", category: "validation", message: "Provide bundleId or appName." }) };
       args.push("--menu", params.menu, "--item", params.item);
       return await runNative(args);
     }
@@ -125,7 +126,7 @@ export function registerSystemTools(server: McpServer): void {
       if (params.action === "read") {
         args.push("--read");
       } else {
-        if (!params.text) return { content: [{ type: "text", text: "text is required for write action." }], isError: true };
+        if (!params.text) return { content: [{ type: "text", text: "text is required for write action." }], isError: true, error: makeToolError({ code: "validation.clipboard.write_requires_text", category: "validation", message: "text is required for write action." }) };
         args.push("--write", params.text);
       }
       return await runNative(args);

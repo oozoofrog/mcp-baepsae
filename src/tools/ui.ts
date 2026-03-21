@@ -7,6 +7,7 @@ import {
   resolveUnifiedTargetArgs,
   pushOption,
   runNative,
+  makeToolError,
 } from "../utils.js";
 
 type DescribeParams = {
@@ -162,6 +163,11 @@ function validateTapParams(params: TapParams): ToolTextResult | null {
     return {
       content: [{ type: "text", text: "Both x and y must be provided together." }],
       isError: true,
+      error: makeToolError({
+        code: "validation.tap.coordinate_pair",
+        category: "validation",
+        message: "Both x and y must be provided together.",
+      }),
     };
   }
 
@@ -169,6 +175,11 @@ function validateTapParams(params: TapParams): ToolTextResult | null {
     return {
       content: [{ type: "text", text: "Provide either x/y coordinates or id/label, not both." }],
       isError: true,
+      error: makeToolError({
+        code: "validation.tap.selector_conflict",
+        category: "validation",
+        message: "Provide either x/y coordinates or id/label, not both.",
+      }),
     };
   }
 
@@ -176,6 +187,11 @@ function validateTapParams(params: TapParams): ToolTextResult | null {
     return {
       content: [{ type: "text", text: "Provide either x/y coordinates, id, or label." }],
       isError: true,
+      error: makeToolError({
+        code: "validation.tap.selector_required",
+        category: "validation",
+        message: "Provide either x/y coordinates, id, or label.",
+      }),
     };
   }
 
@@ -187,6 +203,11 @@ function validateTapTabParams(params: TapTabParams): ToolTextResult | null {
     return {
       content: [{ type: "text", text: `Tab index ${params.index} is out of range. Valid range: 0..${params.tabCount - 1}` }],
       isError: true,
+      error: makeToolError({
+        code: "validation.tap_tab.out_of_range",
+        category: "validation",
+        message: `Tab index ${params.index} is out of range. Valid range: 0..${params.tabCount - 1}`,
+      }),
     };
   }
   return null;
@@ -198,6 +219,11 @@ function validateTypeParams(params: TypeParams): ToolTextResult | null {
     return {
       content: [{ type: "text", text: "Provide exactly one of text, stdinText, or file." }],
       isError: true,
+      error: makeToolError({
+        code: "validation.type.source_required",
+        category: "validation",
+        message: "Provide exactly one of text, stdinText, or file.",
+      }),
     };
   }
   return null;

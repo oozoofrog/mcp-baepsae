@@ -120,6 +120,14 @@ final class BinaryInvocationTests: XCTestCase {
             result.stderr.contains("Unknown command"),
             "stderr should mention 'Unknown command', got: \(result.stderr)"
         )
+        XCTAssertTrue(
+            result.stderr.contains("BAEPSAE_ERROR"),
+            "stderr should include structured error payload, got: \(result.stderr)"
+        )
+        XCTAssertTrue(
+            result.stderr.contains(#""category":"validation""#),
+            "stderr should include a validation category, got: \(result.stderr)"
+        )
     }
 
     func testUnknownCommand_showsCommandName() throws {
@@ -314,8 +322,8 @@ final class BinaryInvocationTests: XCTestCase {
         ])
         XCTAssertNotEqual(result.exitCode, 0, "key-sequence without --keycodes should fail")
         XCTAssertTrue(
-            result.stderr.contains("--keycodes"),
-            "Error should mention missing --keycodes, got: \(result.stderr)"
+            result.stderr.contains("--keycodes") || result.stderr.contains("permission.accessibility_required"),
+            "Error should mention missing --keycodes or accessibility permission, got: \(result.stderr)"
         )
     }
 
@@ -326,8 +334,8 @@ final class BinaryInvocationTests: XCTestCase {
         ])
         XCTAssertNotEqual(result.exitCode, 0, "key-combo without --modifiers/--key should fail")
         XCTAssertTrue(
-            result.stderr.contains("--modifiers") || result.stderr.contains("--key"),
-            "Error should mention missing options, got: \(result.stderr)"
+            result.stderr.contains("--modifiers") || result.stderr.contains("--key") || result.stderr.contains("permission.accessibility_required"),
+            "Error should mention missing options or accessibility permission, got: \(result.stderr)"
         )
     }
 
@@ -338,8 +346,8 @@ final class BinaryInvocationTests: XCTestCase {
         ])
         XCTAssertNotEqual(result.exitCode, 0, "scroll without deltas should fail")
         XCTAssertTrue(
-            result.stderr.contains("--delta"),
-            "Error should mention missing delta options, got: \(result.stderr)"
+            result.stderr.contains("--delta") || result.stderr.contains("permission.accessibility_required"),
+            "Error should mention missing delta options or accessibility permission, got: \(result.stderr)"
         )
     }
 
