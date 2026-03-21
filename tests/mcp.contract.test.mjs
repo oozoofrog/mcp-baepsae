@@ -4,6 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
 import { createRequire } from "node:module";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -22,7 +23,7 @@ const { version } = require("../package.json");
 // failures when GitHub Actions runners are under load.
 const REQUEST_TIMEOUT_MS = 180_000;
 
-async function withClient(run) {
+async function withClient(run, envOverrides = {}) {
   const client = new Client(
     { name: "baepsae-contract-test", version: "1.0.0" },
     { capabilities: {}, requestTimeoutMs: REQUEST_TIMEOUT_MS },
@@ -32,6 +33,7 @@ async function withClient(run) {
     args: ["dist/index.js"],
     cwd: projectRoot,
     stderr: "pipe",
+    env: { ...process.env, ...envOverrides },
   });
 
   await client.connect(transport);
@@ -59,6 +61,55 @@ async function withClientFromDir(cwd, run) {
     return await run(client);
   } finally {
     await client.close();
+  }
+}
+
+function extractText(result) {
+  return result.content
+    .filter((item) => item.type === "text")
+    .map((item) => item.text)
+    .join("\n");
+}
+
+function createFakeNativeBinary(failCommands = []) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "baepsae-workflow-contract-"));
+  const binaryPath = path.join(dir, "fake-baepsae-native.sh");
+  const logPath = path.join(dir, "native.log");
+  const script = [
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    'log_file="${BAEPSAE_FAKE_NATIVE_LOG:?missing log file}"',
+    'fail_commands="${BAEPSAE_FAKE_NATIVE_FAIL_COMMANDS:-}"',
+    'cmd="${1:-}"',
+    'printf \'%s\\n\' "$*" >> "$log_file"',
+    'if [[ "$cmd" == "--version" ]]; then',
+    '  echo "baepsae-native 0.0.0"',
+    "  exit 0",
+    "fi",
+    'if [[ " $fail_commands " == *" $cmd "* ]]; then',
+    '  echo "forced failure for $cmd" >&2',
+    "  exit 1",
+    "fi",
+    "exit 0",
+  ].join("\n");
+  writeFileSync(binaryPath, script);
+  chmodSync(binaryPath, 0o755);
+  return { dir, binaryPath, logPath };
+}
+
+async function withFakeNativeClient(run, failCommands = []) {
+  const fake = createFakeNativeBinary(failCommands);
+  try {
+    return await withClient(
+      (client) => run(client, fake),
+      {
+        BAEPSAE_NATIVE_PATH: fake.binaryPath,
+        BAEPSAE_FAKE_NATIVE_LOG: fake.logPath,
+        BAEPSAE_FAKE_NATIVE_FAIL_COMMANDS: failCommands.join(" "),
+      },
+    );
+  } finally {
+    rmSync(fake.dir, { recursive: true, force: true });
   }
 }
 
@@ -150,6 +201,72 @@ test("tap validates coordinate pair before native invocation", async () => {
     assert.equal(result.error?.code, "validation.tap.coordinate_pair");
     assert.equal(result.error?.category, "validation");
   });
+});
+
+test("run_steps executes ordered workflow steps and stops on failure by default", async () => {
+  await withFakeNativeClient(async (client, fake) => {
+    const result = await client.callTool({
+      name: "run_steps",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        steps: [
+          { tool: "tap", id: "login-button" },
+          { tool: "sleep", duration: 0.01 },
+          { tool: "type_text", text: "workflow hello" },
+          { tool: "key", keycode: 41 },
+          { tool: "swipe", startX: 10, startY: 10, endX: 20, endY: 20 },
+        ],
+      },
+    });
+
+    assert.equal(result.isError ?? false, true);
+    const text = extractText(result);
+    assert.match(text, /Execution policy: fail-fast/);
+    assert.match(text, /Step 1\/5 .*tap .*success/);
+    assert.match(text, /Step 2\/5 .*sleep .*success/);
+    assert.match(text, /Step 3\/5 .*type_text .*success/);
+    assert.match(text, /Step 4\/5 .*key .*failed/);
+    assert.match(text, /Step 5\/5 .*swipe .*skipped/);
+    assert.match(text, /Final summary: 3 succeeded, 1 failed, 1 skipped\./);
+
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /tap .*login-button/);
+    assert.match(log, /type .*workflow hello/);
+    assert.match(log, /key 41/);
+    assert.equal(log.includes("swipe"), false, "swipe should not be executed after fail-fast stops the workflow");
+  }, ["key"]);
+});
+
+test("run_steps can continue after failures when continueOnError is enabled", async () => {
+  await withFakeNativeClient(async (client, fake) => {
+    const result = await client.callTool({
+      name: "run_steps",
+      arguments: {
+        udid: "00000000-0000-0000-0000-000000000000",
+        continueOnError: true,
+        steps: [
+          { tool: "tap", id: "login-button" },
+          { tool: "key", keycode: 41 },
+          { tool: "swipe", startX: 10, startY: 10, endX: 20, endY: 20 },
+          { tool: "sleep", duration: 0.01 },
+        ],
+      },
+    });
+
+    assert.equal(result.isError ?? false, true);
+    const text = extractText(result);
+    assert.match(text, /Execution policy: continue_on_error/);
+    assert.match(text, /Step 1\/4 .*tap .*success/);
+    assert.match(text, /Step 2\/4 .*key .*failed/);
+    assert.match(text, /Step 3\/4 .*swipe .*success/);
+    assert.match(text, /Step 4\/4 .*sleep .*success/);
+    assert.match(text, /Final summary: 3 succeeded, 1 failed, 0 skipped\./);
+
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /tap .*login-button/);
+    assert.match(log, /key 41/);
+    assert.match(log, /swipe .*10 .*20/);
+  }, ["key"]);
 });
 
 test("analyze_ui call is routed to native layer (simulator target)", async () => {

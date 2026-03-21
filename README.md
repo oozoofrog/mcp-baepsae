@@ -238,7 +238,7 @@ npm run setup:mcp   # Alias for scripts/install.sh
 
 ## MCP Tool Status
 
-34 tools implemented end-to-end.
+35 tools implemented end-to-end.
 
 ### Official public MCP surface: unified generic tools
 
@@ -248,6 +248,7 @@ The public API surface is intentionally single-scheme: use unified generic tools
 |---|---|
 | UI | `analyze_ui`, `query_ui`, `tap`, `tap_tab`, `type_text`, `swipe`, `scroll`, `drag_drop` |
 | Input | `key`, `key_sequence`, `key_combo`, `touch` |
+| Workflow | `run_steps` |
 | System | `list_windows`, `activate_app`, `screenshot_app`, `right_click` |
 | Simulator-only | `list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture` |
 | macOS/system | `list_apps`, `menu_action`, `get_focused_app`, `clipboard` |
