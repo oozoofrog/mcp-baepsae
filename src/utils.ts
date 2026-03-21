@@ -4,7 +4,7 @@ import { mkdir } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { z } from "zod";
 
-import type { ToolTextResult, CommandExecutionOptions, CommandExecutionResult, ResponseOptions } from "./types.js";
+import type { ToolTextResult, CommandExecutionOptions, CommandExecutionResult, ResponseOptions, ToolError, ToolErrorCategory, ToolErrorSource } from "./types.js";
 import { PACKAGE_NAME, PACKAGE_VERSION } from "./version.js";
 
 export const PACKAGE_ROOT = resolve(__dirname, "..");
@@ -56,6 +56,26 @@ export const BAEPSAE_SUBCOMMANDS = [
 ] as const;
 
 export const keycodeSchema = z.number().int().min(0).max(255);
+
+export function makeToolError(params: {
+  code: string;
+  category: ToolErrorCategory;
+  message: string;
+  retryable?: boolean;
+  source?: ToolErrorSource;
+  nativeCode?: string;
+  details?: string[];
+}): ToolError {
+  return {
+    code: params.code,
+    category: params.category,
+    retryable: params.retryable ?? false,
+    source: params.source ?? "mcp",
+    message: params.message,
+    nativeCode: params.nativeCode,
+    details: params.details,
+  };
+}
 
 export function isExecutable(filePath: string): boolean {
   try {
@@ -137,12 +157,22 @@ export function resolveUnifiedTargetArgs(params: { udid?: string; bundleId?: str
     return {
       content: [{ type: "text", text: "No target specified. Provide exactly one: udid (simulator), bundleId, or appName (macOS)." }],
       isError: true,
+      error: makeToolError({
+        code: "validation.target.required",
+        category: "validation",
+        message: "No target specified. Provide exactly one: udid (simulator), bundleId, or appName (macOS).",
+      }),
     };
   }
   if (modes > 1) {
     return {
       content: [{ type: "text", text: "Multiple targets specified. Provide exactly one: udid (simulator), bundleId, or appName (macOS)." }],
       isError: true,
+      error: makeToolError({
+        code: "validation.target.multiple",
+        category: "validation",
+        message: "Multiple targets specified. Provide exactly one: udid (simulator), bundleId, or appName (macOS).",
+      }),
     };
   }
   if (params.udid) return ["--udid", params.udid];
@@ -301,13 +331,26 @@ export function toToolResult(result: CommandExecutionResult, options: ResponseOp
     lines.push("", "STDOUT:", result.stdout);
   }
 
-  if (result.stderr.length > 0) {
-    lines.push("", "STDERR:", result.stderr);
+  const parsedStructured = parseNativeStructuredError(result.stderr);
+  const humanReadableStderr = parsedStructured ? stripNativeStructuredErrorLine(result.stderr) : result.stderr;
+  if (humanReadableStderr.length > 0) {
+    lines.push("", "STDERR:", humanReadableStderr);
   }
+
+  const structuredError = isError
+    ? makeToolError({
+        code: expectedTimeoutSignal || result.timedOut ? "execution.timeout" : result.exitCode === 0 ? "unknown" : "execution.command_failed",
+        category: result.timedOut ? "timeout" : "execution",
+        message: humanReadableStderr || result.stdout || "Command failed.",
+        retryable: result.timedOut || (result.signal !== null && !expectedTimeoutSignal),
+        source: options.source ?? "native",
+      })
+    : undefined;
 
   return {
     content: [{ type: "text", text: lines.join("\n") }],
     isError,
+    error: structuredError,
   };
 }
 
@@ -319,18 +362,69 @@ async function runCommand(
 ): Promise<ToolTextResult> {
   try {
     const result = await executeCommand(executable, args, options);
-    return toToolResult(result, responseOptions);
+    const toolResult = toToolResult(result, responseOptions);
+    const structured = parseNativeStructuredError(result.stderr);
+    if (structured) {
+      toolResult.error = structured;
+    }
+    return toolResult;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return {
       content: [{ type: "text", text: `Error executing ${commandToString(executable, args)}\n${message}` }],
       isError: true,
+      error: makeToolError({
+        code: "execution.spawn_failed",
+        category: "execution",
+        message,
+        retryable: true,
+        source: "runtime",
+      }),
     };
   }
 }
 
+function parseNativeStructuredError(stderr: string): ToolError | undefined {
+  const firstLine = stderr.split(/\r?\n/, 1)[0] ?? "";
+  if (!firstLine.startsWith("BAEPSAE_ERROR ")) {
+    return undefined;
+  }
+
+  try {
+    const payload = JSON.parse(firstLine.slice("BAEPSAE_ERROR ".length)) as {
+      code?: string;
+      category?: ToolErrorCategory;
+      retryable?: boolean;
+      source?: ToolErrorSource;
+      message?: string;
+      nativeCode?: string;
+      details?: string[];
+    };
+    if (!payload.code || !payload.category || !payload.message) return undefined;
+    return makeToolError({
+      code: payload.code,
+      category: payload.category,
+      message: payload.message,
+      retryable: payload.retryable,
+      source: payload.source ?? "native",
+      nativeCode: payload.nativeCode,
+      details: payload.details,
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function stripNativeStructuredErrorLine(stderr: string): string {
+  const lines = stderr.split(/\r?\n/);
+  if (lines[0]?.startsWith("BAEPSAE_ERROR ")) {
+    return lines.slice(1).join("\n").trim();
+  }
+  return stderr;
+}
+
 export async function runSimctl(args: string[], options?: CommandExecutionOptions, responseOptions?: ResponseOptions): Promise<ToolTextResult> {
-  return await runCommand("xcrun", ["simctl", ...args], options, responseOptions);
+  return await runCommand("xcrun", ["simctl", ...args], options, { ...responseOptions, source: "simctl" });
 }
 
 export async function runNative(
@@ -342,10 +436,27 @@ export async function runNative(
   try {
     binary = resolveNativeBinary();
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     return {
       content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }],
       isError: true,
+      error: makeToolError({
+        code: "environment.native_binary_missing",
+        category: "environment",
+        message,
+        retryable: true,
+        source: "runtime",
+      }),
     };
   }
-  return await runCommand(binary, args, options, responseOptions);
+  const result = await runCommand(binary, args, options, { ...responseOptions, source: "native" });
+  if (result.isError && !result.error) {
+    const text = result.content.map((item) => item.text).join("\n");
+    const stderr = text.includes("STDERR:") ? text.split("STDERR:").slice(1).join("STDERR:").trim() : text;
+    const structured = parseNativeStructuredError(stderr);
+    if (structured) {
+      result.error = structured;
+    }
+  }
+  return result;
 }

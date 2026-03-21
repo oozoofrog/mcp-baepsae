@@ -106,6 +106,8 @@ test("tap validates coordinate pair before native invocation", async () => {
       .map((item) => item.text)
       .join("\n");
     assert.match(text, /Both x and y must be provided together\./);
+    assert.equal(result.error?.code, "validation.tap.coordinate_pair");
+    assert.equal(result.error?.category, "validation");
   });
 });
 

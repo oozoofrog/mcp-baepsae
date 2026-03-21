@@ -26,6 +26,32 @@ enum NativeError: Error, CustomStringConvertible {
     }
 }
 
+enum NativeErrorCode: String {
+    case invalidArguments = "invalid_arguments"
+    case unsupported = "unsupported"
+    case commandFailed = "command_failed"
+}
+
+enum NativeErrorCategory: String {
+    case validation
+    case execution
+    case environment
+    case permission
+    case unsupported
+    case availability
+    case timeout
+    case unknown
+}
+
+struct StructuredNativeError {
+    let code: String
+    let category: NativeErrorCategory
+    let retryable: Bool
+    let source: String
+    let message: String
+    let nativeCode: NativeErrorCode
+}
+
 struct ParsedOptions {
     let command: String
     let options: [String: String]
