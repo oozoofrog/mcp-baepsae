@@ -17,8 +17,10 @@ const projectRoot = path.resolve(__dirname, "..");
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
 
-// CI runners can be very slow; use a generous request timeout
-const REQUEST_TIMEOUT_MS = 120_000;
+// CI runners can be very slow; use a generous request timeout.
+// Keep this higher than the per-command native timeout to avoid flaky contract
+// failures when GitHub Actions runners are under load.
+const REQUEST_TIMEOUT_MS = 180_000;
 
 async function withClient(run) {
   const client = new Client(
@@ -233,28 +235,7 @@ test("tap forwards all=true to native --all", async () => {
 
     assert.match(text, /tap/);
     assert.match(text, /--all/);
-  });
-});
-
-test("tap forwards simulator-scoped args", async () => {
-  await withClient(async (client) => {
-    const result = await client.callTool({
-      name: "tap",
-      arguments: {
-        udid: "00000000-0000-0000-0000-000000000000",
-        id: "com.example.button",
-        all: true,
-      },
-    });
-
-    const text = result.content
-      .filter((item) => item.type === "text")
-      .map((item) => item.text)
-      .join("\n");
-
-    assert.match(text, /tap/);
     assert.match(text, /--udid/);
-    assert.match(text, /--all/);
   });
 });
 
