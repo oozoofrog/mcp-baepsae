@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
 import { createRequire } from "node:module";
@@ -17,6 +17,7 @@ const projectRoot = path.resolve(__dirname, "..");
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
+const nativeBinaryPath = path.join(projectRoot, "native", ".build", "release", "baepsae-native");
 
 // CI runners can be very slow; use a generous request timeout.
 // Keep this higher than the per-command native timeout to avoid flaky contract
@@ -74,6 +75,14 @@ function extractText(result) {
 function countMatches(text, pattern) {
   const matches = text.match(pattern);
   return matches ? matches.length : 0;
+}
+
+function runNativeCli(args) {
+  return spawnSync(nativeBinaryPath, args, {
+    cwd: projectRoot,
+    encoding: "utf8",
+    timeout: 30000,
+  });
 }
 
 function createFakeNativeBinary(options = {}) {
@@ -378,7 +387,7 @@ test("run_steps treats permission failures as immediate even with selector retry
 });
 
 test("analyze_ui call is routed to native layer (simulator target)", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "analyze_ui",
       arguments: {
@@ -394,11 +403,13 @@ test("analyze_ui call is routed to native layer (simulator target)", async () =>
     assert.match(text, /Executable:/);
     assert.match(text, /baepsae-native/);
     assert.match(text, /describe-ui/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^describe-ui --udid 00000000-0000-0000-0000-000000000000$/m);
   });
 });
 
 test("analyze_ui routes with simulator target", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "analyze_ui",
       arguments: {
@@ -413,11 +424,13 @@ test("analyze_ui routes with simulator target", async () => {
 
     assert.match(text, /describe-ui/);
     assert.match(text, /--udid/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^describe-ui --udid 00000000-0000-0000-0000-000000000000$/m);
   });
 });
 
 test("analyze_ui routes with macOS target", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "analyze_ui",
       arguments: {
@@ -432,11 +445,13 @@ test("analyze_ui routes with macOS target", async () => {
 
     assert.match(text, /describe-ui/);
     assert.match(text, /--bundle-id/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^describe-ui --bundle-id com\.example\.app$/m);
   });
 });
 
 test("tap id/label call is routed to native layer", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "tap",
       arguments: {
@@ -454,11 +469,13 @@ test("tap id/label call is routed to native layer", async () => {
     assert.match(text, /baepsae-native/);
     assert.match(text, /tap/);
     assert.match(text, /--id/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^tap --id com\.example\.button --udid 00000000-0000-0000-0000-000000000000$/m);
   });
 });
 
 test("tap forwards all=true to native --all", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "tap",
       arguments: {
@@ -476,6 +493,8 @@ test("tap forwards all=true to native --all", async () => {
     assert.match(text, /tap/);
     assert.match(text, /--all/);
     assert.match(text, /--udid/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^tap --id com\.example\.button --all --udid 00000000-0000-0000-0000-000000000000$/m);
   });
 });
 
@@ -501,7 +520,7 @@ test("tap rejects mixing coordinate and selector inputs", async () => {
 });
 
 test("analyze_ui forwards output option to native layer", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "analyze_ui",
       arguments: {
@@ -517,11 +536,13 @@ test("analyze_ui forwards output option to native layer", async () => {
 
     assert.match(text, /describe-ui/);
     assert.match(text, /--output/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^describe-ui --udid 00000000-0000-0000-0000-000000000000 --output \.tmp-test-artifacts\/describe-ui\.txt$/m);
   });
 });
 
 test("stream_video allows omitted output and auto-generates output path", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "stream_video",
       arguments: {
@@ -539,7 +560,54 @@ test("stream_video allows omitted output and auto-generates output path", async 
     assert.match(text, /stream-video/);
     assert.match(text, /--output/);
     assert.match(text, /Output file: .*simulator-stream-.*\.mov/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^stream-video --udid 00000000-0000-0000-0000-000000000000 --duration 1 --output .*simulator-stream-.*\.mov$/m);
   });
+});
+
+test("real native CLI still accepts describe-ui with --output and bundle target", () => {
+  const result = runNativeCli([
+    "describe-ui",
+    "--bundle-id",
+    "com.example.nonexistent",
+    "--output",
+    ".tmp-test-artifacts/describe-ui-native.txt",
+  ]);
+
+  assert.notEqual(result.status, 0);
+  assert.doesNotMatch(result.stderr, /Missing required option|Unhandled command|invalid arguments/i);
+  assert.match(result.stderr, /No running application found with bundle ID: com\.example\.nonexistent/);
+});
+
+test("real native CLI still accepts tap with selector and --all", () => {
+  const result = runNativeCli([
+    "tap",
+    "--bundle-id",
+    "com.example.nonexistent",
+    "--id",
+    "com.example.button",
+    "--all",
+  ]);
+
+  assert.notEqual(result.status, 0);
+  assert.doesNotMatch(result.stderr, /Missing required option|Unhandled command|invalid arguments/i);
+  assert.match(result.stderr, /No running application found with bundle ID: com\.example\.nonexistent/);
+});
+
+test("real native CLI still accepts stream-video duration and output flags", () => {
+  const result = runNativeCli([
+    "stream-video",
+    "--udid",
+    "INVALID-UDID",
+    "--duration",
+    "1",
+    "--output",
+    ".tmp-test-artifacts/native-stream.mov",
+  ]);
+
+  assert.notEqual(result.status, 0);
+  assert.doesNotMatch(result.stderr, /Missing required option|Unhandled command|invalid arguments/i);
+  assert.match(result.stderr, /invalid device|No devices are booted|Unable to find device/i);
 });
 
 // --- npx scenario tests (cwd ≠ package root) ---
