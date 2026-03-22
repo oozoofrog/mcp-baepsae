@@ -378,7 +378,7 @@ test("run_steps treats permission failures as immediate even with selector retry
 });
 
 test("analyze_ui call is routed to native layer (simulator target)", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "analyze_ui",
       arguments: {
@@ -394,11 +394,13 @@ test("analyze_ui call is routed to native layer (simulator target)", async () =>
     assert.match(text, /Executable:/);
     assert.match(text, /baepsae-native/);
     assert.match(text, /describe-ui/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^describe-ui --udid 00000000-0000-0000-0000-000000000000$/m);
   });
 });
 
 test("analyze_ui routes with simulator target", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "analyze_ui",
       arguments: {
@@ -413,11 +415,13 @@ test("analyze_ui routes with simulator target", async () => {
 
     assert.match(text, /describe-ui/);
     assert.match(text, /--udid/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^describe-ui --udid 00000000-0000-0000-0000-000000000000$/m);
   });
 });
 
 test("analyze_ui routes with macOS target", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "analyze_ui",
       arguments: {
@@ -432,11 +436,13 @@ test("analyze_ui routes with macOS target", async () => {
 
     assert.match(text, /describe-ui/);
     assert.match(text, /--bundle-id/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^describe-ui --bundle-id com\.example\.app$/m);
   });
 });
 
 test("tap id/label call is routed to native layer", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "tap",
       arguments: {
@@ -454,11 +460,13 @@ test("tap id/label call is routed to native layer", async () => {
     assert.match(text, /baepsae-native/);
     assert.match(text, /tap/);
     assert.match(text, /--id/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^tap --id com\.example\.button --udid 00000000-0000-0000-0000-000000000000$/m);
   });
 });
 
 test("tap forwards all=true to native --all", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "tap",
       arguments: {
@@ -476,6 +484,8 @@ test("tap forwards all=true to native --all", async () => {
     assert.match(text, /tap/);
     assert.match(text, /--all/);
     assert.match(text, /--udid/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^tap --id com\.example\.button --all --udid 00000000-0000-0000-0000-000000000000$/m);
   });
 });
 
@@ -501,7 +511,7 @@ test("tap rejects mixing coordinate and selector inputs", async () => {
 });
 
 test("analyze_ui forwards output option to native layer", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "analyze_ui",
       arguments: {
@@ -517,11 +527,13 @@ test("analyze_ui forwards output option to native layer", async () => {
 
     assert.match(text, /describe-ui/);
     assert.match(text, /--output/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^describe-ui --udid 00000000-0000-0000-0000-000000000000 --output \.tmp-test-artifacts\/describe-ui\.txt$/m);
   });
 });
 
 test("stream_video allows omitted output and auto-generates output path", async () => {
-  await withClient(async (client) => {
+  await withFakeNativeClient(async (client, fake) => {
     const result = await client.callTool({
       name: "stream_video",
       arguments: {
@@ -539,6 +551,8 @@ test("stream_video allows omitted output and auto-generates output path", async 
     assert.match(text, /stream-video/);
     assert.match(text, /--output/);
     assert.match(text, /Output file: .*simulator-stream-.*\.mov/);
+    const log = readFileSync(fake.logPath, "utf8");
+    assert.match(log, /^stream-video --udid 00000000-0000-0000-0000-000000000000 --duration 1 --output .*simulator-stream-.*\.mov$/m);
   });
 });
 
