@@ -1,2 +1,2 @@
 export const PACKAGE_NAME = "mcp-baepsae";
-export const PACKAGE_VERSION = "6.0.0";
+export const PACKAGE_VERSION = "6.1.0";

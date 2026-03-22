@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [6.1.0] - 2026-03-22
+
+### Added
+
+- `doctor` readiness self-check tool for host/native/simulator/accessibility diagnostics
+- `run_steps` workflow tool with ordered multi-step execution and fail-fast / continue-on-error behavior
+- TS-level backend abstraction with explicit backend metadata (`simctl`, `native_accessibility`, `simulator_input`, `utility/runtime`)
+
+### Changed
+
+- Clarified `stream_video` / `record_video` semantics and backend metadata
+- Added selector wait/retry support to `run_steps`
+- Improved simulator auxiliary-container fallback for `tap`, `query_ui`, `analyze_ui`, and `tap_tab`
+- Stabilized native routing contract coverage while preserving representative real native CLI parser checks in default CI
+
 ## [5.0.0] - 2026-02-21
 
 ### Removed (Breaking)
@@ -227,3 +242,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.1.2]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.1...v3.1.2
 [3.1.1]: https://github.com/oozoofrog/mcp-baepsae/compare/v3.1.0...v3.1.1
 [3.1.0]: https://github.com/oozoofrog/mcp-baepsae/releases/tag/v3.1.0
+
+[6.1.0]: https://github.com/oozoofrog/mcp-baepsae/compare/v5.1.0...v6.1.0
