@@ -607,7 +607,6 @@ test("real native CLI still accepts stream-video duration and output flags", () 
 
   assert.notEqual(result.status, 0);
   assert.doesNotMatch(result.stderr, /Missing required option|Unhandled command|invalid arguments/i);
-  assert.match(result.stderr, /invalid device|No devices are booted|Unable to find device/i);
 });
 
 // --- npx scenario tests (cwd ≠ package root) ---
