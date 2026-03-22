@@ -13,6 +13,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 const artifactDir = path.join(projectRoot, ".tmp-test-artifacts");
+const realNativePath = path.join(projectRoot, "native", ".build", "release", "baepsae-native");
 
 async function withClient(run) {
   const client = new Client({ name: "baepsae-real-test", version: "1.0.0" });
@@ -21,6 +22,10 @@ async function withClient(run) {
     args: ["dist/index.js"],
     cwd: projectRoot,
     stderr: "pipe",
+    env: {
+      ...process.env,
+      BAEPSAE_NATIVE_PATH: process.env.BAEPSAE_NATIVE_PATH ?? realNativePath,
+    },
   });
 
   await client.connect(transport);
@@ -41,6 +46,49 @@ function extractText(result) {
 function extractBootedUdid(text) {
   const match = text.match(/\(([0-9A-F-]{36})\)\s+\(Booted\)/i);
   return match ? match[1] : null;
+}
+
+function parseFrameFromText(text) {
+  const match = text.match(/frame=\(x:([\d.]+),y:([\d.]+),w:([\d.]+),h:([\d.]+)\)/);
+  if (!match) return null;
+  return {
+    x: parseFloat(match[1]),
+    y: parseFloat(match[2]),
+    width: parseFloat(match[3]),
+    height: parseFloat(match[4]),
+  };
+}
+
+async function getSimulatorWindowFrame(client, udid) {
+  const result = await client.callTool({ name: "list_windows", arguments: { udid } });
+  const text = extractText(result);
+  const match = text.match(/\(([\d.]+),([\d.]+),([\d.]+),([\d.]+)\)/);
+  if (!match) return null;
+  return {
+    x: parseFloat(match[1]),
+    y: parseFloat(match[2]),
+    width: parseFloat(match[3]),
+    height: parseFloat(match[4]),
+  };
+}
+
+function toWindowRelativePoint(frame, windowFrame, xRatio = 0.5, yRatio = 0.5) {
+  return {
+    x: Math.round(frame.x - windowFrame.x + frame.width * xRatio),
+    y: Math.round(frame.y - windowFrame.y + frame.height * yRatio),
+  };
+}
+
+async function getSimulatorContentFrame(client, udid) {
+  const result = await client.callTool({ name: "analyze_ui", arguments: { udid, maxDepth: 1 } });
+  return parseFrameFromText(extractText(result));
+}
+
+function toContentRelativePoint(frame, contentFrame, xRatio = 0.5, yRatio = 0.5) {
+  return {
+    x: Math.round(frame.x - contentFrame.x + frame.width * xRatio),
+    y: Math.round(frame.y - contentFrame.y + frame.height * yRatio),
+  };
 }
 
 function isAccessibilityDenied(text) {
@@ -888,43 +936,48 @@ test("Phase 2b: swipe → verify list scroll changes visible items", { timeout: 
     // Re-launch SampleApp and wait for UI
     await relaunchSampleApp(client, udid);
 
-    // Describe UI before swipe to capture visible list items
-    const beforeResult = await client.callTool({
+    const beforeText = await waitForUI(
+      client,
+      udid,
+      "basic-scroll-position",
+      (text) => /Visible:\s*Item\s+\d+\s*~\s*Item\s+\d+/.test(text),
+      5000,
+    );
+
+    const listDescribeResult = await client.callTool({
       name: "analyze_ui",
       arguments: { udid, focusId: "test-list" },
     });
-    const beforeText = extractText(beforeResult);
-    if (beforeResult.isError && isAccessibilityDenied(beforeText)) {
-      skipTest(t, "accessibility-denied");
-      return;
-    }
-    assert.equal(beforeResult.isError ?? false, false, "analyze_ui before swipe should not error");
+    const listFrame = parseFrameFromText(extractText(listDescribeResult));
+    const contentFrame = await getSimulatorContentFrame(client, udid);
+    assert.ok(listFrame && contentFrame, "list frame and simulator content frame should be available");
+    const swipeStart = toContentRelativePoint(listFrame, contentFrame, 0.5, 0.82);
+    const swipeEnd = toContentRelativePoint(listFrame, contentFrame, 0.5, 0.18);
 
     // Swipe up on the list area to scroll down
     const swipeResult = await client.callTool({
       name: "swipe",
-      arguments: { udid, startX: 200, startY: 600, endX: 200, endY: 300, duration: 0.3 },
+      arguments: { udid, startX: swipeStart.x, startY: swipeStart.y, endX: swipeEnd.x, endY: swipeEnd.y, duration: 0.5 },
     });
     assert.equal(swipeResult.isError ?? false, false, "swipe should not error");
-    await sleep(500);
 
-    // Describe UI after swipe
-    const afterResult = await client.callTool({
-      name: "analyze_ui",
-      arguments: { udid, focusId: "test-list" },
-    });
-    const afterText = extractText(afterResult);
-    assert.equal(afterResult.isError ?? false, false, "analyze_ui after swipe should not error");
+    const afterText = await waitForUI(
+      client,
+      udid,
+      "basic-scroll-position",
+      (text) => {
+        const match = text.match(/Item\s+(\d+)\s*~\s*Item\s+(\d+)/);
+        return match ? parseInt(match[2]) > 9 : false;
+      },
+      5000,
+    );
 
-    // After scrolling, the visible items should differ (later items should appear)
-    // At minimum, the output should have changed
-    assert.ok(afterText.length > 0, "analyze_ui after swipe should return content");
-    // Check that higher-numbered items are now visible (e.g., Item 10+)
-    const hasHigherItems = /Item\s+(1[0-9]|[2-9]\d)/.test(afterText);
-    const beforeHadHigherItems = /Item\s+(1[0-9]|[2-9]\d)/.test(beforeText);
-    if (!beforeHadHigherItems) {
-      assert.ok(hasHigherItems, `after swipe, higher-numbered items should be visible, got: ${afterText}`);
-    }
+    const afterMatch = afterText.match(/Item\s+(\d+)\s*~\s*Item\s+(\d+)/);
+    assert.ok(afterMatch, `basic-scroll-position should contain visible item range, got: ${afterText}`);
+    assert.ok(
+      parseInt(afterMatch[2]) > 9,
+      `After swipe, max visible item should be > 9, got: Item ${afterMatch[1]} ~ Item ${afterMatch[2]}`,
+    );
   });
 });
 
@@ -991,29 +1044,47 @@ test("Phase 2b: integrated workflow → tap, type, verify, swipe", { timeout: 60
     // Step 5: Re-launch app to dismiss keyboard/context menu before scrolling
     await relaunchSampleApp(client, udid);
 
-    // Wait for test-list to be visible
-    const beforeSwipeText = await waitForUI(client, udid, "test-list", (text) => /Item\s+\d/.test(text), 5000);
+    const beforeSwipeText = await waitForUI(
+      client,
+      udid,
+      "basic-scroll-position",
+      (text) => /Visible:\s*Item\s+\d+\s*~\s*Item\s+\d+/.test(text),
+      5000,
+    );
 
-    const swipeResult = await client.callTool({
-      name: "swipe",
-      arguments: { udid, startX: 200, startY: 600, endX: 200, endY: 300, duration: 0.3 },
-    });
-    assert.equal(swipeResult.isError ?? false, false, "swipe should not error");
-    await sleep(500);
-
-    const afterSwipe = await client.callTool({
+    const listDescribeResult = await client.callTool({
       name: "analyze_ui",
       arguments: { udid, focusId: "test-list" },
     });
-    const afterSwipeText = extractText(afterSwipe);
-    assert.ok(afterSwipeText.length > 0, "list should have content after swipe");
+    const listFrame = parseFrameFromText(extractText(listDescribeResult));
+    const contentFrame = await getSimulatorContentFrame(client, udid);
+    assert.ok(listFrame && contentFrame, "list frame and simulator content frame should be available");
+    const swipeStart = toContentRelativePoint(listFrame, contentFrame, 0.5, 0.82);
+    const swipeEnd = toContentRelativePoint(listFrame, contentFrame, 0.5, 0.18);
 
-    // Verify the UI state changed (scroll caused different items to be visible)
-    const afterHasHigherItems = /Item\s+(1[0-9]|[2-9]\d)/.test(afterSwipeText);
-    const beforeHadHigherItems = /Item\s+(1[0-9]|[2-9]\d)/.test(beforeSwipeText);
-    if (!beforeHadHigherItems) {
-      assert.ok(afterHasHigherItems, `after swipe, higher-numbered list items should appear, got: ${afterSwipeText}`);
-    }
+    const swipeResult = await client.callTool({
+      name: "swipe",
+      arguments: { udid, startX: swipeStart.x, startY: swipeStart.y, endX: swipeEnd.x, endY: swipeEnd.y, duration: 0.5 },
+    });
+    assert.equal(swipeResult.isError ?? false, false, "swipe should not error");
+
+    const afterSwipeText = await waitForUI(
+      client,
+      udid,
+      "basic-scroll-position",
+      (text) => {
+        const match = text.match(/Item\s+(\d+)\s*~\s*Item\s+(\d+)/);
+        return match ? parseInt(match[2]) > 9 : false;
+      },
+      5000,
+    );
+
+    const afterMatch = afterSwipeText.match(/Item\s+(\d+)\s*~\s*Item\s+(\d+)/);
+    assert.ok(afterMatch, `basic-scroll-position should contain visible item range, got: ${afterSwipeText}`);
+    assert.ok(
+      parseInt(afterMatch[2]) > 9,
+      `After swipe, max visible item should be > 9, got: Item ${afterMatch[1]} ~ Item ${afterMatch[2]}`,
+    );
   });
 });
 
@@ -1098,7 +1169,7 @@ test("Phase 2c: scroll → verify scroll-position text changes in ScrollTab", { 
     // Navigate to Scroll tab
     const tapScrollTab = await client.callTool({
       name: "tap",
-      arguments: { udid, label: "Scroll" },
+      arguments: { udid, id: "nav-scroll" },
     });
     if (tapScrollTab.isError && isAccessibilityDenied(extractText(tapScrollTab))) {
       skipTest(t, "accessibility-denied");
@@ -1119,9 +1190,18 @@ test("Phase 2c: scroll → verify scroll-position text changes in ScrollTab", { 
     }
 
     // Perform scroll down (negative deltaY = content moves up = higher items appear)
+    const scrollListResult = await client.callTool({
+      name: "analyze_ui",
+      arguments: { udid, focusId: "scroll-list" },
+    });
+    const scrollListFrame = parseFrameFromText(extractText(scrollListResult));
+    const contentFrame = await getSimulatorContentFrame(client, udid);
+    assert.ok(scrollListFrame && contentFrame, "scroll-list frame and simulator content frame should be available");
+    const scrollPoint = toContentRelativePoint(scrollListFrame, contentFrame, 0.5, 0.5);
+
     const scrollResult = await client.callTool({
       name: "scroll",
-      arguments: { udid, x: 195, y: 400, deltaX: 0, deltaY: -5 },
+      arguments: { udid, x: scrollPoint.x, y: scrollPoint.y, deltaX: 0, deltaY: -8 },
     });
     assert.equal(scrollResult.isError ?? false, false, "scroll should not error");
     await sleep(800);
@@ -1170,7 +1250,7 @@ test("Phase 2c: drag_drop → drag item to drop zone and verify drop-result", { 
     // Navigate to Drag tab
     const tapDragTab = await client.callTool({
       name: "tap",
-      arguments: { udid, label: "Drag" },
+      arguments: { udid, id: "nav-drag" },
     });
     if (tapDragTab.isError && isAccessibilityDenied(extractText(tapDragTab))) {
       skipTest(t, "accessibility-denied");
@@ -1203,33 +1283,43 @@ test("Phase 2c: drag_drop → drag item to drop zone and verify drop-result", { 
     // Extract CGRect frame coordinates from analyze_ui text output.
     // Format: {{x, y}, {w, h}} or "frame: (x, y, w, h)"
     function parseCenterFromText(text) {
-      const match = text.match(/\{\{([\d.]+),\s*([\d.]+)\},\s*\{([\d.]+),\s*([\d.]+)\}\}/);
-      if (match) {
-        return {
-          x: parseFloat(match[1]) + parseFloat(match[3]) / 2,
-          y: parseFloat(match[2]) + parseFloat(match[4]) / 2,
-        };
-      }
-      return null;
+      const frame = parseFrameFromText(text);
+      return frame
+        ? {
+            x: frame.x + frame.width / 2,
+            y: frame.y + frame.height / 2,
+          }
+        : null;
     }
 
     const item0Center = parseCenterFromText(extractText(item0Result));
     const dropZoneCenter = parseCenterFromText(extractText(dropZoneResult));
-    if (!item0Center || !dropZoneCenter) {
-      skipTest(t, "coordinate-parse-failed", `item0=${!!item0Center}, dropZone=${!!dropZoneCenter}`);
+    const contentFrame = await getSimulatorContentFrame(client, udid);
+    if (!item0Center || !dropZoneCenter || !contentFrame) {
+      skipTest(t, "coordinate-parse-failed", `item0=${!!item0Center}, dropZone=${!!dropZoneCenter}, content=${!!contentFrame}`);
       return;
     }
+
+    const startPoint = {
+      x: Math.round(item0Center.x - contentFrame.x),
+      y: Math.round(item0Center.y - contentFrame.y),
+    };
+    const endPoint = {
+      x: Math.round(dropZoneCenter.x - contentFrame.x),
+      y: Math.round(dropZoneCenter.y - contentFrame.y),
+    };
 
     // Perform drag from item-0 to drop-zone
     const dragResult = await client.callTool({
       name: "drag_drop",
       arguments: {
         udid,
-        fromX: Math.round(item0Center.x),
-        fromY: Math.round(item0Center.y),
-        toX: Math.round(dropZoneCenter.x),
-        toY: Math.round(dropZoneCenter.y),
+        startX: startPoint.x,
+        startY: startPoint.y,
+        endX: endPoint.x,
+        endY: endPoint.y,
         duration: 0.5,
+        holdDuration: 1.0,
       },
     });
     assert.equal(dragResult.isError ?? false, false, "drag_drop should not error");

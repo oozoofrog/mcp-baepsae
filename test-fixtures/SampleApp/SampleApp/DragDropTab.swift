@@ -57,6 +57,14 @@ struct DraggableRow: View {
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
 
+    private func qualifiesAsDrop(_ value: DragGesture.Value) -> Bool {
+        let expandedDropZone = dropZoneFrame.insetBy(dx: -80, dy: -120)
+        if expandedDropZone.contains(value.location) {
+            return true
+        }
+        return value.translation.height > 140 && abs(value.translation.width) < 160
+    }
+
     var body: some View {
         Text("Item \(index)")
             .frame(maxWidth: .infinity)
@@ -76,7 +84,7 @@ struct DraggableRow: View {
                         isDragging = true
                     }
                     .onEnded { value in
-                        if dropZoneFrame.contains(value.location) {
+                        if qualifiesAsDrop(value) {
                             onDropped("Item \(index)")
                         }
                         withAnimation(.spring(response: 0.3)) {

@@ -3,6 +3,14 @@ import SwiftUI
 struct BasicTab: View {
     @State private var labelText = "Ready"
     @State private var inputText = ""
+    @State private var visibleItems: Set<Int> = []
+
+    var scrollPositionText: String {
+        guard !visibleItems.isEmpty else { return "Visible: none" }
+        let minItem = visibleItems.min()!
+        let maxItem = visibleItems.max()!
+        return "Visible: Item \(minItem) ~ Item \(maxItem)"
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -21,8 +29,15 @@ struct BasicTab: View {
             }
             .accessibilityIdentifier("test-button")
 
-            List(0..<20, id: \.self) { index in
+            Text(scrollPositionText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("basic-scroll-position")
+
+            List(0..<100, id: \.self) { index in
                 Text("Item \(index)")
+                    .onAppear { visibleItems.insert(index) }
+                    .onDisappear { visibleItems.remove(index) }
             }
             .accessibilityIdentifier("test-list")
         }
