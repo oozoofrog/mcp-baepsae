@@ -211,6 +211,8 @@ test("type_text exposes policy metadata in machine-readable form", async () => {
     assert.equal(result.metadata?.pasteTransport, "simulator_pasteboard");
     assert.equal(result.metadata?.clipboardSideEffect, "none");
     assert.equal(result.metadata?.autoFallback, "paste");
+    assert.equal(result.metadata?.backendKind, "simulator_input");
+    assert.equal(result.metadata?.backendExecutor, "native");
   });
 });
 

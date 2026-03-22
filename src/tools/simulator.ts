@@ -2,11 +2,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { resolve } from "node:path";
 import { z } from "zod";
 
-import { runSimctl } from "../utils.js";
+import { runBackend } from "../backend.js";
 
 export function registerSimulatorTools(server: McpServer): void {
   server.tool("list_simulators", "List available simulators using simctl.", {}, async () => {
-    return await runSimctl(["list", "devices", "available"]);
+    return await runBackend("simulator", ["list", "devices", "available"]);
   });
 
   server.tool(
@@ -17,7 +17,7 @@ export function registerSimulatorTools(server: McpServer): void {
       url: z.string().min(1).describe("URL to open"),
     },
     async (params) => {
-      return await runSimctl(["openurl", params.udid, params.url]);
+      return await runBackend("simulator", ["openurl", params.udid, params.url]);
     }
   );
 
@@ -30,7 +30,7 @@ export function registerSimulatorTools(server: McpServer): void {
     },
     async (params) => {
       const resolvedPath = resolve(params.path);
-      return await runSimctl(["install", params.udid, resolvedPath]);
+      return await runBackend("simulator", ["install", params.udid, resolvedPath]);
     }
   );
 
@@ -42,7 +42,7 @@ export function registerSimulatorTools(server: McpServer): void {
       bundleId: z.string().min(1).describe("App Bundle Identifier (e.g. com.example.app)"),
     },
     async (params) => {
-      return await runSimctl(["uninstall", params.udid, params.bundleId]);
+      return await runBackend("simulator", ["uninstall", params.udid, params.bundleId]);
     }
   );
 
@@ -63,7 +63,7 @@ export function registerSimulatorTools(server: McpServer): void {
       const env: Record<string, string> | undefined = params.env
         ? Object.fromEntries(Object.entries(params.env).map(([k, v]) => [`SIMCTL_CHILD_${k}`, v]))
         : undefined;
-      return await runSimctl(args, { env });
+      return await runBackend("simulator", args, { env });
     }
   );
 
@@ -75,7 +75,7 @@ export function registerSimulatorTools(server: McpServer): void {
       bundleId: z.string().min(1).describe("App Bundle Identifier"),
     },
     async (params) => {
-      return await runSimctl(["terminate", params.udid, params.bundleId]);
+      return await runBackend("simulator", ["terminate", params.udid, params.bundleId]);
     }
   );
 }

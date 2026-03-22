@@ -112,6 +112,24 @@ async function withClient(run, envOverrides = {}) {
   }
 }
 
+const backendModule = await import(new URL("../dist/backend.js", import.meta.url).href);
+
+// ===========================================================================
+// Section 0: Backend abstraction catalog
+// ===========================================================================
+
+test("backend catalog exposes distinct simulator, accessibility, input, and utility domains", () => {
+  assert.equal(backendModule.resolveBackendKind("simulator"), "simctl");
+  assert.equal(backendModule.resolveBackendKind("accessibility"), "native_accessibility");
+  assert.equal(backendModule.resolveBackendKind("input"), "simulator_input");
+  assert.equal(backendModule.resolveBackendKind("utility"), "utility/runtime");
+
+  assert.equal(backendModule.BACKENDS.simctl.executorKind, "simctl");
+  assert.equal(backendModule.BACKENDS.native_accessibility.executorKind, "native");
+  assert.equal(backendModule.BACKENDS.simulator_input.executorKind, "native");
+  assert.equal(backendModule.BACKENDS["utility/runtime"].executorKind, "native");
+});
+
 // ===========================================================================
 // Section 1: Tool registry completeness
 // ===========================================================================
@@ -295,6 +313,8 @@ test("analyze_ui routes correctly with bundleId target", async () => {
     assert.match(text, /baepsae-native/);
     assert.match(text, /--bundle-id/);
     assert.match(text, /com\.example\.nonexistent/);
+    assert.equal(result.metadata?.backendKind, "native_accessibility");
+    assert.equal(result.metadata?.backendExecutor, "native");
   });
 });
 
@@ -308,6 +328,7 @@ test("analyze_ui routes correctly with appName target", async () => {
     assert.match(text, /baepsae-native/);
     assert.match(text, /--app-name/);
     assert.match(text, /NonexistentApp/);
+    assert.equal(result.metadata?.backendKind, "native_accessibility");
   });
 });
 
@@ -406,6 +427,8 @@ test("tap with label-only routes correctly to native binary", async () => {
     const text = extractText(result);
     assert.match(text, /baepsae-native/);
     assert.match(text, /--label/);
+    assert.equal(result.metadata?.backendKind, "native_accessibility");
+    assert.equal(result.metadata?.backendExecutor, "native");
   });
 });
 
@@ -423,6 +446,8 @@ test("tap with coordinates passes x and y to native", async () => {
     assert.match(text, /baepsae-native/);
     assert.match(text, /-x/);
     assert.match(text, /-y/);
+    assert.equal(result.metadata?.backendKind, "simulator_input");
+    assert.equal(result.metadata?.backendExecutor, "native");
   });
 });
 
@@ -524,6 +549,7 @@ test("tap_tab forwards index and target to native", async () => {
     const text = extractText(result);
     assert.match(text, /tap-tab/);
     assert.match(text, /--index/);
+    assert.equal(result.metadata?.backendKind, undefined);
   });
 });
 
@@ -672,6 +698,8 @@ test("type_text with text argument routes to native with correct args", async ()
     const text = extractText(result);
     assert.match(text, /baepsae-native/);
     assert.match(text, /type/);
+    assert.equal(result.metadata?.backendKind, "simulator_input");
+    assert.equal(result.metadata?.backendExecutor, "native");
   });
 });
 
@@ -722,6 +750,7 @@ test("type_text with method=paste includes --method flag", async () => {
     assert.equal(result.metadata?.usedMethod, "paste");
     assert.equal(result.metadata?.pasteTransport, "simulator_pasteboard");
     assert.equal(result.metadata?.clipboardSideEffect, "none");
+    assert.equal(result.metadata?.backendKind, "simulator_input");
   });
 });
 
@@ -742,6 +771,7 @@ test("type_text with method=keyboard includes --method flag", async () => {
     assert.match(text, /Clipboard side effect: none\./);
     assert.equal(result.metadata?.usedMethod, "keyboard");
     assert.equal(result.metadata?.clipboardSideEffect, "none");
+    assert.equal(result.metadata?.backendKind, "simulator_input");
   });
 });
 
@@ -763,6 +793,7 @@ test("type_text without method does not include --method flag", async () => {
     assert.equal(result.metadata?.usedMethod, "paste");
     assert.equal(result.metadata?.pasteTransport, "simulator_pasteboard");
     assert.equal(result.metadata?.autoFallback, "paste");
+    assert.equal(result.metadata?.backendKind, "simulator_input");
   });
 });
 
@@ -1134,6 +1165,8 @@ test("swipe forwards all coordinates and optional parameters", async () => {
     assert.match(text, /--duration/);
     assert.match(text, /--pre-delay/);
     assert.match(text, /--post-delay/);
+    assert.equal(result.metadata?.backendKind, "simulator_input");
+    assert.equal(result.metadata?.backendExecutor, "native");
   });
 });
 
@@ -1233,6 +1266,7 @@ test("drag_drop forwards all coordinates and optional duration", async () => {
     assert.match(text, /--end-x/);
     assert.match(text, /--end-y/);
     assert.match(text, /--duration/);
+    assert.equal(result.metadata?.backendKind, "simulator_input");
   });
 });
 
@@ -1277,6 +1311,7 @@ test("scroll forwards delta and coordinate options", async () => {
     assert.match(text, /--delta-y/);
     assert.match(text, /-x/);
     assert.match(text, /-y/);
+    assert.equal(result.metadata?.backendKind, "simulator_input");
   });
 });
 
@@ -1374,6 +1409,8 @@ test("record_video output includes capture mode, requested duration, and output 
     assert.match(text, /Output file:.*test-record\.mov/);
     assert.equal(result.metadata?.captureMode, "record_video_direct");
     assert.equal(result.metadata?.backend, "simctl.recordVideo");
+    assert.equal(result.metadata?.backendKind, "simctl");
+    assert.equal(result.metadata?.backendExecutor, "simctl");
     assert.equal(result.metadata?.requestedDurationSeconds, 2);
     assert.equal(result.metadata?.outputPath, path.resolve(outputPath));
   });
@@ -1393,6 +1430,7 @@ test("record_video defaults to 10s duration when not specified", async () => {
     assert.match(text, /Capture mode: direct simctl recordVideo\./);
     assert.match(text, /Requested duration: 10s/);
     assert.equal(result.metadata?.captureMode, "record_video_direct");
+    assert.equal(result.metadata?.backendKind, "simctl");
     assert.equal(result.metadata?.requestedDurationSeconds, 10);
     assert.equal(result.metadata?.outputPath, path.resolve(outputPath));
   });
@@ -1420,6 +1458,8 @@ test("stream_video output explains the current shim and output file", async () =
     assert.match(text, /Output file:.*test-stream\.mov/);
     assert.equal(result.metadata?.captureMode, "stream_video_shim");
     assert.equal(result.metadata?.backend, "simctl.recordVideo");
+    assert.equal(result.metadata?.backendKind, "utility/runtime");
+    assert.equal(result.metadata?.backendExecutor, "native");
     assert.equal(result.metadata?.requestedDurationSeconds, 2);
     assert.equal(result.metadata?.outputPath, path.resolve(outputPath));
   });
@@ -1717,6 +1757,8 @@ test("list_simulators routes through xcrun simctl", async () => {
     assert.match(text, /Executable:.*xcrun/, "Should execute through xcrun");
     assert.match(text, /simctl/, "Command should include simctl");
     assert.match(text, /list/, "Command should include list");
+    assert.equal(result.metadata?.backendKind, "simctl");
+    assert.equal(result.metadata?.backendExecutor, "simctl");
   });
 });
 
