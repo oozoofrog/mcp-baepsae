@@ -54,6 +54,11 @@ func parse(arguments: [String]) throws -> ParsedOptions {
     var flags: Set<String> = []
     var positionals: [String] = []
 
+    func looksLikeNegativeNumber(_ value: String) -> Bool {
+        let pattern = #"^-\d+(\.\d+)?$"#
+        return value.range(of: pattern, options: .regularExpression) != nil
+    }
+
     var index = 1
     while index < arguments.count {
         let item = arguments[index]
@@ -62,14 +67,14 @@ func parse(arguments: [String]) throws -> ParsedOptions {
                 let key = String(item[..<separator])
                 let value = String(item[item.index(after: separator)...])
                 options[key] = value
-            } else if index + 1 < arguments.count, !arguments[index + 1].hasPrefix("-") {
+            } else if index + 1 < arguments.count, (!arguments[index + 1].hasPrefix("-") || looksLikeNegativeNumber(arguments[index + 1])) {
                 options[item] = arguments[index + 1]
                 index += 1
             } else {
                 flags.insert(item)
             }
         } else if item.hasPrefix("-") {
-            if index + 1 < arguments.count, !arguments[index + 1].hasPrefix("-") {
+            if index + 1 < arguments.count, (!arguments[index + 1].hasPrefix("-") || looksLikeNegativeNumber(arguments[index + 1])) {
                 options[item] = arguments[index + 1]
                 index += 1
             } else {
