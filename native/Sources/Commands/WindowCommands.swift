@@ -82,8 +82,8 @@ func handleDragDrop(_ parsed: ParsedOptions) throws -> Int32 {
     case .indigoHID(let client):
         _ = client.drag(fromX: startXVal, fromY: startYVal, toX: endXVal, toY: endYVal, holdDuration: holdDuration, moveDuration: duration)
     case .cgevent:
-        let start = try pointInWindow(x: startXVal, y: startYVal, for: target)
-        let end = try pointInWindow(x: endXVal, y: endYVal, for: target)
+        let start = try pointForInput(x: startXVal, y: startYVal, for: target)
+        let end = try pointForInput(x: endXVal, y: endYVal, for: target)
         sendDrag(from: start, to: end, holdDuration: holdDuration, moveDuration: duration)
     }
     if postDelay > 0 {

@@ -80,9 +80,18 @@ final class IndigoHIDClient {
             Thread.sleep(forTimeInterval: holdDuration)
         }
 
+        // A small warmup move helps SwiftUI DragGesture transition into
+        // an active drag before the long move sequence begins.
+        let warmupProgress = 0.02
+        let warmupX = sx + (ex - sx) * warmupProgress
+        let warmupY = sy + (ey - sy) * warmupProgress
+        guard let warmupMsg = loader.createTouchMessage(phase: .moved, x: warmupX, y: warmupY) else { return false }
+        guard sendIndigoHIDMessage(warmupMsg, to: port) else { return false }
+        Thread.sleep(forTimeInterval: 0.05)
+
         // Move sequence
-        let steps = 10
-        let stepDuration = (moveDuration ?? 0.3) / Double(steps)
+        let steps = 18
+        let stepDuration = max((moveDuration ?? 0.6) / Double(steps), 0.02)
         for step in 1...steps {
             let progress = Double(step) / Double(steps)
             let cx = sx + (ex - sx) * progress
@@ -91,6 +100,8 @@ final class IndigoHIDClient {
             guard sendIndigoHIDMessage(moveMsg, to: port) else { return false }
             Thread.sleep(forTimeInterval: stepDuration)
         }
+
+        Thread.sleep(forTimeInterval: 0.08)
 
         // Touch ended
         guard let endMsg = loader.createTouchMessage(phase: .ended, x: ex, y: ey) else { return false }

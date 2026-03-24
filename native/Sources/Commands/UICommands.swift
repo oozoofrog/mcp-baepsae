@@ -441,8 +441,8 @@ func handleSwipe(_ parsed: ParsedOptions) throws -> Int32 {
     case .indigoHID(let client):
         _ = client.swipe(fromX: startXValue, fromY: startYValue, toX: endXValue, toY: endYValue, duration: duration)
     case .cgevent:
-        let start = try pointInWindow(x: startXValue, y: startYValue, for: target)
-        let end = try pointInWindow(x: endXValue, y: endYValue, for: target)
+        let start = try pointForInput(x: startXValue, y: startYValue, for: target)
+        let end = try pointForInput(x: endXValue, y: endYValue, for: target)
         sendSwipe(from: start, to: end, duration: duration)
     }
     if postDelay > 0 {
@@ -460,12 +460,34 @@ func handleScroll(_ parsed: ParsedOptions) throws -> Int32 {
     if deltaX == 0 && deltaY == 0 {
         throw NativeError.invalidArguments("scroll requires --delta-x and/or --delta-y.")
     }
-    var scrollPoint: CGPoint? = nil
+
     let xRaw = parsed.options["-x"]
     let yRaw = parsed.options["-y"]
-    if let xRaw, let yRaw, let x = Double(xRaw), let y = Double(yRaw) {
-        scrollPoint = try pointInWindow(x: x, y: y, for: target)
+    let xValue = xRaw.flatMap(Double.init)
+    let yValue = yRaw.flatMap(Double.init)
+
+    switch target {
+    case .simulator:
+        let scrollPoint = try simulatorScrollAnchorPoint(x: xValue, y: yValue)
+        let scrollDistance = simulatorScrollDistance(deltaX: deltaX, deltaY: deltaY)
+        let start = CGPoint(x: scrollPoint.x - scrollDistance.width / 2, y: scrollPoint.y - scrollDistance.height / 2)
+        let end = CGPoint(x: scrollPoint.x + scrollDistance.width / 2, y: scrollPoint.y + scrollDistance.height / 2)
+
+        let backend = resolveInputBackend(for: target)
+        switch backend {
+        case .indigoHID(let client):
+            _ = client.swipe(fromX: Double(start.x), fromY: Double(start.y), toX: Double(end.x), toY: Double(end.y), duration: 0.45, steps: 18)
+        case .cgevent:
+            let startPoint = try pointInSimulatorContent(x: Double(start.x), y: Double(start.y))
+            let endPoint = try pointInSimulatorContent(x: Double(end.x), y: Double(end.y))
+            sendSwipe(from: startPoint, to: endPoint, duration: 0.45)
+        }
+    case .macApp:
+        var scrollPoint: CGPoint? = nil
+        if let xValue, let yValue {
+            scrollPoint = try pointForInput(x: xValue, y: yValue, for: target)
+        }
+        sendScrollWheel(at: scrollPoint, deltaX: Int32(deltaX), deltaY: Int32(deltaY))
     }
-    sendScrollWheel(at: scrollPoint, deltaX: Int32(deltaX), deltaY: Int32(deltaY))
     return 0
 }
