@@ -1196,6 +1196,36 @@ func pointInSimulatorContent(x: Double, y: Double) throws -> CGPoint {
     return CGPoint(x: targetX, y: targetY)
 }
 
+func pointForInput(x: Double, y: Double, for target: TargetApp) throws -> CGPoint {
+    switch target {
+    case .simulator:
+        return try pointInSimulatorContent(x: x, y: y)
+    case .macApp:
+        return try pointInWindow(x: x, y: y, for: target)
+    }
+}
+
+func simulatorScrollAnchorPoint(x: Double?, y: Double?) throws -> CGPoint {
+    if let x, let y {
+        return CGPoint(x: x, y: y)
+    }
+    guard let bounds = simulatorContentBounds() else {
+        throw NativeError.commandFailed("Simulator content area not found. Ensure Simulator is running and visible.")
+    }
+    return CGPoint(x: bounds.width * 0.5, y: bounds.height * 0.5)
+}
+
+func simulatorScrollDistance(deltaX: Double, deltaY: Double) -> CGSize {
+    func component(for delta: Double) -> CGFloat {
+        guard delta != 0 else { return 0 }
+        let magnitude = min(max(abs(delta) * 18.0, 90.0), 320.0)
+        let sign: CGFloat = delta < 0 ? -1 : 1
+        return CGFloat(magnitude) * sign
+    }
+
+    return CGSize(width: component(for: deltaX), height: component(for: deltaY))
+}
+
 // MARK: - App Activation
 
 func activateTarget(_ target: TargetApp) throws {
@@ -1299,21 +1329,21 @@ func sendDrag(from start: CGPoint, to end: CGPoint, holdDuration: Double, moveDu
     }
 
     // iOS drag & drop is often sensitive to the exact event sequence.
-    // A tiny initial move helps the simulator/app transition from the
-    // long-press state into an actual drag session before the full move.
-    let warmupOffset: CGFloat = 1.0
+    // Use a slightly larger warmup move so SwiftUI DragGesture reliably
+    // leaves the initial long-press state and enters an active drag.
+    let warmupOffset: CGFloat = 4.0
     let warmupPoint = CGPoint(
         x: start.x + (end.x >= start.x ? warmupOffset : -warmupOffset),
         y: start.y + (end.y >= start.y ? warmupOffset : -warmupOffset)
     )
     postMouseEvent(type: .leftMouseDragged, point: warmupPoint)
     if let moveDuration {
-        Thread.sleep(forTimeInterval: min(max(moveDuration / 20.0, 0.01), 0.05))
+        Thread.sleep(forTimeInterval: min(max(moveDuration / 24.0, 0.02), 0.06))
     } else {
-        Thread.sleep(forTimeInterval: 0.03)
+        Thread.sleep(forTimeInterval: 0.05)
     }
 
-    let steps = 10
+    let steps = 18
     for step in 1...steps {
         let progress = CGFloat(step) / CGFloat(steps)
         let x = start.x + (end.x - start.x) * progress
@@ -1321,8 +1351,11 @@ func sendDrag(from start: CGPoint, to end: CGPoint, holdDuration: Double, moveDu
         postMouseEvent(type: .leftMouseDragged, point: CGPoint(x: x, y: y))
         if let moveDuration {
             Thread.sleep(forTimeInterval: moveDuration / Double(steps))
+        } else {
+            Thread.sleep(forTimeInterval: 0.02)
         }
     }
+    Thread.sleep(forTimeInterval: 0.08)
     postMouseEvent(type: .leftMouseUp, point: end)
 }
 
