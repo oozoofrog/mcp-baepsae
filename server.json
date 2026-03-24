@@ -6,12 +6,12 @@
     "url": "https://github.com/oozoofrog/mcp-baepsae",
     "source": "github"
   },
-  "version": "6.1.0",
+  "version": "6.1.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "mcp-baepsae",
-      "version": "6.1.0",
+      "version": "6.1.1",
       "transport": {
         "type": "stdio"
       }

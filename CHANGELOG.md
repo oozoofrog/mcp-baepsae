@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [6.1.1] - 2026-03-25
+
+### Fixed
+
+- Stabilized real native `stream-video` contract coverage without relying on environment-specific stderr text
+- Stabilized SampleApp relaunch and workflow verification in real smoke tests
+- Improved simulator scroll and drag gesture handling so real smoke interaction tests pass reliably
+
 ## [6.1.0] - 2026-03-22
 
 ### Added
