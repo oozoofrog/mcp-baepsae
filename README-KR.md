@@ -268,7 +268,23 @@ npm run setup:mcp   # scripts/install.sh 실행 alias
 
 `paste`를 사용하면 시뮬레이터 대상은 host clipboard를 건드리지 않고 simulator pasteboard를 갱신하며, macOS 대상은 host clipboard를 잠시 덮어쓴 뒤 복원합니다. 성공 응답에는 입력 소스, 대상 종류, 요청한 method, 실제 사용한 method, paste transport, auto fallback이 함께 보고됩니다.
 
+### `tap_tab` 정책
+
+`tap_tab`는 **semantic-first, geometry-last** 전략을 사용합니다.
+
+- 먼저 탭 바 아래에 노출된 actionable descendant를 찾습니다.
+- SwiftUI/Simulator 조합에서 실제 탭 버튼 descendant가 드러나지 않으면, 같은 탭 전환 의미를 가진 **semantic proxy row**(예: 상단 탭 전환 버튼)를 사용할 수 있습니다.
+- 그런 semantic 경로가 없을 때만 마지막으로 탭 바 geometry fallback을 사용합니다.
+
+이 정책이 필요한 이유는 SwiftUI `TabView`가 Simulator에서 종종 실제 탭 버튼 없이 `AXGroup text="Tab Bar"`로만 노출되기 때문입니다.
+
 ## 사용 예시
+
+**인덱스로 탭 전환하기 (`tap_tab` semantic fallback 포함):**
+```javascript
+// query_ui/tap selector로 개별 탭 버튼을 안정적으로 잡기 어려울 때 사용
+tap_tab({ udid: "...", index: 1, tabCount: 3 })
+```
 
 **시뮬레이터 내부 앱 접근성 퀵스타트:**
 ```javascript
@@ -309,6 +325,9 @@ tap({ udid: "...", label: "Home", all: true })
 - 실제 스모크 테스트 진단:
   - `npm run test:real:preflight`로 전체 스위트를 돌리지 않고 환경/기능(capability) 진단만 출력할 수 있습니다.
   - `npm run test:real:sim`으로 시뮬레이터 중심 범위만, `npm run test:real:mac`으로 macOS Safari 범위만 실행할 수 있습니다.
+- 여러 Simulator 창이 열려 있어 selector가 다른 기기를 잡는 경우:
+  - 현재 버전은 simulator selector를 먼저 대상 `udid` 창에 맞춰 scope 합니다.
+  - 의도적으로 Simulator 크롬/시스템 UI를 다뤄야 하면 `all: true`를 사용하세요.
 - OpenCode에서 `baepsae`가 보이지 않는 경우:
   - `bash scripts/install.sh --tool opencode --skip-install --skip-build`를 다시 실행하고 `~/.config/opencode/opencode.json`을 확인하세요.
 - Copilot 자동 등록이 안 되는 경우:

@@ -259,6 +259,11 @@ func requireSimulatorUdid(_ target: TargetApp) throws -> String {
     return udid
 }
 
+func simulatorUdid(from target: TargetApp) -> String? {
+    guard case .simulator(let udid) = target else { return nil }
+    return udid
+}
+
 // MARK: - Accessibility Helpers
 
 func ensureAccessibilityTrusted() throws {
@@ -298,6 +303,24 @@ func simulatorAccessibilityRootElement() throws -> UIElement {
 
     let appElement = AXUIElementCreateApplication(app.processIdentifier)
     return appElement
+}
+
+func shellCaptureCommand(_ command: String, _ arguments: [String]) -> String? {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: command)
+    process.arguments = arguments
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    do {
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    } catch {
+        return nil
+    }
 }
 
 func CopyAttributeValue(_ element: UIElement, _ attribute: CFString) -> CFTypeRef? {
@@ -434,6 +457,24 @@ func IdentifierAttribute(_ element: UIElement) -> String? {
     return StringAttribute(element, "AXIdentifier" as CFString)
 }
 
+func performPrimaryAction(on element: UIElement) throws {
+    let actions = ActionNames(element)
+    if actions.contains(kAXPressAction as String) {
+        let status = AXUIElementPerformAction(element, kAXPressAction as CFString)
+        if status != .success {
+            throw NativeError.commandFailed("Matched accessibility element but AXPress failed with status \(status.rawValue).")
+        }
+        return
+    }
+
+    if let frame = FrameAttribute(element) {
+        sendClick(at: CGPoint(x: frame.midX, y: frame.midY))
+        return
+    }
+
+    throw NativeError.commandFailed("Matched accessibility element has no AXPress action or frame for fallback click.")
+}
+
 // MARK: - Text Helpers
 
 func normalizeText(_ value: String) -> String {
@@ -538,6 +579,98 @@ func describeAccessibilityElement(_ element: UIElement, includeEmpty: Bool = tru
     }
 
     return parts.joined(separator: " ")
+}
+
+func actionableTabBarItems(in tabBar: UIElement, maxDepth: Int = 2) -> [UIElement] {
+    var stack: [(element: UIElement, depth: Int)] = Children(tabBar).map { ($0, 1) }.reversed()
+    var matches: [UIElement] = []
+
+    while let current = stack.popLast() {
+        let role = StringAttribute(current.element, kAXRoleAttribute as CFString) ?? ""
+        let actions = ActionNames(current.element)
+        let hasFrame = FrameAttribute(current.element) != nil
+        let isLikelyTabItem =
+            role == "AXButton" ||
+            role == "AXRadioButton" ||
+            role == "AXCheckBox" ||
+            actions.contains(kAXPressAction as String)
+
+        if isLikelyTabItem && hasFrame {
+            if !matches.contains(where: { elementsAreEqual($0, current.element) }) {
+                matches.append(current.element)
+            }
+        }
+
+        if current.depth < maxDepth {
+            for child in Children(current.element).reversed() {
+                stack.append((child, current.depth + 1))
+            }
+        }
+    }
+
+    return matches.sorted {
+        (FrameAttribute($0)?.midX ?? 0) < (FrameAttribute($1)?.midX ?? 0)
+    }
+}
+
+func semanticProxyTabButtons(in contentRoot: UIElement, excluding excludedElement: UIElement? = nil, expectedCount: Int) -> [UIElement] {
+    guard expectedCount > 0 else { return [] }
+    guard let contentFrame = FrameAttribute(contentRoot) else { return [] }
+    let excludedFrame = excludedElement.flatMap(FrameAttribute)
+
+    let directChildren = Children(contentRoot)
+    let candidates = directChildren.filter { child in
+        let role = StringAttribute(child, kAXRoleAttribute as CFString) ?? ""
+        let actions = ActionNames(child)
+        guard let frame = FrameAttribute(child) else { return false }
+        if let excludedFrame, excludedFrame.contains(frame) {
+            return false
+        }
+        guard frame.midY < contentFrame.origin.y + contentFrame.height * 0.55 else {
+            return false
+        }
+        guard frame.width < contentFrame.width * 0.8 else {
+            return false
+        }
+        return role == "AXButton" || actions.contains(kAXPressAction as String)
+    }
+
+    guard !candidates.isEmpty else { return [] }
+
+    struct RowGroup {
+        var meanY: CGFloat
+        var elements: [UIElement]
+    }
+
+    var rows: [RowGroup] = []
+    let tolerance: CGFloat = 24
+    for element in candidates.sorted(by: { (FrameAttribute($0)?.midY ?? 0) < (FrameAttribute($1)?.midY ?? 0) }) {
+        let midY = FrameAttribute(element)?.midY ?? 0
+        if let rowIndex = rows.firstIndex(where: { abs($0.meanY - midY) <= tolerance }) {
+            rows[rowIndex].elements.append(element)
+            let count = CGFloat(rows[rowIndex].elements.count)
+            rows[rowIndex].meanY = ((rows[rowIndex].meanY * (count - 1)) + midY) / count
+        } else {
+            rows.append(RowGroup(meanY: midY, elements: [element]))
+        }
+    }
+
+    guard let bestRow = rows.sorted(by: {
+        if $0.elements.count == $1.elements.count {
+            return $0.meanY < $1.meanY
+        }
+        return $0.elements.count > $1.elements.count
+    }).first else {
+        return []
+    }
+
+    guard bestRow.elements.count == expectedCount else {
+        return []
+    }
+
+    return bestRow.elements.sorted {
+        (FrameAttribute($0)?.midX ?? 0) < (FrameAttribute($1)?.midX ?? 0)
+    }
 }
 
 func describeAccessibilityTree(from root: UIElement, options: DescribeOptions = DescribeOptions()) -> [String] {
@@ -869,7 +1002,57 @@ func findElementBySubrole(from root: UIElement, subrole: String) -> UIElement? {
     return nil
 }
 
-func simulatorContentRootElement(from appRoot: UIElement) -> UIElement? {
+func simulatorDeviceName(for udid: String?) -> String? {
+    guard let udid, !udid.isEmpty else { return nil }
+    return shellCaptureCommand("/usr/bin/xcrun", ["simctl", "getenv", udid, "SIMULATOR_DEVICE_NAME"])
+}
+
+func simulatorWindowTitle(_ element: UIElement) -> String? {
+    return StringAttribute(element, kAXTitleAttribute as CFString)
+        ?? StringAttribute(element, kAXDescriptionAttribute as CFString)
+        ?? StringAttribute(element, kAXValueAttribute as CFString)
+}
+
+func simulatorWindowElement(from appRoot: UIElement, udid: String? = nil) -> UIElement? {
+    let windows = Children(appRoot).filter { element in
+        let attrs = copyMultipleAttributes(element, [kAXRoleAttribute as String])
+        if let ref = attrs[kAXRoleAttribute as String], let role = stringFromCFTypeRef(ref) {
+            return role == "AXWindow"
+        }
+        return false
+    }
+
+    guard !windows.isEmpty else { return nil }
+
+    let normalizedDeviceName = simulatorDeviceName(for: udid).map(normalizeText)
+    let preferredWindows: [UIElement]
+    if let normalizedDeviceName {
+        let matched = windows.filter { window in
+            guard let title = simulatorWindowTitle(window) else { return false }
+            return normalizeText(title).contains(normalizedDeviceName)
+        }
+        preferredWindows = matched.isEmpty ? windows : matched
+    } else {
+        preferredWindows = windows
+    }
+
+    var bestWindow: UIElement?
+    var bestArea: CGFloat = 0
+    for window in preferredWindows {
+        let area = FrameAttribute(window).map { $0.width * $0.height } ?? 0
+        if bestWindow == nil || area > bestArea {
+            bestWindow = window
+            bestArea = area
+        }
+    }
+    return bestWindow
+}
+
+func simulatorContentRootElement(from appRoot: UIElement, udid: String? = nil) -> UIElement? {
+    if let scopedWindow = simulatorWindowElement(from: appRoot, udid: udid),
+       let scopedContentRoot = findElementBySubrole(from: scopedWindow, subrole: "iOSContentGroup") {
+        return scopedContentRoot
+    }
     return findElementBySubrole(from: appRoot, subrole: "iOSContentGroup")
 }
 
@@ -956,7 +1139,8 @@ func collectWideAuxiliaryGroups(in root: UIElement, contentRootFrame: CGRect? = 
     )
 }
 
-func simulatorAuxiliaryContainerCandidates(from appRoot: UIElement, excluding contentRoot: UIElement? = nil) -> [SimulatorAuxiliaryContainerCandidate] {
+func simulatorAuxiliaryContainerCandidates(from appRoot: UIElement, excluding contentRoot: UIElement? = nil, udid: String? = nil) -> [SimulatorAuxiliaryContainerCandidate] {
+    let scopeRoot = simulatorWindowElement(from: appRoot, udid: udid) ?? appRoot
     let contentRootFrame = contentRoot.flatMap(FrameAttribute)
     let roleCandidates: [(role: String, label: String)] = [
         ("AXTabGroup", "tab bar"),
@@ -981,20 +1165,20 @@ func simulatorAuxiliaryContainerCandidates(from appRoot: UIElement, excluding co
     }
 
     for roleCandidate in roleCandidates {
-        for element in collectElementsByRole(in: appRoot, role: roleCandidate.role) {
+        for element in collectElementsByRole(in: scopeRoot, role: roleCandidate.role) {
             appendCandidate(element, label: roleCandidate.label)
         }
     }
 
-    for element in collectWideAuxiliaryGroups(in: appRoot, contentRootFrame: contentRootFrame) {
+    for element in collectWideAuxiliaryGroups(in: scopeRoot, contentRootFrame: contentRootFrame) {
         appendCandidate(element, label: "auxiliary group")
     }
 
     return candidates
 }
 
-func simulatorAuxiliaryContainerLabels(from appRoot: UIElement, excluding contentRoot: UIElement? = nil) -> [String] {
-    simulatorAuxiliaryContainerCandidates(from: appRoot, excluding: contentRoot).map(\.label)
+func simulatorAuxiliaryContainerLabels(from appRoot: UIElement, excluding contentRoot: UIElement? = nil, udid: String? = nil) -> [String] {
+    simulatorAuxiliaryContainerCandidates(from: appRoot, excluding: contentRoot, udid: udid).map(\.label)
 }
 
 func formatSimulatorAuxiliaryContainerHint(_ labels: [String]) -> String? {
@@ -1018,7 +1202,7 @@ func simulatorSelectorNotFoundMessage(selectorText: String, auxiliaryLabels: [St
     return "No accessibility element matched \(selectorText) in simulator app content. Try --all to include Simulator chrome UI."
 }
 
-func findTabBarElement(in root: UIElement) -> UIElement? {
+func findTabBarElement(in root: UIElement, simulatorUdid: String? = nil) -> UIElement? {
     // 1st pass: Look for AXTabGroup
     var stack: [UIElement] = [root]
     var visited = 0
@@ -1051,7 +1235,59 @@ func findTabBarElement(in root: UIElement) -> UIElement? {
         }
     }
 
-    // 3rd pass: Heuristic — wide AXGroup in bottom 15% of screen
+    // 3rd pass: Simulator-specific heuristic — look for a wide bottom group
+    // inside iOSContentGroup. SwiftUI TabView on Simulator frequently exposes
+    // the tab bar as AXGroup text="Tab Bar" rather than AXTabGroup.
+    if let contentRoot = simulatorContentRootElement(from: root, udid: simulatorUdid),
+       let contentFrame = FrameAttribute(contentRoot) {
+        let bottomThresholdY = contentFrame.origin.y + contentFrame.height * 0.65
+        stack = [contentRoot]
+        visited = 0
+        while let current = stack.popLast() {
+            if visited > 800 { break }
+            visited += 1
+
+            let attrs = copyMultipleAttributes(current, [
+                kAXRoleAttribute as String,
+                "AXFrame",
+                "AXLabel",
+                kAXTitleAttribute as String,
+                kAXDescriptionAttribute as String,
+                kAXValueAttribute as String,
+            ])
+
+            if let ref = attrs[kAXRoleAttribute as String],
+               let role = stringFromCFTypeRef(ref),
+               role == "AXGroup",
+               let frameRef = attrs["AXFrame"],
+               let frame = frameFromCFTypeRef(frameRef) {
+                let textCandidates = [
+                    attrs["AXLabel"],
+                    attrs[kAXTitleAttribute as String],
+                    attrs[kAXDescriptionAttribute as String],
+                    attrs[kAXValueAttribute as String],
+                ].compactMap { $0 }.compactMap(stringFromCFTypeRef)
+
+                let hasExplicitTabBarText = textCandidates.contains { candidate in
+                    normalizeText(candidate).contains("tab bar")
+                }
+
+                let isWide = frame.width >= contentFrame.width * 0.60
+                let isNearBottom = frame.origin.y >= bottomThresholdY && frame.maxY <= contentFrame.maxY + 8
+                let plausibleBarHeight = frame.height >= 32 && frame.height <= 140
+
+                if hasExplicitTabBarText || (isWide && isNearBottom && plausibleBarHeight) {
+                    return current
+                }
+            }
+
+            for child in Children(current).reversed() {
+                stack.append(child)
+            }
+        }
+    }
+
+    // 4th pass: Generic heuristic — wide AXGroup in bottom 15% of screen
     guard let mainScreen = NSScreen.main else { return nil }
     let screenHeight = mainScreen.frame.height
     let bottomThreshold = screenHeight * 0.15
@@ -1086,8 +1322,8 @@ func findTabBarElement(in root: UIElement) -> UIElement? {
 
 func windowBounds(for target: TargetApp) -> CGRect? {
     switch target {
-    case .simulator:
-        return simulatorWindowBounds()
+    case .simulator(let udid):
+        return simulatorWindowBounds(udid: udid)
     case .macApp(let pid, _, _):
         guard let windowInfo = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
             as? [[String: Any]] else {
@@ -1119,7 +1355,7 @@ func windowBounds(for target: TargetApp) -> CGRect? {
     }
 }
 
-func simulatorWindowBounds() -> CGRect? {
+func simulatorWindowBounds(udid: String? = nil) -> CGRect? {
     guard let windowInfo = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
         as? [[String: Any]] else {
         return nil
@@ -1131,9 +1367,21 @@ func simulatorWindowBounds() -> CGRect? {
         return owner == "Simulator" && (layer ?? 0) == 0
     }
 
+    let normalizedDeviceName = simulatorDeviceName(for: udid).map(normalizeText)
+    let preferredWindows: [[String: Any]]
+    if let normalizedDeviceName {
+        let matched = windows.filter { info in
+            let title = (info[kCGWindowName as String] as? String) ?? ""
+            return normalizeText(title).contains(normalizedDeviceName)
+        }
+        preferredWindows = matched.isEmpty ? windows : matched
+    } else {
+        preferredWindows = windows
+    }
+
     var best: CGRect?
     var bestArea: CGFloat = 0
-    for info in windows {
+    for info in preferredWindows {
         guard let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
               let x = boundsDict["X"] as? CGFloat,
               let y = boundsDict["Y"] as? CGFloat,
@@ -1153,8 +1401,8 @@ func simulatorWindowBounds() -> CGRect? {
 
 func pointInWindow(x: Double, y: Double, for target: TargetApp) throws -> CGPoint {
     switch target {
-    case .simulator:
-        return try pointInSimulatorWindow(x: x, y: y)
+    case .simulator(let udid):
+        return try pointInSimulatorWindow(x: x, y: y, udid: udid)
     case .macApp:
         guard let bounds = windowBounds(for: target) else {
             throw NativeError.commandFailed("Application window not found. Ensure the app is running and visible.")
@@ -1165,8 +1413,8 @@ func pointInWindow(x: Double, y: Double, for target: TargetApp) throws -> CGPoin
     }
 }
 
-func pointInSimulatorWindow(x: Double, y: Double) throws -> CGPoint {
-    guard let bounds = simulatorWindowBounds() else {
+func pointInSimulatorWindow(x: Double, y: Double, udid: String? = nil) throws -> CGPoint {
+    guard let bounds = simulatorWindowBounds(udid: udid) else {
         throw NativeError.commandFailed("Simulator window not found. Ensure Simulator is running and visible.")
     }
     let targetX = bounds.origin.x + CGFloat(x)
@@ -1176,19 +1424,19 @@ func pointInSimulatorWindow(x: Double, y: Double) throws -> CGPoint {
 
 // MARK: - Simulator Content Bounds
 
-func simulatorContentBounds() -> CGRect? {
+func simulatorContentBounds(udid: String? = nil) -> CGRect? {
     guard let appRoot = try? simulatorAccessibilityRootElement() else {
-        return simulatorWindowBounds()
+        return simulatorWindowBounds(udid: udid)
     }
-    if let contentGroup = simulatorContentRootElement(from: appRoot),
+    if let contentGroup = simulatorContentRootElement(from: appRoot, udid: udid),
        let frame = FrameAttribute(contentGroup) {
         return frame
     }
-    return simulatorWindowBounds()
+    return simulatorWindowBounds(udid: udid)
 }
 
-func pointInSimulatorContent(x: Double, y: Double) throws -> CGPoint {
-    guard let bounds = simulatorContentBounds() else {
+func pointInSimulatorContent(x: Double, y: Double, udid: String? = nil) throws -> CGPoint {
+    guard let bounds = simulatorContentBounds(udid: udid) else {
         throw NativeError.commandFailed("Simulator content area not found. Ensure Simulator is running and visible.")
     }
     let targetX = bounds.origin.x + CGFloat(x)
@@ -1198,18 +1446,18 @@ func pointInSimulatorContent(x: Double, y: Double) throws -> CGPoint {
 
 func pointForInput(x: Double, y: Double, for target: TargetApp) throws -> CGPoint {
     switch target {
-    case .simulator:
-        return try pointInSimulatorContent(x: x, y: y)
+    case .simulator(let udid):
+        return try pointInSimulatorContent(x: x, y: y, udid: udid)
     case .macApp:
         return try pointInWindow(x: x, y: y, for: target)
     }
 }
 
-func simulatorScrollAnchorPoint(x: Double?, y: Double?) throws -> CGPoint {
+func simulatorScrollAnchorPoint(x: Double?, y: Double?, udid: String? = nil) throws -> CGPoint {
     if let x, let y {
         return CGPoint(x: x, y: y)
     }
-    guard let bounds = simulatorContentBounds() else {
+    guard let bounds = simulatorContentBounds(udid: udid) else {
         throw NativeError.commandFailed("Simulator content area not found. Ensure Simulator is running and visible.")
     }
     return CGPoint(x: bounds.width * 0.5, y: bounds.height * 0.5)

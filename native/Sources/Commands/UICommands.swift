@@ -12,10 +12,10 @@ func handleDescribeUI(_ parsed: ParsedOptions) throws -> Int32 {
     var usedSimulatorContentScope = false
 
     switch target {
-    case .simulator:
+    case .simulator(let udid):
         // Default behavior: Focus on in-app content group unless --all is specified
         if !parsed.flags.contains("--all") {
-            if let contentGroup = simulatorContentRootElement(from: appRoot) {
+            if let contentGroup = simulatorContentRootElement(from: appRoot, udid: udid) {
                 targetRoot = contentGroup
                 usedSimulatorContentScope = true
             }
@@ -77,7 +77,8 @@ func handleDescribeUI(_ parsed: ParsedOptions) throws -> Int32 {
         throw NativeError.commandFailed("No accessibility elements found.")
     }
     if usedSimulatorContentScope {
-        let auxiliaryLabels = simulatorAuxiliaryContainerLabels(from: appRoot, excluding: targetRoot)
+        let targetUdid = simulatorUdid(from: target)
+        let auxiliaryLabels = simulatorAuxiliaryContainerLabels(from: appRoot, excluding: targetRoot, udid: targetUdid)
         if let hint = formatSimulatorAuxiliaryContainerHint(auxiliaryLabels) {
             lines.append(hint)
         }
@@ -106,8 +107,8 @@ func handleSearchUI(_ parsed: ParsedOptions) throws -> Int32 {
     let appRoot = try accessibilityRootElement(for: target)
     var searchRoot = appRoot
     var simulatorContentRoot: UIElement? = nil
-    if case .simulator = target {
-        if let contentGroup = simulatorContentRootElement(from: appRoot) {
+    if case .simulator(let udid) = target {
+        if let contentGroup = simulatorContentRootElement(from: appRoot, udid: udid) {
             simulatorContentRoot = contentGroup
             searchRoot = contentGroup
         }
@@ -130,7 +131,8 @@ func handleSearchUI(_ parsed: ParsedOptions) throws -> Int32 {
 
     let results = searchAccessibilityElements(in: searchRoot, query: query, options: searchOpts)
     if results.isEmpty, case .simulator = target, let simulatorContentRoot {
-        let auxiliaryCandidates = simulatorAuxiliaryContainerCandidates(from: appRoot, excluding: simulatorContentRoot)
+        let targetUdid = simulatorUdid(from: target)
+        let auxiliaryCandidates = simulatorAuxiliaryContainerCandidates(from: appRoot, excluding: simulatorContentRoot, udid: targetUdid)
         let auxiliaryResults = searchAccessibilityElements(
             in: auxiliaryCandidates.map(\.element),
             query: query,
@@ -170,11 +172,12 @@ func handleTap(_ parsed: ParsedOptions) throws -> Int32 {
         }
 
         let root = try accessibilityRootElement(for: target)
-        let simulatorContentRoot = simulatorContentRootElement(from: root)
+        let targetUdid = simulatorUdid(from: target)
+        let simulatorContentRoot = simulatorContentRootElement(from: root, udid: targetUdid)
         let searchRoots: [UIElement]
         if case .simulator = target, !includeAll {
             if let contentRoot = simulatorContentRoot {
-                let auxiliaryRoots = simulatorAuxiliaryContainerCandidates(from: root, excluding: contentRoot).map(\.element)
+                let auxiliaryRoots = simulatorAuxiliaryContainerCandidates(from: root, excluding: contentRoot, udid: targetUdid).map(\.element)
                 searchRoots = [contentRoot] + auxiliaryRoots
             } else {
                 searchRoots = [root]
@@ -198,7 +201,7 @@ func handleTap(_ parsed: ParsedOptions) throws -> Int32 {
             let selectorText = selectors.joined(separator: " and ")
             if case .simulator = target, !includeAll {
                 let auxiliaryLabels = simulatorContentRoot.map {
-                    simulatorAuxiliaryContainerLabels(from: root, excluding: $0)
+                    simulatorAuxiliaryContainerLabels(from: root, excluding: $0, udid: targetUdid)
                 } ?? []
                 throw NativeError.commandFailed(simulatorSelectorNotFoundMessage(selectorText: selectorText, auxiliaryLabels: auxiliaryLabels))
             }
@@ -211,18 +214,7 @@ func handleTap(_ parsed: ParsedOptions) throws -> Int32 {
             }
             sendDoubleClick(at: CGPoint(x: frame.midX, y: frame.midY))
         } else {
-            let actions = ActionNames(matchedElement)
-            if actions.contains(kAXPressAction as String) {
-                let status = AXUIElementPerformAction(matchedElement, kAXPressAction as CFString)
-                if status != .success {
-                    throw NativeError.commandFailed("Matched accessibility element but AXPress failed with status \(status.rawValue).")
-                }
-            } else if let frame = FrameAttribute(matchedElement) {
-                let point = CGPoint(x: frame.midX, y: frame.midY)
-                sendClick(at: point)
-            } else {
-                throw NativeError.commandFailed("Matched accessibility element has no AXPress action or frame for fallback click.")
-            }
+            try performPrimaryAction(on: matchedElement)
         }
 
         if postDelay > 0 {
@@ -280,9 +272,10 @@ func handleTapTab(_ parsed: ParsedOptions) throws -> Int32 {
     try activateTarget(target)
 
     let appRoot = try accessibilityRootElement(for: target)
+    let targetUdid = simulatorUdid(from: target)
     let searchRoot: UIElement = appRoot
 
-    guard let tabBar = findTabBarElement(in: searchRoot) else {
+    guard let tabBar = findTabBarElement(in: searchRoot, simulatorUdid: targetUdid) else {
         throw NativeError.commandFailed("No tab bar found in the application UI. Ensure the app has a visible tab bar.")
     }
 
@@ -306,21 +299,39 @@ func handleTapTab(_ parsed: ParsedOptions) throws -> Int32 {
         throw NativeError.invalidArguments("Tab index \(index) is out of range. Valid range: 0..\(tabCount - 1)")
     }
 
-    let tabWidth = frame.width / CGFloat(tabCount)
-    let tapX = frame.origin.x + tabWidth * CGFloat(index) + tabWidth / 2.0
-    let tapY = frame.origin.y + frame.height / 2.0
-
     if preDelay > 0 {
         Thread.sleep(forTimeInterval: preDelay)
     }
 
+    let actionableItems = actionableTabBarItems(in: tabBar)
+    if actionableItems.count == tabCount {
+        try performPrimaryAction(on: actionableItems[index])
+        if postDelay > 0 {
+            Thread.sleep(forTimeInterval: postDelay)
+        }
+        return 0
+    }
+
+    if case .simulator = target,
+       let contentRoot = simulatorContentRootElement(from: appRoot, udid: targetUdid) {
+        let proxyItems = semanticProxyTabButtons(in: contentRoot, excluding: tabBar, expectedCount: tabCount)
+        if proxyItems.count == tabCount {
+            try performPrimaryAction(on: proxyItems[index])
+            if postDelay > 0 {
+                Thread.sleep(forTimeInterval: postDelay)
+            }
+            return 0
+        }
+    }
+
+    let tabWidth = frame.width / CGFloat(tabCount)
+    let tapX = frame.origin.x + tabWidth * CGFloat(index) + tabWidth / 2.0
+    let tapY = frame.origin.y + frame.height / 2.0
+
     let backend = resolveInputBackend(for: target)
     switch backend {
     case .indigoHID(let client):
-        // IndigoHID normalizes coordinates against simulator screen dimensions.
-        // Since tapX/tapY are screen-absolute (from AXFrame), subtract the content
-        // area origin to make them content-relative before normalization.
-        guard let contentBounds = simulatorContentBounds() else {
+        guard let contentBounds = simulatorContentBounds(udid: targetUdid) else {
             throw NativeError.commandFailed("Cannot determine simulator content bounds for IndigoHID coordinate conversion. Ensure Simulator is running.")
         }
         let relX = Double(tapX) - Double(contentBounds.origin.x)
@@ -478,8 +489,9 @@ func handleScroll(_ parsed: ParsedOptions) throws -> Int32 {
         case .indigoHID(let client):
             _ = client.swipe(fromX: Double(start.x), fromY: Double(start.y), toX: Double(end.x), toY: Double(end.y), duration: 0.45, steps: 18)
         case .cgevent:
-            let startPoint = try pointInSimulatorContent(x: Double(start.x), y: Double(start.y))
-            let endPoint = try pointInSimulatorContent(x: Double(end.x), y: Double(end.y))
+            let targetUdid = simulatorUdid(from: target)
+            let startPoint = try pointInSimulatorContent(x: Double(start.x), y: Double(start.y), udid: targetUdid)
+            let endPoint = try pointInSimulatorContent(x: Double(end.x), y: Double(end.y), udid: targetUdid)
             sendSwipe(from: startPoint, to: endPoint, duration: 0.45)
         }
     case .macApp:

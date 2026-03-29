@@ -268,7 +268,24 @@ Target routing is explicit in the arguments: `udid` for simulator, `bundleId` / 
 
 When `paste` is used, simulator targets update the simulator pasteboard without touching the host clipboard, while macOS targets temporarily overwrite the host clipboard and restore it after submission. Successful responses report the input source, target kind, requested method, used method, paste transport, and any auto fallback that was applied.
 
+### `tap_tab` policy
+
+`tap_tab` is **semantic-first, geometry-last**.
+
+- First it tries actionable descendants exposed under the tab bar.
+- If SwiftUI/Simulator does not expose real tab button descendants, it can use a **semantic proxy row** (for example, app-provided top navigation buttons that map cleanly to the same tabs).
+- Only if neither semantic path exists does it fall back to tab-bar geometry.
+
+This matters because SwiftUI `TabView` in Simulator may expose the tab bar as a generic `AXGroup text="Tab Bar"` without actionable child buttons.
+
 ## Usage Examples
+
+**Switch tabs by index with semantic-first fallback:**
+```javascript
+// Prefer this when your app exposes a real tab bar but individual tab buttons
+// are not consistently addressable via query_ui/tap selectors.
+tap_tab({ udid: "...", index: 1, tabCount: 3 })
+```
 
 **Unified simulator app accessibility quickstart (inside app UI):**
 ```javascript
@@ -336,6 +353,9 @@ screenshot_app({ bundleId: "com.apple.Safari" })
 - Real smoke test diagnostics:
   - Run `npm run test:real:preflight` to print environment and capability diagnostics without executing the full suite.
   - Run `npm run test:real:sim` to focus on simulator-capability coverage, or `npm run test:real:mac` for the macOS Safari subset.
+- Multiple Simulator windows are open and selectors hit the wrong device:
+  - Current versions scope simulator selectors to the target `udid` window first.
+  - If you intentionally need Simulator chrome/system UI, use `all: true`.
 - OpenCode does not show `baepsae`:
   - Re-run `bash scripts/install.sh --tool opencode --skip-install --skip-build` and check `~/.config/opencode/opencode.json`.
 - Copilot not auto-registered:

@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [6.2.0] - 2026-03-29
+
+### Added
+
+- Research utilities for media capture verification, tab bar descendant inspection, input-channel comparison, and coordinate/tap investigations
+- Real smoke coverage for `tap_tab` on the SampleApp path
+
+### Changed
+
+- `tap_tab` now prefers semantic descendants or semantic proxy controls before falling back to geometry
+- Simulator selector scoping now prefers the target `udid` window/content root in multi-window Simulator sessions
+- `tap_tab` help/README documentation now reflects the semantic-first, geometry-last policy
+
+### Fixed
+
+- Media capture tools now stage simulator outputs through a writable temp path before moving them to the requested destination
+- Default simulator selector operations no longer drift to the wrong Simulator window when multiple device windows are open
+
 ## [6.1.1] - 2026-03-25
 
 ### Fixed

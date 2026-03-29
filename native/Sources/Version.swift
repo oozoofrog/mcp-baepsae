@@ -1,1 +1,1 @@
-let BAEPSAE_VERSION = "6.1.1"
+let BAEPSAE_VERSION = "6.2.0"

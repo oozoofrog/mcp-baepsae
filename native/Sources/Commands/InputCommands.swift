@@ -138,7 +138,8 @@ func handleGesture(_ parsed: ParsedOptions) throws -> Int32 {
     let screenHeight = try optionalDoubleOption("--screen-height", from: parsed)
     try ensureAccessibilityTrusted()
     try activateTarget(target)
-    let preferredBounds = simulatorContentBounds()
+    let targetUdid = simulatorUdid(from: target)
+    let preferredBounds = simulatorContentBounds(udid: targetUdid)
     let width = screenWidth ?? Double(preferredBounds?.width ?? 0)
     let height = screenHeight ?? Double(preferredBounds?.height ?? 0)
     if width <= 0 || height <= 0 {
@@ -148,29 +149,29 @@ func handleGesture(_ parsed: ParsedOptions) throws -> Int32 {
     let end: CGPoint
     switch preset {
     case "scroll-up":
-        start = try pointInSimulatorContent(x: width * 0.5, y: height * 0.7)
-        end = try pointInSimulatorContent(x: width * 0.5, y: height * 0.3)
+        start = try pointInSimulatorContent(x: width * 0.5, y: height * 0.7, udid: targetUdid)
+        end = try pointInSimulatorContent(x: width * 0.5, y: height * 0.3, udid: targetUdid)
     case "scroll-down":
-        start = try pointInSimulatorContent(x: width * 0.5, y: height * 0.3)
-        end = try pointInSimulatorContent(x: width * 0.5, y: height * 0.7)
+        start = try pointInSimulatorContent(x: width * 0.5, y: height * 0.3, udid: targetUdid)
+        end = try pointInSimulatorContent(x: width * 0.5, y: height * 0.7, udid: targetUdid)
     case "scroll-left":
-        start = try pointInSimulatorContent(x: width * 0.7, y: height * 0.5)
-        end = try pointInSimulatorContent(x: width * 0.3, y: height * 0.5)
+        start = try pointInSimulatorContent(x: width * 0.7, y: height * 0.5, udid: targetUdid)
+        end = try pointInSimulatorContent(x: width * 0.3, y: height * 0.5, udid: targetUdid)
     case "scroll-right":
-        start = try pointInSimulatorContent(x: width * 0.3, y: height * 0.5)
-        end = try pointInSimulatorContent(x: width * 0.7, y: height * 0.5)
+        start = try pointInSimulatorContent(x: width * 0.3, y: height * 0.5, udid: targetUdid)
+        end = try pointInSimulatorContent(x: width * 0.7, y: height * 0.5, udid: targetUdid)
     case "swipe-from-left-edge":
-        start = try pointInSimulatorContent(x: width * 0.05, y: height * 0.5)
-        end = try pointInSimulatorContent(x: width * 0.6, y: height * 0.5)
+        start = try pointInSimulatorContent(x: width * 0.05, y: height * 0.5, udid: targetUdid)
+        end = try pointInSimulatorContent(x: width * 0.6, y: height * 0.5, udid: targetUdid)
     case "swipe-from-right-edge":
-        start = try pointInSimulatorContent(x: width * 0.95, y: height * 0.5)
-        end = try pointInSimulatorContent(x: width * 0.4, y: height * 0.5)
+        start = try pointInSimulatorContent(x: width * 0.95, y: height * 0.5, udid: targetUdid)
+        end = try pointInSimulatorContent(x: width * 0.4, y: height * 0.5, udid: targetUdid)
     case "swipe-from-top-edge":
-        start = try pointInSimulatorContent(x: width * 0.5, y: height * 0.05)
-        end = try pointInSimulatorContent(x: width * 0.5, y: height * 0.6)
+        start = try pointInSimulatorContent(x: width * 0.5, y: height * 0.05, udid: targetUdid)
+        end = try pointInSimulatorContent(x: width * 0.5, y: height * 0.6, udid: targetUdid)
     case "swipe-from-bottom-edge":
-        start = try pointInSimulatorContent(x: width * 0.5, y: height * 0.95)
-        end = try pointInSimulatorContent(x: width * 0.5, y: height * 0.4)
+        start = try pointInSimulatorContent(x: width * 0.5, y: height * 0.95, udid: targetUdid)
+        end = try pointInSimulatorContent(x: width * 0.5, y: height * 0.4, udid: targetUdid)
     default:
         throw NativeError.invalidArguments("Unsupported gesture preset: \(preset)")
     }

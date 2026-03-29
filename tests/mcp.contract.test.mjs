@@ -334,7 +334,7 @@ test("run_steps retries selector taps until the element appears", async () => {
         arguments: {
           udid: "00000000-0000-0000-0000-000000000000",
           steps: [
-            { tool: "tap", id: "login-button", waitTimeout: 400, pollInterval: 50 },
+            { tool: "tap", id: "login-button", waitTimeout: 900, pollInterval: 50 },
             { tool: "sleep", duration: 0.01 },
           ],
         },

@@ -1191,6 +1191,48 @@ test("Phase 2b: run_steps → ordered tap and type workflow", { timeout: 60_000 
   });
 });
 
+test("Phase 2b: tap_tab → semantic proxy fallback switches to Scroll tab", { timeout: 60_000 }, async (t) => {
+  await withClient(async (client) => {
+    const listResult = await client.callTool({ name: "list_simulators", arguments: {} });
+    const udid = extractBootedUdid(extractText(listResult));
+    if (!udid) {
+      skipTest(t, "no-booted-simulator");
+      return;
+    }
+
+    const appPath = findSampleApp();
+    if (!appPath) {
+      skipTest(t, "sample-app-missing", "run xcodebuild first");
+      return;
+    }
+
+    await relaunchSampleApp(client, udid);
+
+    const tapTabResult = await client.callTool({
+      name: "tap_tab",
+      arguments: { udid, index: 1, tabCount: 3 },
+    });
+    if (tapTabResult.isError && isAccessibilityDenied(extractText(tapTabResult))) {
+      skipTest(t, "accessibility-denied");
+      return;
+    }
+    assert.equal(tapTabResult.isError ?? false, false, `tap_tab should not error: ${extractText(tapTabResult)}`);
+
+    const scrollTabText = await waitForUI(
+      client,
+      udid,
+      "scroll-position",
+      (text) => /Visible:\s*Item\s+\d+\s*~\s*Item\s+\d+/.test(text),
+      5000,
+    );
+    assert.match(
+      scrollTabText,
+      /Visible:\s*Item\s+\d+\s*~\s*Item\s+\d+/,
+      `scroll-position should appear after tap_tab semantic fallback, got: ${scrollTabText}`,
+    );
+  });
+});
+
 // ─── Phase 2c: scroll / drag_drop tool validation ───────────────────────────
 
 test("Phase 2c: scroll → verify scroll-position text changes in ScrollTab", { timeout: 60_000 }, async (t) => {

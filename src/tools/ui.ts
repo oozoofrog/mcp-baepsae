@@ -504,7 +504,7 @@ export function registerUITools(server: McpServer): void {
 
   server.tool(
     "tap_tab",
-    "Tap a tab in a tab bar by index. Workaround for SwiftUI TabView where individual tab buttons are not exposed in the accessibility tree. Finds the tab bar element and calculates tap coordinates by dividing it equally.",
+    "Tap a tab in a tab bar by index. Prefers semantic descendants or top-row semantic proxy buttons when available, and falls back to geometry only when needed. Useful for SwiftUI TabView cases where tab buttons are not cleanly exposed.",
     { ...unifiedTargetSchema, ...tapTabSchema },
     async (params) => {
       const validationError = validateTapTabParams(params as TapTabParams);

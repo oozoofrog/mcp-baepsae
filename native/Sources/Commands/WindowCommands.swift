@@ -18,7 +18,7 @@ func handleRightClick(_ parsed: ParsedOptions) throws -> Int32 {
         let root = try accessibilityRootElement(for: target)
         let searchRoot: UIElement
         if case .simulator = target, !includeAll {
-            searchRoot = simulatorContentRootElement(from: root) ?? root
+            searchRoot = simulatorContentRootElement(from: root, udid: simulatorUdid(from: target)) ?? root
         } else {
             searchRoot = root
         }
