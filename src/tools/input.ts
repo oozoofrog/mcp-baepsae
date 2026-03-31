@@ -190,4 +190,30 @@ export function registerInputTools(server: McpServer): void {
       return await runBackend("input", args);
     }
   );
+
+  server.tool(
+    "input_source",
+    "Get current keyboard input source or switch to a specific one. Call without sourceId to query current; with sourceId to switch. Uses CJKV workaround for Korean/Japanese/Chinese/Vietnamese.",
+    {
+      sourceId: z.string().optional().describe(
+        "Input source ID to switch to (e.g. 'com.apple.inputmethod.Korean.2SetKorean'). Omit to query current."
+      ),
+    },
+    async (params) => {
+      const args = ["input-source"];
+      if (params.sourceId) {
+        args.push(params.sourceId);
+      }
+      return await runBackend("utility", args);
+    }
+  );
+
+  server.tool(
+    "list_input_sources",
+    "List all available keyboard input sources with their IDs, names, and active status.",
+    {},
+    async () => {
+      return await runBackend("utility", ["list-input-sources"]);
+    }
+  );
 }

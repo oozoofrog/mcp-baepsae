@@ -23,6 +23,7 @@ type DescribeParams = {
   visibleOnly?: boolean;
   maxDepth?: number;
   summary?: boolean;
+  window?: number | string;
 };
 
 type SearchParams = {
@@ -47,7 +48,7 @@ type TypeParams = {
   text?: string;
   stdinText?: string;
   file?: string;
-  method?: "auto" | "paste" | "keyboard";
+  method?: "auto" | "paste" | "keyboard" | "ax";
 };
 
 type SwipeParams = {
@@ -94,6 +95,8 @@ const describeSchema = {
   visibleOnly: z.boolean().optional().describe("Only include visible elements"),
   maxDepth: z.number().int().min(0).optional().describe("Maximum tree traversal depth"),
   summary: z.boolean().optional().describe("Summary mode — collapse children as [N children]"),
+  window: z.union([z.number().int().min(0), z.string()])
+    .optional().describe("Window index or title substring (macOS only)"),
 };
 
 const searchSchema = {
@@ -118,8 +121,8 @@ const typeSchema = {
   text: z.string().optional().describe("Text argument"),
   stdinText: z.string().optional().describe("Text piped to stdin mode"),
   file: z.string().optional().describe("Path for file input"),
-  method: z.enum(["auto", "paste", "keyboard"]).optional().describe(
-    "Input method policy: 'auto' chooses paste for simulator targets and keyboard for macOS targets; 'paste' always uses the clipboard-backed paste path; 'keyboard' always types character-by-character. Paste temporarily overwrites the clipboard and restores it after submission."
+  method: z.enum(["auto", "paste", "keyboard", "ax"]).optional().describe(
+    "Input method: 'auto' = paste for all targets; 'paste' = clipboard; 'keyboard' = char-by-char CGEvent; 'ax' = set value via Accessibility API (most reliable for CJK, bypasses IME)"
   ),
 };
 
@@ -249,6 +252,9 @@ function buildDescribeArgs(target: string[], params: DescribeParams): string[] {
   if (params.summary) {
     args.push("--summary");
   }
+  if (params.window !== undefined) {
+    args.push("--window", String(params.window));
+  }
   return args;
 }
 
@@ -302,8 +308,8 @@ function resolveTypeTextPolicy(
   params: TypeParams,
   target: UnifiedTargetParams
 ): {
-  requestedMethod: "auto" | "paste" | "keyboard";
-  usedMethod: "paste" | "keyboard";
+  requestedMethod: "auto" | "paste" | "keyboard" | "ax";
+  usedMethod: "paste" | "keyboard" | "ax";
   targetKind: "simulator" | "macOS";
   inputSource: "text" | "stdinText" | "file";
   pasteTransport: "simulator_pasteboard" | "host_clipboard" | null;
@@ -313,9 +319,7 @@ function resolveTypeTextPolicy(
   const targetKind: "simulator" | "macOS" = target.udid ? "simulator" : "macOS";
   const usedMethod =
     requestedMethod === "auto"
-      ? targetKind === "simulator"
-        ? "paste"
-        : "keyboard"
+      ? "paste"  // paste is more reliable for all targets including CJK
       : requestedMethod;
   const inputSource = params.stdinText !== undefined ? "stdinText" : params.file !== undefined ? "file" : "text";
   const pasteTransport =
@@ -417,7 +421,7 @@ export function registerUITools(server: McpServer): void {
 
   server.tool(
     "type_text",
-    "Type text into the target app. auto resolves to paste on simulators and keyboard on macOS; simulator paste uses the simulator pasteboard, macOS paste temporarily uses the host clipboard; keyboard types character-by-character.",
+    "Type text into the target app. auto resolves to paste for all targets (more reliable for CJK and emoji); simulator paste uses the simulator pasteboard, macOS paste temporarily uses the host clipboard; keyboard types character-by-character.",
     { ...unifiedTargetSchema, ...typeSchema },
     async (params) => {
       const validationError = validateTypeParams(params as TypeParams);
@@ -447,7 +451,7 @@ export function registerUITools(server: McpServer): void {
         extraLines.push("Clipboard side effect: none.");
       }
       if (policy.requestedMethod === "auto") {
-        extraLines.push(`Auto fallback: ${policy.targetKind === "simulator" ? "paste" : "keyboard"}.`);
+        extraLines.push(`Auto fallback: paste.`);
       }
       return await runBackend(
         "input",
@@ -513,6 +517,71 @@ export function registerUITools(server: McpServer): void {
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       return await runNative(buildTapTabArgs(target, params as TapTabParams));
+    }
+  );
+
+  server.tool(
+    "wait_for_ui",
+    "Wait for a UI element to appear or disappear. Polls query_ui at interval until condition met or timeout.",
+    {
+      ...unifiedTargetSchema,
+      query: z.string().min(1).describe("Text/ID/label to search for"),
+      condition: z.enum(["exists", "not_exists"]).optional().describe("Wait condition (default: exists)"),
+      timeout: z.number().optional().describe("Max wait time in seconds (default: 10)"),
+      interval: z.number().optional().describe("Poll interval in seconds (default: 0.5)"),
+    },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      const timeout = (params as any).timeout ?? 10;
+      const interval = (params as any).interval ?? 0.5;
+      const condition = (params as any).condition ?? "exists";
+      const start = Date.now();
+
+      while ((Date.now() - start) / 1000 < timeout) {
+        const result = await runBackend(
+          "accessibility",
+          buildSearchArgs(target, { query: (params as any).query })
+        );
+        const text = result.content
+          .filter((c: { type: string }) => c.type === "text")
+          .map((c: { text: string }) => c.text)
+          .join("\n");
+        const found = !result.isError && !text.includes("No elements found");
+
+        if ((condition === "exists" && found) || (condition === "not_exists" && !found)) {
+          return {
+            content: [{ type: "text" as const, text: `Condition '${condition}' met for '${(params as any).query}'.\n${text}` }],
+            isError: false,
+          };
+        }
+        await new Promise((r) => setTimeout(r, interval * 1000));
+      }
+      return {
+        content: [{ type: "text" as const, text: `Timeout (${timeout}s) waiting for '${(params as any).query}' to ${condition === "exists" ? "appear" : "disappear"}.` }],
+        isError: true,
+      };
+    }
+  );
+
+  server.tool(
+    "read_ui_value",
+    "Read value, selected text, or insertion point of a UI element via Accessibility API.",
+    {
+      ...unifiedTargetSchema,
+      id: z.string().optional().describe("Accessibility identifier"),
+      label: z.string().optional().describe("Accessibility label"),
+      attribute: z.enum(["value", "selectedText", "insertionPoint", "numberOfCharacters"])
+        .optional().describe("Attribute to read (default: value)"),
+    },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      const args = ["read-ui-value", ...target];
+      pushOption(args, "--id", (params as any).id);
+      pushOption(args, "--label", (params as any).label);
+      pushOption(args, "--attribute", (params as any).attribute);
+      return await runNative(args);
     }
   );
 }

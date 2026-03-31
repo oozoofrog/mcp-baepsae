@@ -24,7 +24,16 @@ func handleDescribeUI(_ parsed: ParsedOptions) throws -> Int32 {
         // For macOS apps, start from window level, no iOSContentGroup filtering
         if !parsed.flags.contains("--all") {
             let windows = Children(appRoot)
-            if let firstWindow = windows.first {
+            if let windowSelector = parsed.options["--window"] {
+                if let idx = Int(windowSelector), idx < windows.count {
+                    targetRoot = windows[idx]
+                } else {
+                    targetRoot = windows.first(where: {
+                        let title = StringAttribute($0, kAXTitleAttribute as CFString) ?? ""
+                        return title.localizedCaseInsensitiveContains(windowSelector)
+                    }) ?? windows.first ?? appRoot
+                }
+            } else if let firstWindow = windows.first {
                 targetRoot = firstWindow
             }
         }
@@ -366,6 +375,34 @@ func handleType(_ parsed: ParsedOptions) throws -> Int32 {
     }
 
     let methodStr = parsed.options["--method"] ?? "auto"
+
+    if methodStr == "ax" {
+        let appRoot = try accessibilityRootElement(for: target)
+        var focusedRef: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(
+            appRoot,
+            "AXFocusedUIElement" as CFString,
+            &focusedRef
+        )
+        if status == .success, let focused = focusedRef {
+            let setResult = AXUIElementSetAttributeValue(
+                focused as! AXUIElement,
+                kAXValueAttribute as CFString,
+                text as CFTypeRef
+            )
+            if setResult == .success {
+                print("Set value via AX API.")
+                return 0
+            }
+            fputs("AX setValue failed (status \(setResult.rawValue)), falling back to paste\n", stderr)
+        } else {
+            fputs("No focused element found, falling back to paste\n", stderr)
+        }
+        // Fallback to paste
+        try pasteText(text, target: target)
+        return 0
+    }
+
     let usePaste: Bool
     switch methodStr {
     case "paste":
@@ -373,11 +410,7 @@ func handleType(_ parsed: ParsedOptions) throws -> Int32 {
     case "keyboard":
         usePaste = false
     default: // auto
-        if case .simulator = target {
-            usePaste = true
-        } else {
-            usePaste = false
-        }
+        usePaste = true  // paste is more reliable for all targets including CJK
     }
 
     if usePaste {
@@ -410,7 +443,7 @@ func pasteText(_ text: String, target: TargetApp) throws {
 
         // Cmd+V: Command keycode=55, V keycode=9
         sendKeyCombo(modifiers: [55], key: 9)
-        Thread.sleep(forTimeInterval: 0.15)
+        Thread.sleep(forTimeInterval: 0.3)
 
         // Restore original clipboard content
         pasteboard.clearContents()

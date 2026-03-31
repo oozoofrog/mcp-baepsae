@@ -132,4 +132,22 @@ export function registerSystemTools(server: McpServer): void {
       return await runNative(args);
     }
   );
+
+  server.tool(
+    "focus_window",
+    "Raise and focus a specific window by index or title. macOS apps only.",
+    {
+      ...unifiedTargetSchema,
+      index: z.number().int().min(0).optional().describe("Window index (0-based)"),
+      title: z.string().optional().describe("Window title substring"),
+    },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      const args = ["focus-window", ...target];
+      pushOption(args, "--index", params.index);
+      pushOption(args, "--title", params.title);
+      return await runNative(args);
+    }
+  );
 }

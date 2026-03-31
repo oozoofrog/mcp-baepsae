@@ -100,3 +100,12 @@ Tool failures must return `{ content: [{ type: "text", text: "..." }], isError: 
 - Adding a tool in only one layer (TS or Swift) without the other and tests
 - Bypassing `runNative()`/`runSimctl()` to spawn ad-hoc commands in handlers
 - Hardcoding machine-specific paths in tests
+
+## API References (.claude/references/)
+
+When working with macOS Accessibility, CGEvent, or TISInputSource APIs, consult the reference docs first.
+Index: .claude/references/_index.md
+
+- Unknown API → search reference docs before guessing
+- Reference docs vs training data conflict → reference docs win
+- Not in reference docs → context7 or web search fallback

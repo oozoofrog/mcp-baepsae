@@ -134,7 +134,7 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
 // Section 1: Tool registry completeness
 // ===========================================================================
 
-  test("tool registry lists all 35 expected MCP tools", async () => {
+  test("tool registry lists all 40 expected MCP tools", async () => {
   await withClient(async (client) => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((t) => t.name));
@@ -166,15 +166,20 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
       "swipe",
       "scroll",
       "drag_drop",
+      "wait_for_ui",
+      "read_ui_value",
       "run_steps",
       "key",
       "key_sequence",
       "key_combo",
       "touch",
+      "input_source",
+      "list_input_sources",
       "list_windows",
       "activate_app",
       "screenshot_app",
       "right_click",
+      "focus_window",
     ];
 
     for (const name of allExpected) {
@@ -797,6 +802,22 @@ test("type_text without method does not include --method flag", async () => {
   });
 });
 
+test("type_text with method=ax includes --method ax flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "type_text",
+      arguments: {
+        bundleId: "com.example.app",
+        text: "hello",
+        method: "ax",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /--method/);
+    assert.match(text, /ax/);
+  });
+});
+
 // ===========================================================================
 // Section 7: clipboard validation
 // ===========================================================================
@@ -881,6 +902,22 @@ test("menu_action with appName routes correctly", async () => {
     assert.match(text, /baepsae-native/);
     assert.match(text, /menu-action/);
     assert.match(text, /--app-name/);
+  });
+});
+
+test("menu_action with submenu path passes item with > separator", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "menu_action",
+      arguments: {
+        bundleId: "com.example.app",
+        menu: "File",
+        item: "New > Document",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /menu-action/);
+    assert.match(text, /--item/);
   });
 });
 
@@ -1239,6 +1276,63 @@ test("key_combo formats modifiers as comma-separated list", async () => {
     assert.match(text, /--modifiers/);
     assert.match(text, /224,225/);
     assert.match(text, /--key/);
+  });
+});
+
+test("key_combo with Command+Shift sends correct native args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "key_combo",
+      arguments: {
+        bundleId: "com.example.app",
+        modifiers: [55, 56],
+        key: 9,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /key-combo/);
+    assert.match(text, /--modifiers/);
+    assert.match(text, /55,56/);
+    assert.match(text, /--key/);
+    assert.match(text, /9/);
+  });
+});
+
+// ===========================================================================
+// Section: input_source parameter forwarding
+// ===========================================================================
+
+test("input_source without sourceId queries current input source", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "input_source",
+      arguments: {},
+    });
+    const text = extractText(result);
+    assert.match(text, /input-source/);
+  });
+});
+
+test("input_source with sourceId sends source ID as positional arg", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "input_source",
+      arguments: { sourceId: "com.apple.keylayout.ABC" },
+    });
+    const text = extractText(result);
+    assert.match(text, /input-source/);
+    assert.match(text, /com\.apple\.keylayout\.ABC/);
+  });
+});
+
+test("list_input_sources sends correct native command", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "list_input_sources",
+      arguments: {},
+    });
+    const text = extractText(result);
+    assert.match(text, /list-input-sources/);
   });
 });
 
@@ -1906,6 +2000,148 @@ test("key forwards duration option", async () => {
     const text = extractText(result);
     assert.match(text, /key/);
     assert.match(text, /--duration/);
+  });
+});
+
+// ===========================================================================
+// Section 33: analyze_ui window parameter
+// ===========================================================================
+
+test("analyze_ui with window parameter passes --window flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "analyze_ui",
+      arguments: {
+        bundleId: "com.example.app",
+        window: "Debug",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /--window/);
+    assert.match(text, /Debug/);
+  });
+});
+
+// ===========================================================================
+// Section 34: focus_window tool
+// ===========================================================================
+
+test("focus_window with title passes --title flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "focus_window",
+      arguments: {
+        bundleId: "com.example.app",
+        title: "Main",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /focus-window/);
+    assert.match(text, /--title/);
+    assert.match(text, /Main/);
+  });
+});
+
+test("focus_window with index passes --index flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "focus_window",
+      arguments: {
+        bundleId: "com.example.app",
+        index: 0,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /focus-window/);
+    assert.match(text, /--index/);
+  });
+});
+
+test("focus_window requires target", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "focus_window",
+      arguments: {},
+    });
+    assert.equal(result.isError, true);
+  });
+});
+
+// ===========================================================================
+// Section 35: wait_for_ui tool
+// ===========================================================================
+
+test("wait_for_ui tool is registered with correct params", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    const tool = tools.find((t) => t.name === "wait_for_ui");
+    assert.ok(tool, "wait_for_ui should be registered");
+    const schema = tool.inputSchema;
+    assert.ok(schema.properties.query, "should have query param");
+    assert.ok(schema.properties.condition, "should have condition param");
+    assert.ok(schema.properties.timeout, "should have timeout param");
+  });
+});
+
+// ===========================================================================
+// Section 36: read_ui_value tool
+// ===========================================================================
+
+test("read_ui_value passes attribute flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "read_ui_value",
+      arguments: {
+        bundleId: "com.example.app",
+        attribute: "selectedText",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /read-ui-value/);
+    assert.match(text, /--attribute/);
+    assert.match(text, /selectedText/);
+  });
+});
+
+test("read_ui_value passes --id flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "read_ui_value",
+      arguments: {
+        bundleId: "com.example.app",
+        id: "myTextField",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /read-ui-value/);
+    assert.match(text, /--id/);
+    assert.match(text, /myTextField/);
+  });
+});
+
+test("read_ui_value passes --label flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "read_ui_value",
+      arguments: {
+        bundleId: "com.example.app",
+        label: "Search Field",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /read-ui-value/);
+    assert.match(text, /--label/);
+    assert.match(text, /Search Field/);
+  });
+});
+
+test("read_ui_value requires target", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "read_ui_value",
+      arguments: {},
+    });
+    assert.equal(result.isError, true);
   });
 });
 

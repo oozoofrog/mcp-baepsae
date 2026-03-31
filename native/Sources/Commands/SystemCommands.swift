@@ -162,7 +162,6 @@ func handleMenuAction(_ parsed: ParsedOptions) throws -> Int32 {
     }
     try ensureAccessibilityTrusted()
     try activateTarget(target)
-    Thread.sleep(forTimeInterval: 0.3)
     let menuName = try requiredOption("--menu", from: parsed)
     let itemName = try requiredOption("--item", from: parsed)
     guard case .macApp(let pid, _, _) = target else {
@@ -185,33 +184,53 @@ func handleMenuAction(_ parsed: ParsedOptions) throws -> Int32 {
         let availableMenus = menuBarItems.compactMap { StringAttribute($0, kAXTitleAttribute as CFString) }
         throw NativeError.commandFailed("Menu '\(menuName)' not found. Available menus: \(availableMenus.joined(separator: ", "))")
     }
-    // Open the menu
+    // Parse item path for submenu navigation (e.g. "New > File..." uses > separator)
+    let itemPath = itemName.split(separator: ">").map {
+        $0.trimmingCharacters(in: .whitespaces)
+    }
+
+    // Open the top-level menu
     AXUIElementPerformAction(menuItem, kAXPressAction as CFString)
     Thread.sleep(forTimeInterval: 0.2)
-    // Find the item within the opened menu
-    let menuChildren = Children(menuItem)
-    var foundItem: UIElement? = nil
-    for child in menuChildren {
-        let items = Children(child)
-        for item in items {
-            if let title = StringAttribute(item, kAXTitleAttribute as CFString),
-               normalizeText(title) == normalizeText(itemName) {
-                foundItem = item
-                break
+
+    var currentMenu = menuItem
+    for (depth, pathComponent) in itemPath.enumerated() {
+        let isLast = depth == itemPath.count - 1
+        let menuChildren = Children(currentMenu)
+        var foundItem: UIElement? = nil
+
+        for child in menuChildren {
+            let items = Children(child)
+            for item in items {
+                if let title = StringAttribute(item, kAXTitleAttribute as CFString),
+                   normalizeText(title) == normalizeText(pathComponent) {
+                    foundItem = item
+                    break
+                }
             }
+            if foundItem != nil { break }
         }
-        if foundItem != nil { break }
+
+        guard let targetItem = foundItem else {
+            AXUIElementPerformAction(menuItem, "AXCancel" as CFString)
+            throw NativeError.commandFailed("Menu item '\(pathComponent)' not found at depth \(depth + 1) in '\(menuName)'.")
+        }
+
+        if isLast {
+            let pressStatus = AXUIElementPerformAction(targetItem, kAXPressAction as CFString)
+            if pressStatus != .success {
+                throw NativeError.commandFailed("Failed to activate menu item '\(pathComponent)' (status: \(pressStatus.rawValue)).")
+            }
+        } else {
+            // Open submenu
+            AXUIElementPerformAction(targetItem, kAXPressAction as CFString)
+            Thread.sleep(forTimeInterval: 0.2)
+            currentMenu = targetItem
+        }
     }
-    guard let targetItem = foundItem else {
-        // Cancel the menu
-        AXUIElementPerformAction(menuItem, "AXCancel" as CFString)
-        throw NativeError.commandFailed("Menu item '\(itemName)' not found in '\(menuName)'.")
-    }
-    let pressStatus = AXUIElementPerformAction(targetItem, kAXPressAction as CFString)
-    if pressStatus != .success {
-        throw NativeError.commandFailed("Failed to activate menu item '\(itemName)' (status: \(pressStatus.rawValue)).")
-    }
-    print("Performed: \(menuName) > \(itemName)")
+
+    let fullPath = itemPath.joined(separator: " > ")
+    print("Performed: \(menuName) > \(fullPath)")
     return 0
 }
 
@@ -241,6 +260,96 @@ func handleClipboard(_ parsed: ParsedOptions) throws -> Int32 {
         print("Clipboard updated.")
     } else {
         throw NativeError.invalidArguments("clipboard requires --read or --write <text>.")
+    }
+    return 0
+}
+
+func handleFocusWindow(_ parsed: ParsedOptions) throws -> Int32 {
+    let target = try resolveTarget(from: parsed)
+    if case .simulator = target {
+        throw NativeError.commandFailed("focus-window is only supported for macOS apps.")
+    }
+    try ensureAccessibilityTrusted()
+    try activateTarget(target)
+    let appRoot = try accessibilityRootElement(for: target)
+    let windows = Children(appRoot)
+
+    let selected: UIElement
+    if let indexStr = parsed.options["--index"], let idx = Int(indexStr) {
+        guard idx < windows.count else {
+            throw NativeError.invalidArguments("Window index \(idx) out of range (0..\(windows.count - 1)).")
+        }
+        selected = windows[idx]
+    } else if let title = parsed.options["--title"] {
+        guard let found = windows.first(where: {
+            (StringAttribute($0, kAXTitleAttribute as CFString) ?? "")
+                .localizedCaseInsensitiveContains(title)
+        }) else {
+            let available = windows.compactMap { StringAttribute($0, kAXTitleAttribute as CFString) }
+            throw NativeError.commandFailed("No window matching '\(title)'. Available: \(available.joined(separator: ", "))")
+        }
+        selected = found
+    } else {
+        throw NativeError.invalidArguments("focus-window requires --index or --title.")
+    }
+
+    AXUIElementPerformAction(selected, kAXRaiseAction as CFString)
+    let windowTitle = StringAttribute(selected, kAXTitleAttribute as CFString) ?? "(untitled)"
+    print("Focused window: \(windowTitle)")
+    return 0
+}
+
+func handleReadUIValue(_ parsed: ParsedOptions) throws -> Int32 {
+    let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
+    try activateTarget(target)
+    let appRoot = try accessibilityRootElement(for: target)
+
+    let attributeStr = parsed.options["--attribute"] ?? "value"
+    let axAttribute: String
+    switch attributeStr {
+    case "value": axAttribute = kAXValueAttribute as String
+    case "selectedText": axAttribute = "AXSelectedText"
+    case "insertionPoint": axAttribute = "AXInsertionPointLineNumber"
+    case "numberOfCharacters": axAttribute = "AXNumberOfCharacters"
+    default:
+        throw NativeError.invalidArguments("Unsupported attribute: \(attributeStr). Use: value, selectedText, insertionPoint, numberOfCharacters.")
+    }
+
+    // Find element by selector or use focused element
+    let element: AXUIElement
+    if let accessibilityId = parsed.options["--id"] {
+        guard let found = findAccessibilityElement(in: appRoot, identifier: accessibilityId, label: nil) else {
+            throw NativeError.commandFailed("No element with id: \(accessibilityId)")
+        }
+        element = found
+    } else if let label = parsed.options["--label"] {
+        guard let found = findAccessibilityElement(in: appRoot, identifier: nil, label: label) else {
+            throw NativeError.commandFailed("No element with label: \(label)")
+        }
+        element = found
+    } else {
+        var focusedRef: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(appRoot, "AXFocusedUIElement" as CFString, &focusedRef)
+        guard status == .success, let ref = focusedRef else {
+            throw NativeError.commandFailed("No focused element and no --id or --label provided.")
+        }
+        element = ref as! AXUIElement
+    }
+
+    var valueRef: CFTypeRef?
+    let status = AXUIElementCopyAttributeValue(element, axAttribute as CFString, &valueRef)
+    guard status == .success, let value = valueRef else {
+        print("(no value)")
+        return 0
+    }
+
+    if let str = value as? String {
+        print(str)
+    } else if let num = value as? NSNumber {
+        print(num.stringValue)
+    } else {
+        print(String(describing: value))
     }
     return 0
 }

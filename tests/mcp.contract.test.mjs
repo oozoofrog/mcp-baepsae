@@ -182,7 +182,7 @@ test("tools/list exposes expected MCP tools", async () => {
     assert.equal(result.tools.length, expected.length, "Live tool list count drifted");
     const typeText = result.tools.find((tool) => tool.name === "type_text");
     assert.ok(typeText, "type_text tool should exist");
-    assert.match(typeText.description ?? "", /auto resolves to paste on simulators/i);
+    assert.match(typeText.description ?? "", /auto resolves to paste for all targets/i);
     assert.match(typeText.description ?? "", /clipboard/i);
     assert.match(typeText.description ?? "", /keyboard/i);
   });
@@ -666,4 +666,41 @@ test("-v flag prints version and exits", () => {
   }).trim();
 
   assert.match(output, /^mcp-baepsae \d+\.\d+\.\d+$/);
+});
+
+test("input_source tool is registered and callable", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    const tool = tools.find((t) => t.name === "input_source");
+    assert.ok(tool, "input_source tool should be registered");
+  });
+});
+
+test("list_input_sources tool is registered and callable", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    const tool = tools.find((t) => t.name === "list_input_sources");
+    assert.ok(tool, "list_input_sources tool should be registered");
+  });
+});
+
+test("focus_window tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "focus_window"), "focus_window should be registered");
+  });
+});
+
+test("wait_for_ui tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "wait_for_ui"), "wait_for_ui should be registered");
+  });
+});
+
+test("read_ui_value tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "read_ui_value"), "read_ui_value should be registered");
+  });
 });

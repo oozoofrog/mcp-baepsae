@@ -36,6 +36,10 @@ let supportedCommands: Set<String> = [
     "menu-action",
     "get-focused-app",
     "clipboard",
+    "list-input-sources",
+    "input-source",
+    "focus-window",
+    "read-ui-value",
 ]
 
 // MARK: - Argument Parsing
@@ -1482,9 +1486,17 @@ func activateTarget(_ target: TargetApp) throws {
         try activateSimulator(udid: udid)
     case .macApp(let pid, _, _):
         let apps = NSWorkspace.shared.runningApplications.filter { $0.processIdentifier == pid }
-        if let app = apps.first {
-            app.activate(options: [.activateAllWindows])
+        guard let app = apps.first else {
+            throw NativeError.commandFailed("App with pid \(pid) not found.")
         }
+        app.activate(options: [.activateAllWindows])
+        // Poll for activation (max 1 second)
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline {
+            if app.isActive { return }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        fputs("Warning: app activation may not have completed within timeout\n", stderr)
     }
 }
 
@@ -1520,6 +1532,7 @@ func postMouseEvent(type: CGEventType, point: CGPoint, button: CGMouseButton = .
 
 func sendClick(at point: CGPoint) {
     postMouseEvent(type: .leftMouseDown, point: point)
+    usleep(20_000) // 20ms prevents some apps from ignoring instant clicks
     postMouseEvent(type: .leftMouseUp, point: point)
 }
 
@@ -1607,6 +1620,21 @@ func sendDrag(from start: CGPoint, to end: CGPoint, holdDuration: Double, moveDu
     postMouseEvent(type: .leftMouseUp, point: end)
 }
 
+// MARK: - Keycode to CGEventFlags Mapping
+
+let keycodeToFlag: [Int: CGEventFlags] = [
+    0x37: .maskCommand,      // Left Command (55)
+    0x36: .maskCommand,      // Right Command (54)
+    0x38: .maskShift,        // Left Shift (56)
+    0x3C: .maskShift,        // Right Shift (60)
+    0x3A: .maskAlternate,    // Left Option (58)
+    0x3D: .maskAlternate,    // Right Option (61)
+    0x3B: .maskControl,      // Left Control (59)
+    0x3E: .maskControl,      // Right Control (62)
+    0x39: .maskAlphaShift,   // Caps Lock (57)
+    0x3F: .maskSecondaryFn,  // Fn (63)
+]
+
 // MARK: - Keyboard Events
 
 func sendKeyPress(keyCode: Int, duration: Double?) {
@@ -1622,34 +1650,54 @@ func sendKeyPress(keyCode: Int, duration: Double?) {
 
 func sendKeyCombo(modifiers: [Int], key: Int) {
     let source = CGEventSource(stateID: .hidSystemState)
+
+    // Convert keycodes to CGEventFlags
+    var flags: CGEventFlags = []
+    for modifier in modifiers {
+        if let flag = keycodeToFlag[modifier] {
+            flags.insert(flag)
+        }
+    }
+
+    // Send modifier key-down events with flags (backward compat with apps that watch key events)
     for modifier in modifiers {
         let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(modifier), keyDown: true)
+        event?.flags = flags
         event?.post(tap: .cghidEventTap)
     }
+    usleep(30_000) // 30ms for modifiers to register
+
+    // Ensure modifier key-up always happens (prevent stuck modifiers)
+    defer {
+        usleep(30_000)
+        for modifier in modifiers.reversed() {
+            let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(modifier), keyDown: false)
+            event?.post(tap: .cghidEventTap)
+        }
+    }
+
+    // Main key with flags set (critical: many apps only check flags, not key events)
     let keyDown = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(key), keyDown: true)
-    let keyUp = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(key), keyDown: false)
+    keyDown?.flags = flags
     keyDown?.post(tap: .cghidEventTap)
+
+    let keyUp = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(key), keyDown: false)
+    keyUp?.flags = flags
     keyUp?.post(tap: .cghidEventTap)
-    for modifier in modifiers.reversed() {
-        let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(modifier), keyDown: false)
-        event?.post(tap: .cghidEventTap)
-    }
 }
 
-func sendText(_ text: String) {
+func sendText(_ text: String, charDelay: Double = 0.01) {
     let source = CGEventSource(stateID: .hidSystemState)
-    for scalar in text.unicodeScalars {
-        let value = scalar.value
-        guard value <= UInt16.max else {
-            continue
-        }
-        var char = UniChar(value)
+    for char in text {
+        var utf16Chars = Array(char.utf16)
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true)
-        keyDown?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &char)
+        keyDown?.keyboardSetUnicodeString(stringLength: utf16Chars.count, unicodeString: &utf16Chars)
         keyDown?.post(tap: .cghidEventTap)
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
-        keyUp?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &char)
         keyUp?.post(tap: .cghidEventTap)
+        if charDelay > 0 {
+            Thread.sleep(forTimeInterval: charDelay)
+        }
     }
 }
 

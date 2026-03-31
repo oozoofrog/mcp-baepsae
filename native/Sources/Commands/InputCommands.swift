@@ -22,7 +22,7 @@ func handleKeySequence(_ parsed: ParsedOptions) throws -> Int32 {
         throw NativeError.invalidArguments("key-sequence requires --keycodes.")
     }
     let keycodes = try parseCommaSeparatedInts(raw, label: "keycodes")
-    let delay = try optionalDoubleOption("--delay", from: parsed) ?? 0
+    let delay = try optionalDoubleOption("--delay", from: parsed) ?? 0.05
     for keyCode in keycodes {
         sendKeyPress(keyCode: keyCode, duration: nil)
         if delay > 0 {
