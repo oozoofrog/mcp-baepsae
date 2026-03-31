@@ -690,3 +690,17 @@ test("focus_window tool is registered", async () => {
     assert.ok(tools.find((t) => t.name === "focus_window"), "focus_window should be registered");
   });
 });
+
+test("wait_for_ui tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "wait_for_ui"), "wait_for_ui should be registered");
+  });
+});
+
+test("read_ui_value tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "read_ui_value"), "read_ui_value should be registered");
+  });
+});

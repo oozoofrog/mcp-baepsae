@@ -519,4 +519,69 @@ export function registerUITools(server: McpServer): void {
       return await runNative(buildTapTabArgs(target, params as TapTabParams));
     }
   );
+
+  server.tool(
+    "wait_for_ui",
+    "Wait for a UI element to appear or disappear. Polls query_ui at interval until condition met or timeout.",
+    {
+      ...unifiedTargetSchema,
+      query: z.string().min(1).describe("Text/ID/label to search for"),
+      condition: z.enum(["exists", "not_exists"]).optional().describe("Wait condition (default: exists)"),
+      timeout: z.number().optional().describe("Max wait time in seconds (default: 10)"),
+      interval: z.number().optional().describe("Poll interval in seconds (default: 0.5)"),
+    },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      const timeout = (params as any).timeout ?? 10;
+      const interval = (params as any).interval ?? 0.5;
+      const condition = (params as any).condition ?? "exists";
+      const start = Date.now();
+
+      while ((Date.now() - start) / 1000 < timeout) {
+        const result = await runBackend(
+          "accessibility",
+          buildSearchArgs(target, { query: (params as any).query })
+        );
+        const text = result.content
+          .filter((c: { type: string }) => c.type === "text")
+          .map((c: { text: string }) => c.text)
+          .join("\n");
+        const found = !result.isError && !text.includes("No elements found");
+
+        if ((condition === "exists" && found) || (condition === "not_exists" && !found)) {
+          return {
+            content: [{ type: "text" as const, text: `Condition '${condition}' met for '${(params as any).query}'.\n${text}` }],
+            isError: false,
+          };
+        }
+        await new Promise((r) => setTimeout(r, interval * 1000));
+      }
+      return {
+        content: [{ type: "text" as const, text: `Timeout (${timeout}s) waiting for '${(params as any).query}' to ${condition === "exists" ? "appear" : "disappear"}.` }],
+        isError: true,
+      };
+    }
+  );
+
+  server.tool(
+    "read_ui_value",
+    "Read value, selected text, or insertion point of a UI element via Accessibility API.",
+    {
+      ...unifiedTargetSchema,
+      id: z.string().optional().describe("Accessibility identifier"),
+      label: z.string().optional().describe("Accessibility label"),
+      attribute: z.enum(["value", "selectedText", "insertionPoint", "numberOfCharacters"])
+        .optional().describe("Attribute to read (default: value)"),
+    },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      const args = ["read-ui-value", ...target];
+      pushOption(args, "--id", (params as any).id);
+      pushOption(args, "--label", (params as any).label);
+      pushOption(args, "--attribute", (params as any).attribute);
+      return await runNative(args);
+    }
+  );
 }

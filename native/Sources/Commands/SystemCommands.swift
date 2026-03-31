@@ -298,3 +298,58 @@ func handleFocusWindow(_ parsed: ParsedOptions) throws -> Int32 {
     print("Focused window: \(windowTitle)")
     return 0
 }
+
+func handleReadUIValue(_ parsed: ParsedOptions) throws -> Int32 {
+    let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
+    try activateTarget(target)
+    let appRoot = try accessibilityRootElement(for: target)
+
+    let attributeStr = parsed.options["--attribute"] ?? "value"
+    let axAttribute: String
+    switch attributeStr {
+    case "value": axAttribute = kAXValueAttribute as String
+    case "selectedText": axAttribute = "AXSelectedText"
+    case "insertionPoint": axAttribute = "AXInsertionPointLineNumber"
+    case "numberOfCharacters": axAttribute = "AXNumberOfCharacters"
+    default:
+        throw NativeError.invalidArguments("Unsupported attribute: \(attributeStr). Use: value, selectedText, insertionPoint, numberOfCharacters.")
+    }
+
+    // Find element by selector or use focused element
+    let element: AXUIElement
+    if let accessibilityId = parsed.options["--id"] {
+        guard let found = findAccessibilityElement(in: appRoot, identifier: accessibilityId, label: nil) else {
+            throw NativeError.commandFailed("No element with id: \(accessibilityId)")
+        }
+        element = found
+    } else if let label = parsed.options["--label"] {
+        guard let found = findAccessibilityElement(in: appRoot, identifier: nil, label: label) else {
+            throw NativeError.commandFailed("No element with label: \(label)")
+        }
+        element = found
+    } else {
+        var focusedRef: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(appRoot, "AXFocusedUIElement" as CFString, &focusedRef)
+        guard status == .success, let ref = focusedRef else {
+            throw NativeError.commandFailed("No focused element and no --id or --label provided.")
+        }
+        element = ref as! AXUIElement
+    }
+
+    var valueRef: CFTypeRef?
+    let status = AXUIElementCopyAttributeValue(element, axAttribute as CFString, &valueRef)
+    guard status == .success, let value = valueRef else {
+        print("(no value)")
+        return 0
+    }
+
+    if let str = value as? String {
+        print(str)
+    } else if let num = value as? NSNumber {
+        print(num.stringValue)
+    } else {
+        print(String(describing: value))
+    }
+    return 0
+}

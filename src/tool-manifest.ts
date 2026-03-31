@@ -22,6 +22,8 @@ export const TOOL_MANIFEST: ToolManifestEntry[] = [
   { name: "swipe", category: "UI", summary: "Perform swipe gesture in the target app." },
   { name: "scroll", category: "UI", summary: "Send scroll wheel events to the target app." },
   { name: "drag_drop", category: "UI", summary: "Drag and drop in the target app." },
+  { name: "wait_for_ui", category: "UI", summary: "Wait for a UI element to appear or disappear." },
+  { name: "read_ui_value", category: "UI", summary: "Read value, selected text, or insertion point of a UI element." },
 
   { name: "key", category: "Input", summary: "Press a single HID keycode in the target app." },
   { name: "key_sequence", category: "Input", summary: "Press multiple HID keycodes in sequence in the target app." },
