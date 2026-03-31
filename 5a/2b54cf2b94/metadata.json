@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.2",
+  "checkpoint_id": "5a2b54cf2b94",
+  "strategy": "manual-commit",
+  "branch": "feat/ax-api-complete",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/5a/2b54cf2b94/0/metadata.json",
+      "transcript": "/5a/2b54cf2b94/0/full.jsonl",
+      "content_hash": "/5a/2b54cf2b94/0/content_hash.txt",
+      "prompt": "/5a/2b54cf2b94/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4685,
+    "cache_creation_tokens": 952581,
+    "cache_read_tokens": 53995233,
+    "output_tokens": 131894,
+    "api_call_count": 242
+  }
+}
