@@ -902,6 +902,22 @@ test("menu_action with appName routes correctly", async () => {
   });
 });
 
+test("menu_action with submenu path passes item with > separator", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "menu_action",
+      arguments: {
+        bundleId: "com.example.app",
+        menu: "File",
+        item: "New > Document",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /menu-action/);
+    assert.match(text, /--item/);
+  });
+});
+
 // ===========================================================================
 // Section 9: toToolResult output structure (via command execution)
 // ===========================================================================

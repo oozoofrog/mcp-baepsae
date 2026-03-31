@@ -184,33 +184,53 @@ func handleMenuAction(_ parsed: ParsedOptions) throws -> Int32 {
         let availableMenus = menuBarItems.compactMap { StringAttribute($0, kAXTitleAttribute as CFString) }
         throw NativeError.commandFailed("Menu '\(menuName)' not found. Available menus: \(availableMenus.joined(separator: ", "))")
     }
-    // Open the menu
+    // Parse item path for submenu navigation (e.g. "New > File..." uses > separator)
+    let itemPath = itemName.split(separator: ">").map {
+        $0.trimmingCharacters(in: .whitespaces)
+    }
+
+    // Open the top-level menu
     AXUIElementPerformAction(menuItem, kAXPressAction as CFString)
     Thread.sleep(forTimeInterval: 0.2)
-    // Find the item within the opened menu
-    let menuChildren = Children(menuItem)
-    var foundItem: UIElement? = nil
-    for child in menuChildren {
-        let items = Children(child)
-        for item in items {
-            if let title = StringAttribute(item, kAXTitleAttribute as CFString),
-               normalizeText(title) == normalizeText(itemName) {
-                foundItem = item
-                break
+
+    var currentMenu = menuItem
+    for (depth, pathComponent) in itemPath.enumerated() {
+        let isLast = depth == itemPath.count - 1
+        let menuChildren = Children(currentMenu)
+        var foundItem: UIElement? = nil
+
+        for child in menuChildren {
+            let items = Children(child)
+            for item in items {
+                if let title = StringAttribute(item, kAXTitleAttribute as CFString),
+                   normalizeText(title) == normalizeText(pathComponent) {
+                    foundItem = item
+                    break
+                }
             }
+            if foundItem != nil { break }
         }
-        if foundItem != nil { break }
+
+        guard let targetItem = foundItem else {
+            AXUIElementPerformAction(menuItem, "AXCancel" as CFString)
+            throw NativeError.commandFailed("Menu item '\(pathComponent)' not found at depth \(depth + 1) in '\(menuName)'.")
+        }
+
+        if isLast {
+            let pressStatus = AXUIElementPerformAction(targetItem, kAXPressAction as CFString)
+            if pressStatus != .success {
+                throw NativeError.commandFailed("Failed to activate menu item '\(pathComponent)' (status: \(pressStatus.rawValue)).")
+            }
+        } else {
+            // Open submenu
+            AXUIElementPerformAction(targetItem, kAXPressAction as CFString)
+            Thread.sleep(forTimeInterval: 0.2)
+            currentMenu = targetItem
+        }
     }
-    guard let targetItem = foundItem else {
-        // Cancel the menu
-        AXUIElementPerformAction(menuItem, "AXCancel" as CFString)
-        throw NativeError.commandFailed("Menu item '\(itemName)' not found in '\(menuName)'.")
-    }
-    let pressStatus = AXUIElementPerformAction(targetItem, kAXPressAction as CFString)
-    if pressStatus != .success {
-        throw NativeError.commandFailed("Failed to activate menu item '\(itemName)' (status: \(pressStatus.rawValue)).")
-    }
-    print("Performed: \(menuName) > \(itemName)")
+
+    let fullPath = itemPath.joined(separator: " > ")
+    print("Performed: \(menuName) > \(fullPath)")
     return 0
 }
 
