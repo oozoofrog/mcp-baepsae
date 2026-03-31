@@ -41,6 +41,7 @@ let supportedCommands: Set<String> = [
     "focus-window",
     "read-ui-value",
     "context-menu-action",
+    "detect-dialog",
 ]
 
 // MARK: - Argument Parsing

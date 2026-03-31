@@ -23,6 +23,7 @@ export const TOOL_MANIFEST: ToolManifestEntry[] = [
   { name: "scroll", category: "UI", summary: "Send scroll wheel events to the target app." },
   { name: "drag_drop", category: "UI", summary: "Drag and drop in the target app." },
   { name: "wait_for_ui", category: "UI", summary: "Wait for a UI element to appear or disappear." },
+  { name: "detect_dialog", category: "UI", summary: "Detect if a modal dialog, sheet, or alert is currently presented." },
   { name: "read_ui_value", category: "UI", summary: "Read value, selected text, or insertion point of a UI element." },
 
   { name: "key", category: "Input", summary: "Press a single HID keycode in the target app." },

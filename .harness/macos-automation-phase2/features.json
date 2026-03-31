@@ -95,7 +95,7 @@
       {"action": "grep", "target": "src/tools/ui.ts", "pattern": "detect_dialog", "expect": "도구 등록 존재"},
       {"action": "test", "command": "npm test", "expect": "contract test에서 도구 등록 확인"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 4,
     "scores": null
@@ -109,7 +109,7 @@
       {"action": "build", "command": "npm run build:native", "expect": "Swift 빌드 성공"},
       {"action": "grep", "target": "native/Sources/Commands/UICommands.swift", "pattern": "handleDetectDialog|AXDialog|AXSheet|kAXModalAttribute", "expect": "다이얼로그 감지 로직 존재"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 4,
     "scores": null

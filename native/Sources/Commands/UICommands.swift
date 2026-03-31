@@ -495,6 +495,67 @@ func handleSwipe(_ parsed: ParsedOptions) throws -> Int32 {
     return 0
 }
 
+// MARK: - detect-dialog
+
+func handleDetectDialog(_ parsed: ParsedOptions) throws -> Int32 {
+    let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
+    try activateTarget(target)
+    let appRoot = try accessibilityRootElement(for: target)
+    let windows = Children(appRoot)
+
+    var dialogs: [[String: Any]] = []
+    for window in windows {
+        let subrole = StringAttribute(window, kAXSubroleAttribute as CFString) ?? ""
+        let isDialog = ["AXDialog", "AXSheet", "AXSystemDialog", "AXSystemFloatingWindow"].contains(subrole)
+
+        var modalRef: CFTypeRef?
+        let modalStatus = AXUIElementCopyAttributeValue(window, kAXModalAttribute as CFString, &modalRef)
+        let isModal = (modalStatus == .success && (modalRef as? Bool) == true)
+
+        if isDialog || isModal {
+            let title = StringAttribute(window, kAXTitleAttribute as CFString) ?? ""
+            var buttons: [String] = []
+
+            func findButtons(in elements: [UIElement]) {
+                for element in elements {
+                    let role = StringAttribute(element, kAXRoleAttribute as CFString)
+                    if role == "AXButton" {
+                        if let btnTitle = StringAttribute(element, kAXTitleAttribute as CFString), !btnTitle.isEmpty {
+                            buttons.append(btnTitle)
+                        }
+                    }
+                    findButtons(in: Children(element))
+                }
+            }
+            findButtons(in: Children(window))
+
+            dialogs.append([
+                "type": subrole.isEmpty ? "modal" : subrole,
+                "title": title,
+                "isModal": isModal,
+                "buttons": buttons,
+            ])
+        }
+    }
+
+    if dialogs.isEmpty {
+        print("{\"hasDialog\":false,\"dialogs\":[]}")
+    } else {
+        var jsonParts: [String] = []
+        for d in dialogs {
+            let type = d["type"] as? String ?? ""
+            let title = (d["title"] as? String ?? "").replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+            let isModal = d["isModal"] as? Bool ?? false
+            let btns = d["buttons"] as? [String] ?? []
+            let btnsJson = "[" + btns.map { "\"\($0.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\"" }.joined(separator: ",") + "]"
+            jsonParts.append("{\"type\":\"\(type)\",\"title\":\"\(title)\",\"isModal\":\(isModal),\"buttons\":\(btnsJson)}")
+        }
+        print("{\"hasDialog\":true,\"dialogs\":[\(jsonParts.joined(separator: ","))]}")
+    }
+    return 0
+}
+
 func handleScroll(_ parsed: ParsedOptions) throws -> Int32 {
     let target = try resolveTarget(from: parsed)
     try ensureAccessibilityTrusted()

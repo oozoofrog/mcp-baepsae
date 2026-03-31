@@ -565,6 +565,19 @@ export function registerUITools(server: McpServer): void {
   );
 
   server.tool(
+    "detect_dialog",
+    "Detect if a modal dialog, sheet, or alert is currently presented. Returns JSON with hasDialog, type, title, isModal, and buttons.",
+    {
+      ...unifiedTargetSchema,
+    },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      return await runNative(["detect-dialog", ...target]);
+    }
+  );
+
+  server.tool(
     "read_ui_value",
     "Read value, selected text, or insertion point of a UI element via Accessibility API.",
     {
