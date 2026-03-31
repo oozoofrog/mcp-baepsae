@@ -162,7 +162,6 @@ func handleMenuAction(_ parsed: ParsedOptions) throws -> Int32 {
     }
     try ensureAccessibilityTrusted()
     try activateTarget(target)
-    Thread.sleep(forTimeInterval: 0.3)
     let menuName = try requiredOption("--menu", from: parsed)
     let itemName = try requiredOption("--item", from: parsed)
     guard case .macApp(let pid, _, _) = target else {

@@ -1482,9 +1482,17 @@ func activateTarget(_ target: TargetApp) throws {
         try activateSimulator(udid: udid)
     case .macApp(let pid, _, _):
         let apps = NSWorkspace.shared.runningApplications.filter { $0.processIdentifier == pid }
-        if let app = apps.first {
-            app.activate(options: [.activateAllWindows])
+        guard let app = apps.first else {
+            throw NativeError.commandFailed("App with pid \(pid) not found.")
         }
+        app.activate(options: [.activateAllWindows])
+        // Poll for activation (max 1 second)
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline {
+            if app.isActive { return }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        fputs("Warning: app activation may not have completed within timeout\n", stderr)
     }
 }
 
@@ -1520,6 +1528,7 @@ func postMouseEvent(type: CGEventType, point: CGPoint, button: CGMouseButton = .
 
 func sendClick(at point: CGPoint) {
     postMouseEvent(type: .leftMouseDown, point: point)
+    usleep(20_000) // 20ms prevents some apps from ignoring instant clicks
     postMouseEvent(type: .leftMouseUp, point: point)
 }
 
