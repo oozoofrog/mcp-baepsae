@@ -299,7 +299,13 @@ func accessibilityRootElement(for target: TargetApp) throws -> UIElement {
     case .simulator:
         return try simulatorAccessibilityRootElement()
     case .macApp(let pid, _, _):
-        return AXUIElementCreateApplication(pid)
+        let appElement = AXUIElementCreateApplication(pid)
+        // 무거운 앱에서 기본 시스템 타임아웃(~6초)이 너무 짧은 경우 대비
+        // BAEPSAE_AX_TIMEOUT 환경변수(초)로 재정의 가능, 기본값 10초
+        let timeout = Float(ProcessInfo.processInfo.environment["BAEPSAE_AX_TIMEOUT"]
+            .flatMap(Double.init) ?? 10.0)
+        AXUIElementSetMessagingTimeout(appElement, timeout)
+        return appElement
     }
 }
 

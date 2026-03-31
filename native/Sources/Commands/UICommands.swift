@@ -630,6 +630,26 @@ func handleSetUIValue(_ parsed: ParsedOptions) throws -> Int32 {
         element = ref as! AXUIElement
     }
 
+    // 속성 이름 결정 (settable 체크와 set 호출 양쪽에 공통 사용)
+    let axAttributeName: String
+    switch attributeStr {
+    case "value":           axAttributeName = kAXValueAttribute as String
+    case "selectedTextRange": axAttributeName = "AXSelectedTextRange"
+    case "focused":         axAttributeName = kAXFocusedAttribute as String
+    default:
+        throw NativeError.invalidArguments("Unsupported attribute: \(attributeStr). Use: value, selectedTextRange, focused.")
+    }
+
+    // 쓰기 가능 여부 사전 확인
+    var settable: DarwinBoolean = false
+    AXUIElementIsAttributeSettable(element, axAttributeName as CFString, &settable)
+    if !settable.boolValue {
+        throw NativeError.commandFailed(
+            "Attribute '\(attributeStr)' is not writable on this element. "
+            + "Use enumerate_ui to discover which attributes are settable."
+        )
+    }
+
     switch attributeStr {
     case "value":
         let result = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, valueStr as CFTypeRef)

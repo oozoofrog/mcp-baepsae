@@ -1,0 +1,226 @@
+[
+  {
+    "id": "F001",
+    "category": "config",
+    "description": "AXUIElementSetMessagingTimeout 통합 (#86): accessibilityRootElement(for:) 함수에서 AXUIElementCreateApplication 호출 직후 AXUIElementSetMessagingTimeout을 10초로 설정한다. 환경변수 BAEPSAE_AX_TIMEOUT이 있으면 해당 값(초)을 사용한다. 0이면 시스템 기본값 복원.",
+    "verification": "npm run build:native 성공. 기존 contract 테스트(117 unit + 35 contract) 전부 통과. unit 테스트에서 BAEPSAE_AX_TIMEOUT 환경변수 파싱 로직 검증.",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build:native", "expect": "빌드 성공, 에러 없음"},
+      {"action": "test", "command": "npm test", "expect": "기존 테스트 전부 통과 (회귀 없음)"},
+      {"action": "grep", "target": "native/Sources/Utils.swift", "pattern": "AXUIElementSetMessagingTimeout", "expect": "accessibilityRootElement 함수 내에서 호출됨"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 1,
+    "scores": null
+  },
+  {
+    "id": "F002",
+    "category": "logic",
+    "description": "set_ui_value에 AXUIElementIsAttributeSettable 사전 체크 추가 (#89): handleSetUIValue에서 AXUIElementSetAttributeValue 호출 전에 AXUIElementIsAttributeSettable을 먼저 확인한다. settable이 false이면 'Attribute <name> is not settable on this element (role: <role>)' 에러 메시지를 반환한다.",
+    "verification": "npm run build:native 성공. unit 테스트에서 settable 체크 에러 메시지 형식 검증. contract 테스트 통과.",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build:native", "expect": "빌드 성공"},
+      {"action": "grep", "target": "native/Sources/Commands/UICommands.swift", "pattern": "IsAttributeSettable", "expect": "handleSetUIValue 함수 내에서 호출됨"},
+      {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 1,
+    "scores": null
+  },
+  {
+    "id": "F003",
+    "category": "ui",
+    "description": "hit_test 도구 신규 구현 (#84): AXUIElementCreateSystemWide + AXUIElementCopyElementAtPosition을 사용하여 화면 좌표(x, y)에 있는 UI 요소를 찾아 반환한다. Swift 네이티브에 hit-test 명령 추가 (--x, --y 파라미터). TS에 hit_test 도구 등록 (unifiedTargetSchema 불필요, system-wide). 반환값: 찾은 요소의 role, title, identifier, position, size, pid. supportedCommands + tool-manifest.ts 동기화.",
+    "verification": "npm run build 성공. contract 테스트에서 hit_test 도구가 등록되어 있고 tools/list에 나타남. unit 테스트에서 필수 파라미터(x, y) 검증.",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "TS + Swift 빌드 성공"},
+      {"action": "test_contract", "expect": "hit_test가 tools/list 응답에 포함됨"},
+      {"action": "grep", "target": "native/Sources/Utils.swift", "pattern": "hit-test", "expect": "supportedCommands에 포함됨"},
+      {"action": "grep", "target": "src/tool-manifest.ts", "pattern": "hit_test", "expect": "매니페스트에 등록됨"}
+    ],
+    "status": "pending",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 2,
+    "scores": null
+  },
+  {
+    "id": "F004",
+    "category": "ui",
+    "description": "selectedTextRange 읽기 지원 (#87): read_ui_value 도구의 --attribute 옵션에 selectedTextRange 추가. AXValue(CFRange) 타입을 'location,length' 문자열로 변환. kAXSelectedTextRangeAttribute를 읽고 AXValueGetValue(.cfRange)로 CFRange 추출 후 JSON으로 반환한다.",
+    "verification": "npm run build 성공. unit 테스트에서 --attribute selectedTextRange 파라미터가 read-ui-value 명령에 전달됨을 검증.",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "grep", "target": "native/Sources/Commands/UICommands.swift", "pattern": "selectedTextRange", "expect": "handleReadUIValue에서 처리됨"},
+      {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"}
+    ],
+    "status": "pending",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 2,
+    "scores": null
+  },
+  {
+    "id": "F005",
+    "category": "ui",
+    "description": "enumerate_ui 도구 신규 구현 (#88): 특정 UI 요소의 모든 동적 속성, 액션, 파라미터화된 속성을 탐색한다. Swift: CopyAttributeNames + IsAttributeSettable로 속성 목록(이름, settable 여부), CopyActionNames + CopyActionDescription으로 액션 목록(이름, 설명), CopyParameterizedAttributeNames로 파라미터화 속성 목록 반환. TS: enumerate_ui 도구 등록 (target + id/label로 요소 지정). JSON 형식으로 { attributes: [...], actions: [...], parameterizedAttributes: [...] } 반환.",
+    "verification": "npm run build 성공. contract 테스트에서 enumerate_ui 도구 등록 확인. unit 테스트에서 파라미터 전달 검증.",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "test_contract", "expect": "enumerate_ui가 tools/list에 포함됨"},
+      {"action": "grep", "target": "native/Sources/Utils.swift", "pattern": "enumerate-ui", "expect": "supportedCommands에 포함됨"},
+      {"action": "grep", "target": "src/tool-manifest.ts", "pattern": "enumerate_ui", "expect": "매니페스트에 등록됨"}
+    ],
+    "status": "pending",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 2,
+    "scores": null
+  },
+  {
+    "id": "F006",
+    "category": "ui",
+    "description": "analyze_ui 페이지네이션 (#90): AXUIElementGetAttributeValueCount + AXUIElementCopyAttributeValues를 사용하여 대량 자식 요소를 페이지 단위로 순회한다. describe-ui 네이티브 명령에 --page-size (기본 50), --page (0-based) 파라미터 추가. TS analyze_ui 도구에 pageSize, page 옵션 파라미터 추가. 응답에 totalCount, page, pageSize, hasMore 메타데이터 포함.",
+    "verification": "npm run build 성공. unit 테스트에서 pageSize, page 파라미터가 describe-ui에 전달됨을 검증. contract 테스트 통과.",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"},
+      {"action": "grep", "target": "native/Sources/Commands/UICommands.swift", "pattern": "page-size\\|pageSize\\|GetAttributeValueCount", "expect": "페이지네이션 로직 존재"}
+    ],
+    "status": "pending",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 3,
+    "scores": null
+  },
+  {
+    "id": "F007",
+    "category": "logic",
+    "description": "AXObserver 인프라 구축 (#85): AXObserverCreate + AXObserverAddNotification + AXObserverGetRunLoopSource를 사용하여 실시간 AX 알림을 수신하는 watch-notification 네이티브 명령 구현. DispatchQueue 기반 백그라운드 run loop에서 CFRunLoopRunInMode로 타임아웃 기반 실행 (무한 대기 아님, 기본 30초). 파라미터: --pid 또는 --app (대상 앱), --notifications (감시할 알림 목록, 쉼표 구분), --timeout (초). 수신된 알림은 JSON 행으로 stdout에 출력 ({timestamp, notification, element_role, element_title}). TS에 watch_notification 도구 등록.",
+    "verification": "npm run build 성공. contract 테스트에서 watch_notification 도구 등록 확인. unit 테스트에서 필수 파라미터(notifications) 및 timeout 전달 검증. supportedCommands + tool-manifest.ts 동기화.",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "test_contract", "expect": "watch_notification이 tools/list에 포함됨"},
+      {"action": "grep", "target": "native/Sources/Utils.swift", "pattern": "watch-notification", "expect": "supportedCommands에 포함됨"},
+      {"action": "grep", "target": "native/Sources/main.swift", "pattern": "watch-notification", "expect": "runParsed dispatch에 포함됨"},
+      {"action": "grep", "target": "native/Sources/Commands", "pattern": "AXObserverCreate", "expect": "AXObserver API 사용 확인"}
+    ],
+    "status": "pending",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 4,
+    "scores": null
+  },
+  {
+    "id": "F008",
+    "category": "logic",
+    "description": "윈도우/시트 생성 감지 (#91): watch_notification 도구의 convenience wrapper로 watch_window 도구 구현. 기본 알림: kAXWindowCreatedNotification, kAXSheetCreatedNotification, kAXDrawerCreatedNotification. 또는 watch_notification에 preset 파라미터(window, text, focus, menu) 추가하여 사전 정의된 알림 세트 지원. #85 인프라 활용.",
+    "verification": "npm run build 성공. contract 테스트에서 도구 등록 확인 또는 watch_notification의 preset 파라미터 테스트. unit 테스트 통과.",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"},
+      {"action": "grep", "target": "src/tools", "pattern": "WindowCreated\\|SheetCreated\\|window.*preset", "expect": "윈도우 관련 알림 등록됨"}
+    ],
+    "status": "pending",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 5,
+    "scores": null
+  },
+  {
+    "id": "F009",
+    "category": "logic",
+    "description": "텍스트 변경 모니터링 (#92): watch_notification의 text preset으로 구현. 기본 알림: kAXValueChangedNotification, kAXSelectedTextChangedNotification. #85 인프라 활용. 텍스트 요소에 대해 알림 수신 시 변경된 값도 함께 읽어서 JSON에 포함.",
+    "verification": "npm run build 성공. unit 테스트에서 text preset이 올바른 알림 목록으로 확장됨을 검증.",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"},
+      {"action": "grep", "target": "native/Sources/Commands\\|src/tools", "pattern": "ValueChanged\\|SelectedTextChanged\\|text.*preset", "expect": "텍스트 알림 처리됨"}
+    ],
+    "status": "pending",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 5,
+    "scores": null
+  },
+  {
+    "id": "F010",
+    "category": "logic",
+    "description": "앱 포커스 추적 (#93): watch_notification의 focus preset으로 구현. 기본 알림: kAXApplicationActivatedNotification, kAXApplicationDeactivatedNotification, kAXFocusedWindowChangedNotification, kAXFocusedUIElementChangedNotification. #85 인프라 활용.",
+    "verification": "npm run build 성공. unit 테스트에서 focus preset이 올바른 알림 목록으로 확장됨을 검증.",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"},
+      {"action": "grep", "target": "native/Sources/Commands\\|src/tools", "pattern": "ApplicationActivated\\|ApplicationDeactivated\\|focus.*preset", "expect": "포커스 알림 처리됨"}
+    ],
+    "status": "pending",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 5,
+    "scores": null
+  },
+  {
+    "id": "F011",
+    "category": "logic",
+    "description": "메뉴 상태 모니터링 (#94): watch_notification의 menu preset으로 구현. 기본 알림: kAXMenuOpenedNotification, kAXMenuClosedNotification, kAXMenuItemSelectedNotification. #85 인프라 활용. menu_action/context_menu_action의 하드코딩된 sleep을 대체할 수 있는 기반 제공.",
+    "verification": "npm run build 성공. unit 테스트에서 menu preset이 올바른 알림 목록으로 확장됨을 검증.",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"},
+      {"action": "grep", "target": "native/Sources/Commands\\|src/tools", "pattern": "MenuOpened\\|MenuClosed\\|menu.*preset", "expect": "메뉴 알림 처리됨"}
+    ],
+    "status": "pending",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 5,
+    "scores": null
+  },
+  {
+    "id": "F012",
+    "category": "test",
+    "description": "Phase 1 기능 contract 테스트: hit_test, enumerate_ui 도구가 MCP tools/list에 노출되는지 contract 테스트 추가. 기존 analyze_ui의 pageSize/page 파라미터가 올바르게 전달되는지 unit 테스트 추가. read_ui_value의 selectedTextRange attribute가 허용되는지 unit 테스트 추가. set_ui_value의 settable 체크 에러 메시지 형식 unit 테스트.",
+    "verification": "npm test 실행 시 새로 추가된 테스트 포함하여 전체 통과.",
+    "verification_steps": [
+      {"action": "test", "command": "npm test", "expect": "모든 테스트 통과, 새 테스트 포함"},
+      {"action": "count", "command": "grep -c 'test(' tests/unit.test.mjs tests/mcp.contract.test.mjs", "expect": "테스트 수 기존 대비 증가"}
+    ],
+    "status": "pending",
+    "reference": "tests/unit.test.mjs",
+    "priority": 3,
+    "scores": null
+  },
+  {
+    "id": "F013",
+    "category": "test",
+    "description": "Phase 2 기능 contract 테스트: watch_notification 도구가 MCP tools/list에 노출되는지 contract 테스트 추가. preset 파라미터(window, text, focus, menu) 각각에 대한 unit 테스트 추가. timeout 기본값(30초) 검증.",
+    "verification": "npm test 실행 시 새로 추가된 테스트 포함하여 전체 통과.",
+    "verification_steps": [
+      {"action": "test", "command": "npm test", "expect": "모든 테스트 통과, watch_notification 테스트 포함"}
+    ],
+    "status": "pending",
+    "reference": "tests/unit.test.mjs",
+    "priority": 5,
+    "scores": null
+  },
+  {
+    "id": "F014",
+    "category": "config",
+    "description": "tool-manifest.ts + README 동기화: 새로 추가된 모든 도구(hit_test, enumerate_ui, watch_notification)를 src/tool-manifest.ts에 등록. README.md와 README-KR.md의 도구 수를 업데이트. manifest drift check(npm test 내 포함) 통과 확인.",
+    "verification": "npm test 통과 (manifest drift check 포함). README의 도구 수가 실제 등록된 도구 수와 일치.",
+    "verification_steps": [
+      {"action": "test", "command": "npm test", "expect": "manifest drift check 통과"},
+      {"action": "grep", "target": "README.md", "pattern": "도구\\|tools", "expect": "도구 수가 최신"},
+      {"action": "grep", "target": "src/tool-manifest.ts", "pattern": "hit_test\\|enumerate_ui\\|watch_notification", "expect": "새 도구 모두 등록됨"}
+    ],
+    "status": "pending",
+    "reference": "src/tool-manifest.ts",
+    "priority": 3,
+    "scores": null
+  },
+  {
+    "id": "F015",
+    "category": "test",
+    "description": "Swift 네이티브 테스트: native/Tests/BaepsaeNativeTests/에 새 명령(hit-test, enumerate-ui, watch-notification)의 --help 출력 및 필수 파라미터 누락 시 에러 메시지 테스트 추가. swift test --package-path native 통과.",
+    "verification": "swift test --package-path native 실행 시 전체 통과.",
+    "verification_steps": [
+      {"action": "test", "command": "cd /Volumes/eyedisk/develop/oozoofrog/mcp-baepsae && swift test --package-path native", "expect": "모든 Swift 테스트 통과"}
+    ],
+    "status": "pending",
+    "reference": "native/Tests/BaepsaeNativeTests/",
+    "priority": 4,
+    "scores": null
+  }
+]
