@@ -165,4 +165,38 @@ export function registerSystemTools(server: McpServer): void {
       return await runNative(args);
     }
   );
+
+  server.tool(
+    "watch_notification",
+    "Watch for AX notifications from an app. Blocks until a notification fires or timeout. Use presets for common patterns: window (created/destroyed), text (value/selection changed), focus (app/window focus), menu (opened/closed).",
+    {
+      ...unifiedTargetSchema,
+      preset: z.enum(["window", "text", "focus", "menu"]).optional()
+        .describe("Notification preset (window, text, focus, menu)"),
+      notifications: z.string().optional()
+        .describe("Comma-separated notification names (e.g. 'AXValueChanged,AXWindowCreated')"),
+      timeout: z.number().optional().describe("Max wait time in seconds (default: 10)"),
+    },
+    async (params) => {
+      const anyParams = params as any;
+      if (!anyParams.preset && !anyParams.notifications) {
+        return {
+          content: [{ type: "text" as const, text: "watch_notification requires either preset or notifications parameter." }],
+          isError: true,
+          error: makeToolError({
+            code: "validation.watch_notification.missing_filter",
+            category: "validation",
+            message: "watch_notification requires either preset or notifications parameter.",
+          }),
+        };
+      }
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      const args = ["watch-notification", ...target];
+      pushOption(args, "--preset", anyParams.preset);
+      pushOption(args, "--notifications", anyParams.notifications);
+      pushOption(args, "--timeout", anyParams.timeout);
+      return await runNative(args);
+    }
+  );
 }

@@ -134,7 +134,7 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
 // Section 1: Tool registry completeness
 // ===========================================================================
 
-  test("tool registry lists all 44 expected MCP tools", async () => {
+  test("tool registry lists all 47 expected MCP tools", async () => {
   await withClient(async (client) => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((t) => t.name));
@@ -184,6 +184,9 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
       "detect_dialog",
       "set_ui_value",
       "read_ui_param",
+      "hit_test",
+      "enumerate_ui",
+      "watch_notification",
     ];
 
     for (const name of allExpected) {
@@ -2309,6 +2312,172 @@ test("read_ui_param with lineForIndex passes correct args", async () => {
     const text = extractText(result);
     assert.match(text, /read-ui-param/);
     assert.match(text, /lineForIndex/);
+  });
+});
+
+// ===========================================================================
+// Section: hit_test (#84)
+// ===========================================================================
+
+test("hit_test sends coordinates to native", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "hit_test",
+      arguments: { x: 500, y: 300 },
+    });
+    const text = extractText(result);
+    assert.match(text, /hit-test/);
+    assert.match(text, /-x/);
+    assert.match(text, /500/);
+    assert.match(text, /-y/);
+    assert.match(text, /300/);
+  });
+});
+
+// ===========================================================================
+// Section: enumerate_ui (#88)
+// ===========================================================================
+
+test("enumerate_ui passes id to native", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "enumerate_ui",
+      arguments: { bundleId: "com.example.app", id: "myElement" },
+    });
+    const text = extractText(result);
+    assert.match(text, /enumerate-ui/);
+    assert.match(text, /--id/);
+    assert.match(text, /myElement/);
+  });
+});
+
+// ===========================================================================
+// Section: read_ui_value selectedTextRange (#87)
+// ===========================================================================
+
+test("read_ui_value with selectedTextRange attribute", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "read_ui_value",
+      arguments: { bundleId: "com.example.app", attribute: "selectedTextRange" },
+    });
+    const text = extractText(result);
+    assert.match(text, /read-ui-value/);
+    assert.match(text, /selectedTextRange/);
+  });
+});
+
+// ===========================================================================
+// Section: analyze_ui pagination (#90)
+// ===========================================================================
+
+test("analyze_ui with pageSize and page params", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "analyze_ui",
+      arguments: { bundleId: "com.example.app", pageSize: 50, page: 0 },
+    });
+    const text = extractText(result);
+    assert.match(text, /--page-size/);
+    assert.match(text, /50/);
+    assert.match(text, /--page/);
+  });
+});
+
+// ===========================================================================
+// Section: watch_notification presets (#85, #91-#94)
+// ===========================================================================
+
+test("watch_notification with window preset sends correct args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "watch_notification",
+      arguments: {
+        bundleId: "com.example.app",
+        preset: "window",
+        timeout: 5,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /watch-notification/);
+    assert.match(text, /--preset/);
+    assert.match(text, /window/);
+    assert.match(text, /--timeout/);
+  });
+});
+
+test("watch_notification with text preset sends correct args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "watch_notification",
+      arguments: {
+        bundleId: "com.example.app",
+        preset: "text",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /watch-notification/);
+    assert.match(text, /--preset/);
+    assert.match(text, /text/);
+  });
+});
+
+test("watch_notification with focus preset sends correct args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "watch_notification",
+      arguments: {
+        bundleId: "com.example.app",
+        preset: "focus",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /watch-notification/);
+    assert.match(text, /focus/);
+  });
+});
+
+test("watch_notification with menu preset sends correct args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "watch_notification",
+      arguments: {
+        bundleId: "com.example.app",
+        preset: "menu",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /watch-notification/);
+    assert.match(text, /menu/);
+  });
+});
+
+test("watch_notification with custom notifications sends correct args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "watch_notification",
+      arguments: {
+        bundleId: "com.example.app",
+        notifications: "AXValueChanged,AXWindowCreated",
+        timeout: 15,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /watch-notification/);
+    assert.match(text, /--notifications/);
+    assert.match(text, /AXValueChanged/);
+  });
+});
+
+test("watch_notification requires preset or notifications", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "watch_notification",
+      arguments: {
+        bundleId: "com.example.app",
+      },
+    });
+    assert.ok(result.isError);
   });
 });
 

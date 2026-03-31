@@ -24,6 +24,8 @@ type DescribeParams = {
   maxDepth?: number;
   summary?: boolean;
   window?: number | string;
+  pageSize?: number;
+  page?: number;
 };
 
 type SearchParams = {
@@ -97,6 +99,8 @@ const describeSchema = {
   summary: z.boolean().optional().describe("Summary mode — collapse children as [N children]"),
   window: z.union([z.number().int().min(0), z.string()])
     .optional().describe("Window index or title substring (macOS only)"),
+  pageSize: z.number().int().min(1).optional().describe("Page size for paginated child access"),
+  page: z.number().int().min(0).optional().describe("Page number (0-based)"),
 };
 
 const searchSchema = {
@@ -255,6 +259,8 @@ function buildDescribeArgs(target: string[], params: DescribeParams): string[] {
   if (params.window !== undefined) {
     args.push("--window", String(params.window));
   }
+  pushOption(args, "--page-size", params.pageSize);
+  pushOption(args, "--page", params.page);
   return args;
 }
 
@@ -628,7 +634,7 @@ export function registerUITools(server: McpServer): void {
       ...unifiedTargetSchema,
       id: z.string().optional().describe("Accessibility identifier"),
       label: z.string().optional().describe("Accessibility label"),
-      attribute: z.enum(["value", "selectedText", "insertionPoint", "numberOfCharacters"])
+      attribute: z.enum(["value", "selectedText", "insertionPoint", "numberOfCharacters", "selectedTextRange"])
         .optional().describe("Attribute to read (default: value)"),
     },
     async (params) => {
@@ -638,6 +644,37 @@ export function registerUITools(server: McpServer): void {
       pushOption(args, "--id", (params as any).id);
       pushOption(args, "--label", (params as any).label);
       pushOption(args, "--attribute", (params as any).attribute);
+      return await runNative(args);
+    }
+  );
+
+  server.tool(
+    "hit_test",
+    "Find which UI element is at specific screen coordinates. Uses system-wide accessibility hit testing. No app target needed.",
+    {
+      x: z.number().describe("Screen X coordinate (top-left origin)"),
+      y: z.number().describe("Screen Y coordinate (top-left origin)"),
+    },
+    async (params) => {
+      const args = ["hit-test", "-x", String(params.x), "-y", String(params.y)];
+      return await runNative(args);
+    }
+  );
+
+  server.tool(
+    "enumerate_ui",
+    "Discover all attributes, actions, and parameterized attributes of a UI element. Shows which attributes are settable.",
+    {
+      ...unifiedTargetSchema,
+      id: z.string().optional().describe("Accessibility identifier"),
+      label: z.string().optional().describe("Accessibility label"),
+    },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      const args = ["enumerate-ui", ...target];
+      pushOption(args, "--id", (params as any).id);
+      pushOption(args, "--label", (params as any).label);
       return await runNative(args);
     }
   );
