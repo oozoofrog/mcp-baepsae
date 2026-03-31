@@ -1,0 +1,21 @@
+/commit-commands:commit-push-pr
+
+---
+
+수동 검증 시작해주세요.
+
+---
+
+add git issues
+
+---
+
+github workflow 체크
+
+---
+
+merge pr
+
+---
+
+/apple-harness git issue 체크해서 작업 설계
