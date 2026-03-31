@@ -40,6 +40,8 @@ func printHelp() {
       baepsae-native menu-action --bundle-id <ID> | --app-name <NAME> --menu <MENU> --item <ITEM>
       baepsae-native get-focused-app
       baepsae-native clipboard --read | --write <TEXT>
+      baepsae-native list-input-sources
+      baepsae-native input-source [<SOURCE_ID>]
 
     Where <TARGET> is one of:
       --udid <UDID>           iOS Simulator device UDID
@@ -179,6 +181,12 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
 
     case "clipboard":
         return try handleClipboard(parsed)
+
+    case "list-input-sources":
+        return try handleListInputSources(parsed)
+
+    case "input-source":
+        return try handleInputSource(parsed)
 
     default:
         throw NativeError.invalidArguments("Unhandled command: \(parsed.command)")
