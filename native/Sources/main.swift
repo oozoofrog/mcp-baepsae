@@ -44,6 +44,7 @@ func printHelp() {
       baepsae-native input-source [<SOURCE_ID>]
       baepsae-native focus-window <TARGET> [--index <N> | --title <TEXT>]
       baepsae-native read-ui-value <TARGET> [--id <ID> | --label <LABEL>] [--attribute <value|selectedText|insertionPoint|numberOfCharacters>]
+      baepsae-native context-menu-action <TARGET> --item <ITEM_PATH>
 
     Where <TARGET> is one of:
       --udid <UDID>           iOS Simulator device UDID
@@ -195,6 +196,9 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
 
     case "read-ui-value":
         return try handleReadUIValue(parsed)
+
+    case "context-menu-action":
+        return try handleContextMenuAction(parsed)
 
     default:
         throw NativeError.invalidArguments("Unhandled command: \(parsed.command)")

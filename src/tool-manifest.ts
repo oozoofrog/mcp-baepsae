@@ -39,6 +39,7 @@ export const TOOL_MANIFEST: ToolManifestEntry[] = [
   { name: "screenshot_app", category: "System", summary: "Take a screenshot of the target app window." },
   { name: "right_click", category: "System", summary: "Right-click in the target app." },
   { name: "focus_window", category: "System", summary: "Raise and focus a specific window by index or title." },
+  { name: "context_menu_action", category: "System", summary: "Select an item from an open context menu (call after right_click). Supports submenu paths with > separator." },
 
   { name: "list_simulators", category: "Simulator-only", summary: "List available simulators using simctl." },
   { name: "screenshot", category: "Simulator-only", summary: "Capture a screenshot from simulator display using simctl screenshot." },

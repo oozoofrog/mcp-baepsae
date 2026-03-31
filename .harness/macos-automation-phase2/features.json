@@ -66,7 +66,7 @@
       {"action": "grep", "target": "src/tools/system.ts", "pattern": "context_menu_action", "expect": "도구 등록 존재"},
       {"action": "test", "command": "npm test", "expect": "contract test에서 도구 등록 확인"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 3,
     "scores": null
@@ -80,7 +80,7 @@
       {"action": "build", "command": "npm run build:native", "expect": "Swift 빌드 성공"},
       {"action": "grep", "target": "native/Sources/Commands/SystemCommands.swift", "pattern": "handleContextMenuAction|AXMenu|context-menu", "expect": "핸들러 및 AXMenu 탐색 존재"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 3,
     "scores": null
