@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.2",
+  "checkpoint_id": "33be81774309",
+  "strategy": "manual-commit",
+  "branch": "feat/ax-api-complete",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "native/Sources/Utils.swift"
+  ],
+  "sessions": [
+    {
+      "metadata": "/33/be81774309/0/metadata.json",
+      "transcript": "/33/be81774309/0/full.jsonl",
+      "content_hash": "/33/be81774309/0/content_hash.txt",
+      "prompt": "/33/be81774309/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4680,
+    "cache_creation_tokens": 942849,
+    "cache_read_tokens": 52898372,
+    "output_tokens": 125878,
+    "api_call_count": 239
+  }
+}

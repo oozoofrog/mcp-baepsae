@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.5.2",
+  "checkpoint_id": "33be81774309",
+  "session_id": "67dcb0a2-9b3b-43c4-a723-bf506282d801",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-31T14:16:33.730181Z",
+  "branch": "feat/ax-api-complete",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "native/Sources/Utils.swift"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "a5dc8011648c",
+  "token_usage": {
+    "input_tokens": 4680,
+    "cache_creation_tokens": 942849,
+    "cache_read_tokens": 52898372,
+    "output_tokens": 125878,
+    "api_call_count": 239
+  },
+  "session_metrics": {
+    "turn_count": 28
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-31T14:16:33.240297Z",
+    "agent_lines": 0,
+    "human_added": 173,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 173,
+    "agent_percentage": 0
+  }
+}
