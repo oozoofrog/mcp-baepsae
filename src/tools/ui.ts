@@ -119,7 +119,7 @@ const typeSchema = {
   stdinText: z.string().optional().describe("Text piped to stdin mode"),
   file: z.string().optional().describe("Path for file input"),
   method: z.enum(["auto", "paste", "keyboard"]).optional().describe(
-    "Input method policy: 'auto' chooses paste for simulator targets and keyboard for macOS targets; 'paste' always uses the clipboard-backed paste path; 'keyboard' always types character-by-character. Paste temporarily overwrites the clipboard and restores it after submission."
+    "Input method policy: 'auto' chooses paste for all targets (more reliable for CJK and emoji); 'paste' always uses the clipboard-backed paste path; 'keyboard' always types character-by-character. Paste temporarily overwrites the clipboard and restores it after submission."
   ),
 };
 
@@ -313,9 +313,7 @@ function resolveTypeTextPolicy(
   const targetKind: "simulator" | "macOS" = target.udid ? "simulator" : "macOS";
   const usedMethod =
     requestedMethod === "auto"
-      ? targetKind === "simulator"
-        ? "paste"
-        : "keyboard"
+      ? "paste"  // paste is more reliable for all targets including CJK
       : requestedMethod;
   const inputSource = params.stdinText !== undefined ? "stdinText" : params.file !== undefined ? "file" : "text";
   const pasteTransport =
@@ -417,7 +415,7 @@ export function registerUITools(server: McpServer): void {
 
   server.tool(
     "type_text",
-    "Type text into the target app. auto resolves to paste on simulators and keyboard on macOS; simulator paste uses the simulator pasteboard, macOS paste temporarily uses the host clipboard; keyboard types character-by-character.",
+    "Type text into the target app. auto resolves to paste for all targets (more reliable for CJK and emoji); simulator paste uses the simulator pasteboard, macOS paste temporarily uses the host clipboard; keyboard types character-by-character.",
     { ...unifiedTargetSchema, ...typeSchema },
     async (params) => {
       const validationError = validateTypeParams(params as TypeParams);
@@ -447,7 +445,7 @@ export function registerUITools(server: McpServer): void {
         extraLines.push("Clipboard side effect: none.");
       }
       if (policy.requestedMethod === "auto") {
-        extraLines.push(`Auto fallback: ${policy.targetKind === "simulator" ? "paste" : "keyboard"}.`);
+        extraLines.push(`Auto fallback: paste.`);
       }
       return await runBackend(
         "input",

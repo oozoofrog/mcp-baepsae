@@ -373,11 +373,7 @@ func handleType(_ parsed: ParsedOptions) throws -> Int32 {
     case "keyboard":
         usePaste = false
     default: // auto
-        if case .simulator = target {
-            usePaste = true
-        } else {
-            usePaste = false
-        }
+        usePaste = true  // paste is more reliable for all targets including CJK
     }
 
     if usePaste {
@@ -410,7 +406,7 @@ func pasteText(_ text: String, target: TargetApp) throws {
 
         // Cmd+V: Command keycode=55, V keycode=9
         sendKeyCombo(modifiers: [55], key: 9)
-        Thread.sleep(forTimeInterval: 0.15)
+        Thread.sleep(forTimeInterval: 0.3)
 
         // Restore original clipboard content
         pasteboard.clearContents()

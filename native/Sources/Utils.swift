@@ -1682,20 +1682,18 @@ func sendKeyCombo(modifiers: [Int], key: Int) {
     keyUp?.post(tap: .cghidEventTap)
 }
 
-func sendText(_ text: String) {
+func sendText(_ text: String, charDelay: Double = 0.01) {
     let source = CGEventSource(stateID: .hidSystemState)
-    for scalar in text.unicodeScalars {
-        let value = scalar.value
-        guard value <= UInt16.max else {
-            continue
-        }
-        var char = UniChar(value)
+    for char in text {
+        var utf16Chars = Array(char.utf16)
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true)
-        keyDown?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &char)
+        keyDown?.keyboardSetUnicodeString(stringLength: utf16Chars.count, unicodeString: &utf16Chars)
         keyDown?.post(tap: .cghidEventTap)
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
-        keyUp?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &char)
         keyUp?.post(tap: .cghidEventTap)
+        if charDelay > 0 {
+            Thread.sleep(forTimeInterval: charDelay)
+        }
     }
 }
 
