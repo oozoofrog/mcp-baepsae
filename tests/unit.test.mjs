@@ -134,7 +134,7 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
 // Section 1: Tool registry completeness
 // ===========================================================================
 
-  test("tool registry lists all 35 expected MCP tools", async () => {
+  test("tool registry lists all 37 expected MCP tools", async () => {
   await withClient(async (client) => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((t) => t.name));
@@ -171,6 +171,8 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
       "key_sequence",
       "key_combo",
       "touch",
+      "input_source",
+      "list_input_sources",
       "list_windows",
       "activate_app",
       "screenshot_app",
@@ -1258,6 +1260,44 @@ test("key_combo with Command+Shift sends correct native args", async () => {
     assert.match(text, /55,56/);
     assert.match(text, /--key/);
     assert.match(text, /9/);
+  });
+});
+
+// ===========================================================================
+// Section: input_source parameter forwarding
+// ===========================================================================
+
+test("input_source without sourceId queries current input source", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "input_source",
+      arguments: {},
+    });
+    const text = extractText(result);
+    assert.match(text, /input-source/);
+  });
+});
+
+test("input_source with sourceId sends source ID as positional arg", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "input_source",
+      arguments: { sourceId: "com.apple.keylayout.ABC" },
+    });
+    const text = extractText(result);
+    assert.match(text, /input-source/);
+    assert.match(text, /com\.apple\.keylayout\.ABC/);
+  });
+});
+
+test("list_input_sources sends correct native command", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "list_input_sources",
+      arguments: {},
+    });
+    const text = extractText(result);
+    assert.match(text, /list-input-sources/);
   });
 });
 

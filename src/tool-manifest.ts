@@ -27,6 +27,8 @@ export const TOOL_MANIFEST: ToolManifestEntry[] = [
   { name: "key_sequence", category: "Input", summary: "Press multiple HID keycodes in sequence in the target app." },
   { name: "key_combo", category: "Input", summary: "Press key combo in the target app." },
   { name: "touch", category: "Input", summary: "Perform touch events in the target app." },
+  { name: "input_source", category: "Input", summary: "Get or switch keyboard input source." },
+  { name: "list_input_sources", category: "Input", summary: "List all available keyboard input sources." },
 
   { name: "run_steps", category: "Workflow", summary: "Execute ordered workflow steps using existing interaction tools." },
 

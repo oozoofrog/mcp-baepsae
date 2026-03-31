@@ -667,3 +667,19 @@ test("-v flag prints version and exits", () => {
 
   assert.match(output, /^mcp-baepsae \d+\.\d+\.\d+$/);
 });
+
+test("input_source tool is registered and callable", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    const tool = tools.find((t) => t.name === "input_source");
+    assert.ok(tool, "input_source tool should be registered");
+  });
+});
+
+test("list_input_sources tool is registered and callable", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    const tool = tools.find((t) => t.name === "list_input_sources");
+    assert.ok(tool, "list_input_sources tool should be registered");
+  });
+});

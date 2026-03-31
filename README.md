@@ -247,7 +247,7 @@ The public API surface is intentionally single-scheme: use unified generic tools
 | Category | Tools |
 |---|---|
 | UI | `analyze_ui`, `query_ui`, `tap`, `tap_tab`, `type_text`, `swipe`, `scroll`, `drag_drop` |
-| Input | `key`, `key_sequence`, `key_combo`, `touch` |
+| Input | `key`, `key_sequence`, `key_combo`, `touch`, `input_source`, `list_input_sources` |
 | Workflow | `run_steps` |
 | System | `list_windows`, `activate_app`, `screenshot_app`, `right_click` |
 | Simulator-only | `list_simulators`, `screenshot`, `record_video`, `stream_video`, `open_url`, `install_app`, `launch_app`, `terminate_app`, `uninstall_app`, `button`, `gesture` |
