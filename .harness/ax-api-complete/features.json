@@ -40,7 +40,7 @@
       {"action": "grep", "target": "native/Sources/Utils.swift", "pattern": "hit-test", "expect": "supportedCommands에 포함됨"},
       {"action": "grep", "target": "src/tool-manifest.ts", "pattern": "hit_test", "expect": "매니페스트에 등록됨"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 2,
     "scores": null
@@ -55,7 +55,7 @@
       {"action": "grep", "target": "native/Sources/Commands/UICommands.swift", "pattern": "selectedTextRange", "expect": "handleReadUIValue에서 처리됨"},
       {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 2,
     "scores": null
@@ -71,7 +71,7 @@
       {"action": "grep", "target": "native/Sources/Utils.swift", "pattern": "enumerate-ui", "expect": "supportedCommands에 포함됨"},
       {"action": "grep", "target": "src/tool-manifest.ts", "pattern": "enumerate_ui", "expect": "매니페스트에 등록됨"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 2,
     "scores": null

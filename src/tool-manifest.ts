@@ -27,6 +27,8 @@ export const TOOL_MANIFEST: ToolManifestEntry[] = [
   { name: "read_ui_value", category: "UI", summary: "Read value, selected text, or insertion point of a UI element." },
   { name: "set_ui_value", category: "UI", summary: "Set value, text selection range, or focus on a UI element via Accessibility API." },
   { name: "read_ui_param", category: "UI", summary: "Read parameterized accessibility attributes like text ranges, line numbers, and bounds." },
+  { name: "hit_test", category: "UI", summary: "Find which UI element is at specific screen coordinates using system-wide accessibility hit testing." },
+  { name: "enumerate_ui", category: "UI", summary: "Discover all attributes, actions, and parameterized attributes of a UI element." },
 
   { name: "key", category: "Input", summary: "Press a single HID keycode in the target app." },
   { name: "key_sequence", category: "Input", summary: "Press multiple HID keycodes in sequence in the target app." },

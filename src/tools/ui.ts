@@ -628,7 +628,7 @@ export function registerUITools(server: McpServer): void {
       ...unifiedTargetSchema,
       id: z.string().optional().describe("Accessibility identifier"),
       label: z.string().optional().describe("Accessibility label"),
-      attribute: z.enum(["value", "selectedText", "insertionPoint", "numberOfCharacters"])
+      attribute: z.enum(["value", "selectedText", "insertionPoint", "numberOfCharacters", "selectedTextRange"])
         .optional().describe("Attribute to read (default: value)"),
     },
     async (params) => {
@@ -638,6 +638,37 @@ export function registerUITools(server: McpServer): void {
       pushOption(args, "--id", (params as any).id);
       pushOption(args, "--label", (params as any).label);
       pushOption(args, "--attribute", (params as any).attribute);
+      return await runNative(args);
+    }
+  );
+
+  server.tool(
+    "hit_test",
+    "Find which UI element is at specific screen coordinates. Uses system-wide accessibility hit testing. No app target needed.",
+    {
+      x: z.number().describe("Screen X coordinate (top-left origin)"),
+      y: z.number().describe("Screen Y coordinate (top-left origin)"),
+    },
+    async (params) => {
+      const args = ["hit-test", "-x", String(params.x), "-y", String(params.y)];
+      return await runNative(args);
+    }
+  );
+
+  server.tool(
+    "enumerate_ui",
+    "Discover all attributes, actions, and parameterized attributes of a UI element. Shows which attributes are settable.",
+    {
+      ...unifiedTargetSchema,
+      id: z.string().optional().describe("Accessibility identifier"),
+      label: z.string().optional().describe("Accessibility label"),
+    },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      const args = ["enumerate-ui", ...target];
+      pushOption(args, "--id", (params as any).id);
+      pushOption(args, "--label", (params as any).label);
       return await runNative(args);
     }
   );

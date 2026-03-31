@@ -436,8 +436,9 @@ func handleReadUIValue(_ parsed: ParsedOptions) throws -> Int32 {
     case "selectedText": axAttribute = "AXSelectedText"
     case "insertionPoint": axAttribute = "AXInsertionPointLineNumber"
     case "numberOfCharacters": axAttribute = "AXNumberOfCharacters"
+    case "selectedTextRange": axAttribute = "AXSelectedTextRange"
     default:
-        throw NativeError.invalidArguments("Unsupported attribute: \(attributeStr). Use: value, selectedText, insertionPoint, numberOfCharacters.")
+        throw NativeError.invalidArguments("Unsupported attribute: \(attributeStr). Use: value, selectedText, insertionPoint, numberOfCharacters, selectedTextRange.")
     }
 
     // Find element by selector or use focused element
@@ -472,6 +473,15 @@ func handleReadUIValue(_ parsed: ParsedOptions) throws -> Int32 {
         print(str)
     } else if let num = value as? NSNumber {
         print(num.stringValue)
+    } else if CFGetTypeID(value) == AXValueGetTypeID() {
+        let axVal = value as! AXValue
+        if AXValueGetType(axVal) == .cfRange {
+            var range = CFRange(location: 0, length: 0)
+            AXValueGetValue(axVal, .cfRange, &range)
+            print("\(range.location),\(range.length)")
+        } else {
+            print(String(describing: value))
+        }
     } else {
         print(String(describing: value))
     }

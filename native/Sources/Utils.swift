@@ -44,6 +44,8 @@ let supportedCommands: Set<String> = [
     "detect-dialog",
     "set-ui-value",
     "read-ui-param",
+    "hit-test",
+    "enumerate-ui",
 ]
 
 // MARK: - Argument Parsing

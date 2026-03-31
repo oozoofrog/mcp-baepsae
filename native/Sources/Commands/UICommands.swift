@@ -688,6 +688,116 @@ func handleSetUIValue(_ parsed: ParsedOptions) throws -> Int32 {
     return 0
 }
 
+// MARK: - handleHitTest (F003)
+
+func handleHitTest(_ parsed: ParsedOptions) throws -> Int32 {
+    try ensureAccessibilityTrusted()
+    guard let xStr = parsed.options["-x"], let yStr = parsed.options["-y"],
+          let x = Float(xStr), let y = Float(yStr) else {
+        throw NativeError.invalidArguments("hit-test requires -x and -y coordinates.")
+    }
+
+    let systemWide = AXUIElementCreateSystemWide()
+    var element: AXUIElement?
+    let status = AXUIElementCopyElementAtPosition(systemWide, x, y, &element)
+    guard status == .success, let found = element else {
+        throw NativeError.commandFailed("No accessibility element found at (\(x), \(y)). AXError: \(status.rawValue)")
+    }
+
+    let role = StringAttribute(found, kAXRoleAttribute as CFString) ?? ""
+    let subrole = StringAttribute(found, kAXSubroleAttribute as CFString) ?? ""
+    let title = StringAttribute(found, kAXTitleAttribute as CFString) ?? ""
+    let identifier = StringAttribute(found, "AXIdentifier" as CFString) ?? ""
+    let value = StringAttribute(found, kAXValueAttribute as CFString) ?? ""
+    let description = StringAttribute(found, kAXDescriptionAttribute as CFString) ?? ""
+
+    var frameStr = ""
+    if let frame = FrameAttribute(found) {
+        frameStr = "\(formatFloat(frame.origin.x)),\(formatFloat(frame.origin.y)),\(formatFloat(frame.width)),\(formatFloat(frame.height))"
+    }
+
+    var pid: pid_t = 0
+    AXUIElementGetPid(found, &pid)
+    let appName = NSWorkspace.shared.runningApplications.first(where: { $0.processIdentifier == pid })?.localizedName ?? ""
+
+    print("role=\(role) subrole=\(subrole) title=\(title) id=\(identifier) value=\(value) desc=\(description) frame=\(frameStr) pid=\(pid) app=\(appName)")
+    return 0
+}
+
+// MARK: - handleEnumerateUI (F005)
+
+func handleEnumerateUI(_ parsed: ParsedOptions) throws -> Int32 {
+    let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
+    try activateTarget(target)
+    let appRoot = try accessibilityRootElement(for: target)
+
+    let element: AXUIElement
+    if let accessibilityId = parsed.options["--id"] {
+        guard let found = findAccessibilityElement(in: appRoot, identifier: accessibilityId, label: nil) else {
+            throw NativeError.commandFailed("No element with id: \(accessibilityId)")
+        }
+        element = found
+    } else if let label = parsed.options["--label"] {
+        guard let found = findAccessibilityElement(in: appRoot, identifier: nil, label: label) else {
+            throw NativeError.commandFailed("No element with label: \(label)")
+        }
+        element = found
+    } else {
+        var focusedRef: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(appRoot, "AXFocusedUIElement" as CFString, &focusedRef)
+        guard status == .success, let ref = focusedRef else {
+            throw NativeError.commandFailed("No focused element and no --id or --label provided.")
+        }
+        element = ref as! AXUIElement
+    }
+
+    // 속성 목록
+    var attrNames: CFArray?
+    AXUIElementCopyAttributeNames(element, &attrNames)
+    var attributes: [(name: String, settable: Bool)] = []
+    if let names = attrNames as? [String] {
+        for name in names {
+            var settable: DarwinBoolean = false
+            AXUIElementIsAttributeSettable(element, name as CFString, &settable)
+            attributes.append((name: name, settable: settable.boolValue))
+        }
+    }
+
+    // 액션 목록
+    var actionNames: CFArray?
+    AXUIElementCopyActionNames(element, &actionNames)
+    var actions: [(name: String, description: String)] = []
+    if let names = actionNames as? [String] {
+        for name in names {
+            var desc: CFString?
+            AXUIElementCopyActionDescription(element, name as CFString, &desc)
+            actions.append((name: name, description: (desc as String?) ?? ""))
+        }
+    }
+
+    // 파라미터화된 속성 목록
+    var paramNames: CFArray?
+    AXUIElementCopyParameterizedAttributeNames(element, &paramNames)
+    let parameterized = (paramNames as? [String]) ?? []
+
+    let attrJson = attributes.map { a in
+        let escapedName = a.name.replacingOccurrences(of: "\"", with: "\\\"")
+        return "{\"name\":\"\(escapedName)\",\"settable\":\(a.settable)}"
+    }.joined(separator: ",")
+
+    let actJson = actions.map { a in
+        let escapedName = a.name.replacingOccurrences(of: "\"", with: "\\\"")
+        let escapedDesc = a.description.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        return "{\"name\":\"\(escapedName)\",\"description\":\"\(escapedDesc)\"}"
+    }.joined(separator: ",")
+
+    let paramJson = parameterized.map { "\"" + $0.replacingOccurrences(of: "\"", with: "\\\"") + "\"" }.joined(separator: ",")
+
+    print("{\"attributes\":[\(attrJson)],\"actions\":[\(actJson)],\"parameterizedAttributes\":[\(paramJson)]}")
+    return 0
+}
+
 // MARK: - handleReadUIParam (F012)
 
 func handleReadUIParam(_ parsed: ParsedOptions) throws -> Int32 {

@@ -134,7 +134,7 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
 // Section 1: Tool registry completeness
 // ===========================================================================
 
-  test("tool registry lists all 44 expected MCP tools", async () => {
+  test("tool registry lists all 46 expected MCP tools", async () => {
   await withClient(async (client) => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((t) => t.name));
@@ -184,6 +184,8 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
       "detect_dialog",
       "set_ui_value",
       "read_ui_param",
+      "hit_test",
+      "enumerate_ui",
     ];
 
     for (const name of allExpected) {
