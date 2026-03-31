@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.5.2",
+  "checkpoint_id": "93f2236684fe",
+  "session_id": "67dcb0a2-9b3b-43c4-a723-bf506282d801",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-31T08:11:18.604034Z",
+  "branch": "feat/macos-ui-automation-hardening",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "CLAUDE.md",
+    "docs/superpowers/plans/2026-03-31-macos-ui-automation-hardening.md",
+    "docs/superpowers/specs/2026-03-31-macos-ui-automation-hardening-design.md"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "8b5a476c0b38",
+  "token_usage": {
+    "input_tokens": 3257,
+    "cache_creation_tokens": 214372,
+    "cache_read_tokens": 10588523,
+    "output_tokens": 53339,
+    "api_call_count": 80
+  },
+  "session_metrics": {
+    "turn_count": 11
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-31T08:11:18.346738Z",
+    "agent_lines": 1447,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1447,
+    "agent_percentage": 100
+  }
+}
