@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.5.2",
+  "checkpoint_id": "3737ac61d806",
+  "session_id": "67dcb0a2-9b3b-43c4-a723-bf506282d801",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-31T08:15:32.901592Z",
+  "branch": "feat/macos-ui-automation-hardening",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "native/Sources/Utils.swift",
+    "tests/unit.test.mjs"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "8b5a476c0b38",
+  "checkpoint_transcript_start": 303,
+  "transcript_lines_at_start": 303,
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 3158,
+    "cache_read_tokens": 2748773,
+    "output_tokens": 3050,
+    "api_call_count": 13
+  },
+  "session_metrics": {
+    "turn_count": 11
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-31T08:15:32.644959Z",
+    "agent_lines": 61,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 61,
+    "agent_percentage": 100
+  }
+}
