@@ -47,7 +47,7 @@ type TypeParams = {
   text?: string;
   stdinText?: string;
   file?: string;
-  method?: "auto" | "paste" | "keyboard";
+  method?: "auto" | "paste" | "keyboard" | "ax";
 };
 
 type SwipeParams = {
@@ -118,8 +118,8 @@ const typeSchema = {
   text: z.string().optional().describe("Text argument"),
   stdinText: z.string().optional().describe("Text piped to stdin mode"),
   file: z.string().optional().describe("Path for file input"),
-  method: z.enum(["auto", "paste", "keyboard"]).optional().describe(
-    "Input method policy: 'auto' chooses paste for all targets (more reliable for CJK and emoji); 'paste' always uses the clipboard-backed paste path; 'keyboard' always types character-by-character. Paste temporarily overwrites the clipboard and restores it after submission."
+  method: z.enum(["auto", "paste", "keyboard", "ax"]).optional().describe(
+    "Input method: 'auto' = paste for all targets; 'paste' = clipboard; 'keyboard' = char-by-char CGEvent; 'ax' = set value via Accessibility API (most reliable for CJK, bypasses IME)"
   ),
 };
 
@@ -302,8 +302,8 @@ function resolveTypeTextPolicy(
   params: TypeParams,
   target: UnifiedTargetParams
 ): {
-  requestedMethod: "auto" | "paste" | "keyboard";
-  usedMethod: "paste" | "keyboard";
+  requestedMethod: "auto" | "paste" | "keyboard" | "ax";
+  usedMethod: "paste" | "keyboard" | "ax";
   targetKind: "simulator" | "macOS";
   inputSource: "text" | "stdinText" | "file";
   pasteTransport: "simulator_pasteboard" | "host_clipboard" | null;

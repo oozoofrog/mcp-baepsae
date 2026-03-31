@@ -366,6 +366,34 @@ func handleType(_ parsed: ParsedOptions) throws -> Int32 {
     }
 
     let methodStr = parsed.options["--method"] ?? "auto"
+
+    if methodStr == "ax" {
+        let appRoot = try accessibilityRootElement(for: target)
+        var focusedRef: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(
+            appRoot,
+            "AXFocusedUIElement" as CFString,
+            &focusedRef
+        )
+        if status == .success, let focused = focusedRef {
+            let setResult = AXUIElementSetAttributeValue(
+                focused as! AXUIElement,
+                kAXValueAttribute as CFString,
+                text as CFTypeRef
+            )
+            if setResult == .success {
+                print("Set value via AX API.")
+                return 0
+            }
+            fputs("AX setValue failed (status \(setResult.rawValue)), falling back to paste\n", stderr)
+        } else {
+            fputs("No focused element found, falling back to paste\n", stderr)
+        }
+        // Fallback to paste
+        try pasteText(text, target: target)
+        return 0
+    }
+
     let usePaste: Bool
     switch methodStr {
     case "paste":

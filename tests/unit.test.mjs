@@ -799,6 +799,22 @@ test("type_text without method does not include --method flag", async () => {
   });
 });
 
+test("type_text with method=ax includes --method ax flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "type_text",
+      arguments: {
+        bundleId: "com.example.app",
+        text: "hello",
+        method: "ax",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /--method/);
+    assert.match(text, /ax/);
+  });
+});
+
 // ===========================================================================
 // Section 7: clipboard validation
 // ===========================================================================
