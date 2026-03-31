@@ -1,0 +1,22 @@
+{
+  "cli_version": "0.5.2",
+  "checkpoint_id": "cfe68bb9b43b",
+  "session_id": "67dcb0a2-9b3b-43c4-a723-bf506282d801",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-31T10:55:36.003562Z",
+  "branch": "feat/macos-automation-phase2",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "turn_id": "16cbddb6d42e",
+  "token_usage": {
+    "input_tokens": 3407,
+    "cache_creation_tokens": 577536,
+    "cache_read_tokens": 40669514,
+    "output_tokens": 103856,
+    "api_call_count": 201
+  },
+  "session_metrics": {
+    "turn_count": 19
+  }
+}
