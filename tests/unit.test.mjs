@@ -134,7 +134,7 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
 // Section 1: Tool registry completeness
 // ===========================================================================
 
-  test("tool registry lists all 37 expected MCP tools", async () => {
+  test("tool registry lists all 38 expected MCP tools", async () => {
   await withClient(async (client) => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((t) => t.name));
@@ -177,6 +177,7 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
       "activate_app",
       "screenshot_app",
       "right_click",
+      "focus_window",
     ];
 
     for (const name of allExpected) {
@@ -1997,6 +1998,70 @@ test("key forwards duration option", async () => {
     const text = extractText(result);
     assert.match(text, /key/);
     assert.match(text, /--duration/);
+  });
+});
+
+// ===========================================================================
+// Section 33: analyze_ui window parameter
+// ===========================================================================
+
+test("analyze_ui with window parameter passes --window flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "analyze_ui",
+      arguments: {
+        bundleId: "com.example.app",
+        window: "Debug",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /--window/);
+    assert.match(text, /Debug/);
+  });
+});
+
+// ===========================================================================
+// Section 34: focus_window tool
+// ===========================================================================
+
+test("focus_window with title passes --title flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "focus_window",
+      arguments: {
+        bundleId: "com.example.app",
+        title: "Main",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /focus-window/);
+    assert.match(text, /--title/);
+    assert.match(text, /Main/);
+  });
+});
+
+test("focus_window with index passes --index flag", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "focus_window",
+      arguments: {
+        bundleId: "com.example.app",
+        index: 0,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /focus-window/);
+    assert.match(text, /--index/);
+  });
+});
+
+test("focus_window requires target", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "focus_window",
+      arguments: {},
+    });
+    assert.equal(result.isError, true);
   });
 });
 

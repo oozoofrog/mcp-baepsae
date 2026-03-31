@@ -36,6 +36,7 @@ export const TOOL_MANIFEST: ToolManifestEntry[] = [
   { name: "activate_app", category: "System", summary: "Bring the target app to foreground." },
   { name: "screenshot_app", category: "System", summary: "Take a screenshot of the target app window." },
   { name: "right_click", category: "System", summary: "Right-click in the target app." },
+  { name: "focus_window", category: "System", summary: "Raise and focus a specific window by index or title." },
 
   { name: "list_simulators", category: "Simulator-only", summary: "List available simulators using simctl." },
   { name: "screenshot", category: "Simulator-only", summary: "Capture a screenshot from simulator display using simctl screenshot." },

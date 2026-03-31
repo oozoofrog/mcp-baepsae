@@ -23,6 +23,7 @@ type DescribeParams = {
   visibleOnly?: boolean;
   maxDepth?: number;
   summary?: boolean;
+  window?: number | string;
 };
 
 type SearchParams = {
@@ -94,6 +95,8 @@ const describeSchema = {
   visibleOnly: z.boolean().optional().describe("Only include visible elements"),
   maxDepth: z.number().int().min(0).optional().describe("Maximum tree traversal depth"),
   summary: z.boolean().optional().describe("Summary mode — collapse children as [N children]"),
+  window: z.union([z.number().int().min(0), z.string()])
+    .optional().describe("Window index or title substring (macOS only)"),
 };
 
 const searchSchema = {
@@ -248,6 +251,9 @@ function buildDescribeArgs(target: string[], params: DescribeParams): string[] {
   pushOption(args, "--max-depth", params.maxDepth);
   if (params.summary) {
     args.push("--summary");
+  }
+  if (params.window !== undefined) {
+    args.push("--window", String(params.window));
   }
   return args;
 }

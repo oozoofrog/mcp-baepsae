@@ -263,3 +263,38 @@ func handleClipboard(_ parsed: ParsedOptions) throws -> Int32 {
     }
     return 0
 }
+
+func handleFocusWindow(_ parsed: ParsedOptions) throws -> Int32 {
+    let target = try resolveTarget(from: parsed)
+    if case .simulator = target {
+        throw NativeError.commandFailed("focus-window is only supported for macOS apps.")
+    }
+    try ensureAccessibilityTrusted()
+    try activateTarget(target)
+    let appRoot = try accessibilityRootElement(for: target)
+    let windows = Children(appRoot)
+
+    let selected: UIElement
+    if let indexStr = parsed.options["--index"], let idx = Int(indexStr) {
+        guard idx < windows.count else {
+            throw NativeError.invalidArguments("Window index \(idx) out of range (0..\(windows.count - 1)).")
+        }
+        selected = windows[idx]
+    } else if let title = parsed.options["--title"] {
+        guard let found = windows.first(where: {
+            (StringAttribute($0, kAXTitleAttribute as CFString) ?? "")
+                .localizedCaseInsensitiveContains(title)
+        }) else {
+            let available = windows.compactMap { StringAttribute($0, kAXTitleAttribute as CFString) }
+            throw NativeError.commandFailed("No window matching '\(title)'. Available: \(available.joined(separator: ", "))")
+        }
+        selected = found
+    } else {
+        throw NativeError.invalidArguments("focus-window requires --index or --title.")
+    }
+
+    AXUIElementPerformAction(selected, kAXRaiseAction as CFString)
+    let windowTitle = StringAttribute(selected, kAXTitleAttribute as CFString) ?? "(untitled)"
+    print("Focused window: \(windowTitle)")
+    return 0
+}

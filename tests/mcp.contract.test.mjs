@@ -683,3 +683,10 @@ test("list_input_sources tool is registered and callable", async () => {
     assert.ok(tool, "list_input_sources tool should be registered");
   });
 });
+
+test("focus_window tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "focus_window"), "focus_window should be registered");
+  });
+});

@@ -24,7 +24,16 @@ func handleDescribeUI(_ parsed: ParsedOptions) throws -> Int32 {
         // For macOS apps, start from window level, no iOSContentGroup filtering
         if !parsed.flags.contains("--all") {
             let windows = Children(appRoot)
-            if let firstWindow = windows.first {
+            if let windowSelector = parsed.options["--window"] {
+                if let idx = Int(windowSelector), idx < windows.count {
+                    targetRoot = windows[idx]
+                } else {
+                    targetRoot = windows.first(where: {
+                        let title = StringAttribute($0, kAXTitleAttribute as CFString) ?? ""
+                        return title.localizedCaseInsensitiveContains(windowSelector)
+                    }) ?? windows.first ?? appRoot
+                }
+            } else if let firstWindow = windows.first {
                 targetRoot = firstWindow
             }
         }
