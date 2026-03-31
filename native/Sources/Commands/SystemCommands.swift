@@ -222,9 +222,36 @@ func handleMenuAction(_ parsed: ParsedOptions) throws -> Int32 {
                 throw NativeError.commandFailed("Failed to activate menu item '\(pathComponent)' (status: \(pressStatus.rawValue)).")
             }
         } else {
-            // Open submenu
-            AXUIElementPerformAction(targetItem, kAXPressAction as CFString)
-            Thread.sleep(forTimeInterval: 0.2)
+            // 서브메뉴 열기: AXShowMenu 우선 시도, 실패 시 CGEvent 마우스 hover로 폴백
+            let showMenuResult = AXUIElementPerformAction(targetItem, "AXShowMenu" as CFString)
+            if showMenuResult != .success {
+                // Fallback: hover via mouse move to element center
+                if let frame = FrameAttribute(targetItem) {
+                    let center = CGPoint(x: frame.midX, y: frame.midY)
+                    let source = CGEventSource(stateID: .hidSystemState)
+                    let moveEvent = CGEvent(
+                        mouseEventSource: source,
+                        mouseType: .mouseMoved,
+                        mouseCursorPosition: center,
+                        mouseButton: .left
+                    )
+                    moveEvent?.post(tap: .cghidEventTap)
+                }
+            }
+            // 서브메뉴 출현 대기 (최대 500ms polling, Children 체크)
+            var submenuAppeared = false
+            for _ in 0..<10 {
+                Thread.sleep(forTimeInterval: 0.05)
+                let children = Children(targetItem)
+                if !children.isEmpty {
+                    submenuAppeared = true
+                    break
+                }
+            }
+            if !submenuAppeared {
+                AXUIElementPerformAction(menuItem, "AXCancel" as CFString)
+                throw NativeError.commandFailed("Submenu did not appear for '\(pathComponent)' at depth \(depth + 1) in '\(menuName)'.")
+            }
             currentMenu = targetItem
         }
     }
