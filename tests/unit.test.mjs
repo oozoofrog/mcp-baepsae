@@ -134,7 +134,7 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
 // Section 1: Tool registry completeness
 // ===========================================================================
 
-  test("tool registry lists all 40 expected MCP tools", async () => {
+  test("tool registry lists all 44 expected MCP tools", async () => {
   await withClient(async (client) => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((t) => t.name));
@@ -180,6 +180,10 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
       "screenshot_app",
       "right_click",
       "focus_window",
+      "context_menu_action",
+      "detect_dialog",
+      "set_ui_value",
+      "read_ui_param",
     ];
 
     for (const name of allExpected) {
@@ -2142,6 +2146,169 @@ test("read_ui_value requires target", async () => {
       arguments: {},
     });
     assert.equal(result.isError, true);
+  });
+});
+
+// ===========================================================================
+// Section 37: human-readable key names (#79)
+// ===========================================================================
+
+test("key_combo accepts string key names for modifiers and key", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "key_combo",
+      arguments: {
+        bundleId: "com.example.app",
+        modifiers: ["command", "shift"],
+        key: "o",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /key-combo/);
+    assert.match(text, /--modifiers/);
+    assert.match(text, /55,56/);
+    assert.match(text, /--key/);
+    assert.match(text, /31/);
+  });
+});
+
+test("key accepts string key name", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "key",
+      arguments: {
+        bundleId: "com.example.app",
+        keycode: "escape",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /key /);
+    assert.match(text, /53/);
+  });
+});
+
+test("key_sequence accepts mixed numeric and string keycodes", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "key_sequence",
+      arguments: {
+        bundleId: "com.example.app",
+        keycodes: ["a", "b", "return"],
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /key-sequence/);
+    assert.match(text, /0,11,36/);
+  });
+});
+
+// ===========================================================================
+// Section 38: context_menu_action (#80)
+// ===========================================================================
+
+test("context_menu_action passes item to native command", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "context_menu_action",
+      arguments: {
+        bundleId: "com.example.app",
+        item: "Refactor > Rename",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /context-menu-action/);
+    assert.match(text, /--item/);
+  });
+});
+
+// ===========================================================================
+// Section 39: detect_dialog (#81)
+// ===========================================================================
+
+test("detect_dialog sends correct native command", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "detect_dialog",
+      arguments: {
+        bundleId: "com.example.app",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /detect-dialog/);
+  });
+});
+
+// ===========================================================================
+// Section 40: set_ui_value (#82)
+// ===========================================================================
+
+test("set_ui_value passes attribute and value flags", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "set_ui_value",
+      arguments: {
+        bundleId: "com.example.app",
+        attribute: "value",
+        value: "hello world",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /set-ui-value/);
+    assert.match(text, /--attribute/);
+    assert.match(text, /--value/);
+  });
+});
+
+test("set_ui_value with selectedTextRange passes range format", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "set_ui_value",
+      arguments: {
+        bundleId: "com.example.app",
+        attribute: "selectedTextRange",
+        value: "10,5",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /set-ui-value/);
+    assert.match(text, /selectedTextRange/);
+  });
+});
+
+// ===========================================================================
+// Section 41: read_ui_param (#82)
+// ===========================================================================
+
+test("read_ui_param passes attribute and param flags", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "read_ui_param",
+      arguments: {
+        bundleId: "com.example.app",
+        attribute: "stringForRange",
+        param: "0,10",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /read-ui-param/);
+    assert.match(text, /--attribute/);
+    assert.match(text, /--param/);
+  });
+});
+
+test("read_ui_param with lineForIndex passes correct args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "read_ui_param",
+      arguments: {
+        bundleId: "com.example.app",
+        attribute: "lineForIndex",
+        param: "42",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /read-ui-param/);
+    assert.match(text, /lineForIndex/);
   });
 });
 

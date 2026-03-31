@@ -181,7 +181,7 @@
       {"action": "test", "command": "npm test", "expect": "모든 테스트 통과 (exit 0)"},
       {"action": "grep", "target": "tests/unit.test.mjs", "pattern": "context_menu_action|detect_dialog|set_ui_value|read_ui_param|human.*key|string.*keycode", "expect": "신규 도구 테스트 존재"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": null,
     "priority": 6,
     "scores": null
@@ -195,7 +195,7 @@
       {"action": "test", "command": "npm test", "expect": "모든 테스트 통과"},
       {"action": "grep", "target": "tests/mcp.contract.test.mjs", "pattern": "context_menu_action|detect_dialog|set_ui_value|read_ui_param", "expect": "4개 신규 도구 contract test 존재"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": null,
     "priority": 6,
     "scores": null

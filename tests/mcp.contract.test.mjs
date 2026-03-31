@@ -704,3 +704,31 @@ test("read_ui_value tool is registered", async () => {
     assert.ok(tools.find((t) => t.name === "read_ui_value"), "read_ui_value should be registered");
   });
 });
+
+test("context_menu_action tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "context_menu_action"), "context_menu_action should be registered");
+  });
+});
+
+test("detect_dialog tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "detect_dialog"), "detect_dialog should be registered");
+  });
+});
+
+test("set_ui_value tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "set_ui_value"), "set_ui_value should be registered");
+  });
+});
+
+test("read_ui_param tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "read_ui_param"), "read_ui_param should be registered");
+  });
+});
