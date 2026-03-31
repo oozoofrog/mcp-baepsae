@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.5.2",
+  "checkpoint_id": "d7a311a02f80",
+  "session_id": "67dcb0a2-9b3b-43c4-a723-bf506282d801",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-31T10:51:39.362577Z",
+  "branch": "feat/macos-automation-phase2",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "native/Sources/Utils.swift"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "16cbddb6d42e",
+  "token_usage": {
+    "input_tokens": 3406,
+    "cache_creation_tokens": 573123,
+    "cache_read_tokens": 40364244,
+    "output_tokens": 101567,
+    "api_call_count": 200
+  },
+  "session_metrics": {
+    "turn_count": 19
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-31T10:51:38.970713Z",
+    "agent_lines": 0,
+    "human_added": 237,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 237,
+    "agent_percentage": 0
+  }
+}

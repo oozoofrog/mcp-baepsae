@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.2",
+  "checkpoint_id": "d7a311a02f80",
+  "strategy": "manual-commit",
+  "branch": "feat/macos-automation-phase2",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "native/Sources/Utils.swift"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d7/a311a02f80/0/metadata.json",
+      "transcript": "/d7/a311a02f80/0/full.jsonl",
+      "content_hash": "/d7/a311a02f80/0/content_hash.txt",
+      "prompt": "/d7/a311a02f80/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3406,
+    "cache_creation_tokens": 573123,
+    "cache_read_tokens": 40364244,
+    "output_tokens": 101567,
+    "api_call_count": 200
+  }
+}
