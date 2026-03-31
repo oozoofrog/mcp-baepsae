@@ -1607,6 +1607,21 @@ func sendDrag(from start: CGPoint, to end: CGPoint, holdDuration: Double, moveDu
     postMouseEvent(type: .leftMouseUp, point: end)
 }
 
+// MARK: - Keycode to CGEventFlags Mapping
+
+let keycodeToFlag: [Int: CGEventFlags] = [
+    0x37: .maskCommand,      // Left Command (55)
+    0x36: .maskCommand,      // Right Command (54)
+    0x38: .maskShift,        // Left Shift (56)
+    0x3C: .maskShift,        // Right Shift (60)
+    0x3A: .maskAlternate,    // Left Option (58)
+    0x3D: .maskAlternate,    // Right Option (61)
+    0x3B: .maskControl,      // Left Control (59)
+    0x3E: .maskControl,      // Right Control (62)
+    0x39: .maskAlphaShift,   // Caps Lock (57)
+    0x3F: .maskSecondaryFn,  // Fn (63)
+]
+
 // MARK: - Keyboard Events
 
 func sendKeyPress(keyCode: Int, duration: Double?) {
@@ -1622,18 +1637,40 @@ func sendKeyPress(keyCode: Int, duration: Double?) {
 
 func sendKeyCombo(modifiers: [Int], key: Int) {
     let source = CGEventSource(stateID: .hidSystemState)
+
+    // Convert keycodes to CGEventFlags
+    var flags: CGEventFlags = []
+    for modifier in modifiers {
+        if let flag = keycodeToFlag[modifier] {
+            flags.insert(flag)
+        }
+    }
+
+    // Send modifier key-down events with flags (backward compat with apps that watch key events)
     for modifier in modifiers {
         let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(modifier), keyDown: true)
+        event?.flags = flags
         event?.post(tap: .cghidEventTap)
     }
+    usleep(30_000) // 30ms for modifiers to register
+
+    // Ensure modifier key-up always happens (prevent stuck modifiers)
+    defer {
+        usleep(30_000)
+        for modifier in modifiers.reversed() {
+            let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(modifier), keyDown: false)
+            event?.post(tap: .cghidEventTap)
+        }
+    }
+
+    // Main key with flags set (critical: many apps only check flags, not key events)
     let keyDown = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(key), keyDown: true)
-    let keyUp = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(key), keyDown: false)
+    keyDown?.flags = flags
     keyDown?.post(tap: .cghidEventTap)
+
+    let keyUp = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(key), keyDown: false)
+    keyUp?.flags = flags
     keyUp?.post(tap: .cghidEventTap)
-    for modifier in modifiers.reversed() {
-        let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(modifier), keyDown: false)
-        event?.post(tap: .cghidEventTap)
-    }
 }
 
 func sendText(_ text: String) {

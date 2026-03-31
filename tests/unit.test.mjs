@@ -1242,6 +1242,25 @@ test("key_combo formats modifiers as comma-separated list", async () => {
   });
 });
 
+test("key_combo with Command+Shift sends correct native args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "key_combo",
+      arguments: {
+        bundleId: "com.example.app",
+        modifiers: [55, 56],
+        key: 9,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /key-combo/);
+    assert.match(text, /--modifiers/);
+    assert.match(text, /55,56/);
+    assert.match(text, /--key/);
+    assert.match(text, /9/);
+  });
+});
+
 // ===========================================================================
 // Section 18: drag_drop parameter forwarding
 // ===========================================================================
