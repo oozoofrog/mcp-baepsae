@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { UnifiedTargetParams } from "../types.js";
 import {
   keycodeSchema,
+  resolveKeycode,
   BUTTON_TYPES,
   GESTURE_PRESETS,
   unifiedTargetSchema,
@@ -13,18 +14,18 @@ import {
 import { runBackend } from "../backend.js";
 
 type KeyParams = {
-  keycode: number;
+  keycode: number | string;
   duration?: number;
 };
 
 type KeySequenceParams = {
-  keycodes: number[] | string;
+  keycodes: (number | string)[] | string;
   delay?: number;
 };
 
 type KeyComboParams = {
-  modifiers: number[];
-  key: number;
+  modifiers: (number | string)[];
+  key: number | string;
 };
 
 type TouchParams = {
@@ -64,14 +65,16 @@ const touchSchema = {
 };
 
 function buildKeyArgs(target: string[], params: KeyParams): string[] {
-  const args = ["key", String(params.keycode)];
+  const args = ["key", String(resolveKeycode(params.keycode))];
   pushOption(args, "--duration", params.duration);
   args.push(...target);
   return args;
 }
 
 function buildKeySequenceArgs(target: string[], params: KeySequenceParams): string[] {
-  const keycodes = Array.isArray(params.keycodes) ? params.keycodes.join(",") : params.keycodes;
+  const keycodes = Array.isArray(params.keycodes)
+    ? params.keycodes.map(k => resolveKeycode(k)).join(",")
+    : params.keycodes; // 쉼표 구분 숫자 문자열은 그대로 전달
   const args = ["key-sequence", "--keycodes", keycodes];
   pushOption(args, "--delay", params.delay);
   args.push(...target);
@@ -82,9 +85,9 @@ function buildKeyComboArgs(target: string[], params: KeyComboParams): string[] {
   return [
     "key-combo",
     "--modifiers",
-    params.modifiers.join(","),
+    params.modifiers.map(m => resolveKeycode(m)).join(","),
     "--key",
-    String(params.key),
+    String(resolveKeycode(params.key)),
     ...target,
   ];
 }

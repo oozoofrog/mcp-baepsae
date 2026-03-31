@@ -1,0 +1,217 @@
+[
+  {
+    "id": "F001",
+    "category": "logic",
+    "description": "#78 서브메뉴 hover 탐색 — SystemCommands.swift의 handleMenuAction에서 중간(non-leaf) 메뉴 항목에 AXShowMenu 액션을 시도하고, 실패 시 CGEvent 마우스 이동으로 hover하여 서브메뉴를 여는 로직으로 교체. kAXPressAction은 최종(leaf) 항목에만 사용.",
+    "verification": "npm run build 성공 + handleMenuAction의 submenu 분기에서 AXShowMenu/hover 로직 존재 확인 + depth 2+ 서브메뉴 경로 처리 코드 확인",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공 (exit 0)"},
+      {"action": "grep", "target": "native/Sources/Commands/SystemCommands.swift", "pattern": "AXShowMenu|sendMouseMove|hover", "expect": "서브메뉴 hover 로직 존재"},
+      {"action": "grep", "target": "native/Sources/Commands/SystemCommands.swift", "pattern": "isLast.*kAXPressAction", "expect": "최종 항목에만 press 사용"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 1,
+    "scores": null
+  },
+  {
+    "id": "F002",
+    "category": "logic",
+    "description": "#78 서브메뉴 탐색 에러 리커버리 — 서브메뉴가 열리지 않을 경우 AXCancel로 메뉴 전체를 닫고 명확한 에러 메시지 반환. 타이밍 문제 대비 서브메뉴 출현 대기 (최대 500ms polling).",
+    "verification": "서브메뉴 대기 polling 코드 + AXCancel 에러 리커버리 패스 존재 확인",
+    "verification_steps": [
+      {"action": "grep", "target": "native/Sources/Commands/SystemCommands.swift", "pattern": "AXCancel|submenu.*poll|Thread.sleep", "expect": "에러 리커버리 및 polling 로직 존재"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 1,
+    "scores": null
+  },
+  {
+    "id": "F003",
+    "category": "logic",
+    "description": "#79 키 이름→keycode 매핑 테이블 (TS) — src/utils.ts에 KEY_NAME_MAP 상수를 추가. command/cmd→55, shift→56, option/alt→58, control/ctrl→59, return/enter→36, tab→48, space→49, delete/backspace→51, escape/esc→53, a-z, 0-9, f1-f12, 방향키 등 포함.",
+    "verification": "npm run build 성공 + KEY_NAME_MAP export 존재 + 주요 매핑 정확성 검증 (unit test)",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "grep", "target": "src/utils.ts", "pattern": "KEY_NAME_MAP|keyNameToCode", "expect": "매핑 테이블 존재"},
+      {"action": "test", "command": "npm test", "expect": "모든 테스트 통과"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 2,
+    "scores": null
+  },
+  {
+    "id": "F004",
+    "category": "config",
+    "description": "#79 Zod 스키마 확장 — keycodeSchema를 z.union([z.number().int().min(0).max(255), z.string()])으로 변경. key, key_combo, key_sequence 도구에서 문자열 키 이름을 숫자 keycode로 변환 후 native에 전달. 기존 숫자 keycode 하위 호환 유지.",
+    "verification": "key_combo(modifiers: ['command', 'shift'], key: 'o') 형태의 호출이 Zod 검증 통과 + 올바른 숫자 args로 native 호출 확인 (unit test)",
+    "verification_steps": [
+      {"action": "grep", "target": "src/tools/input.ts", "pattern": "z.union|resolveKeycode|keyNameToCode", "expect": "문자열→숫자 변환 로직 존재"},
+      {"action": "test", "command": "npm test", "expect": "문자열/숫자 모두 허용하는 unit test 통과"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 2,
+    "scores": null
+  },
+  {
+    "id": "F005",
+    "category": "logic",
+    "description": "#80 context_menu_action MCP 도구 (TS) — src/tools/system.ts에 context_menu_action 도구 등록. 파라미터: unifiedTarget + item(문자열, >로 하위 메뉴 구분). native의 context-menu-action 명령 호출.",
+    "verification": "npm run build 성공 + context_menu_action 도구가 MCP에 등록됨 (contract test) + Zod 스키마 정확",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "grep", "target": "src/tools/system.ts", "pattern": "context_menu_action", "expect": "도구 등록 존재"},
+      {"action": "test", "command": "npm test", "expect": "contract test에서 도구 등록 확인"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 3,
+    "scores": null
+  },
+  {
+    "id": "F006",
+    "category": "logic",
+    "description": "#80 context-menu-action native 명령 (Swift) — native/Sources/Commands/SystemCommands.swift에 handleContextMenuAction 추가. right_click 후 출현한 AXMenu를 찾아 item 경로를 탐색하고 선택. AXMenu role 탐색으로 컨텍스트 메뉴 위치 특정. 메뉴가 없으면 에러 반환.",
+    "verification": "swift build 성공 + handleContextMenuAction 함수 존재 + AXMenu 탐색 로직 + 메뉴 미존재 에러 처리",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build:native", "expect": "Swift 빌드 성공"},
+      {"action": "grep", "target": "native/Sources/Commands/SystemCommands.swift", "pattern": "handleContextMenuAction|AXMenu|context-menu", "expect": "핸들러 및 AXMenu 탐색 존재"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 3,
+    "scores": null
+  },
+  {
+    "id": "F007",
+    "category": "logic",
+    "description": "#81 detect_dialog MCP 도구 (TS) — src/tools/ui.ts에 detect_dialog 도구 등록. 파라미터: unifiedTarget. native의 detect-dialog 명령 호출. 결과를 JSON 형태(hasDialog, type, title, buttons)로 반환.",
+    "verification": "npm run build 성공 + detect_dialog 도구가 MCP에 등록됨 (contract test)",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "grep", "target": "src/tools/ui.ts", "pattern": "detect_dialog", "expect": "도구 등록 존재"},
+      {"action": "test", "command": "npm test", "expect": "contract test에서 도구 등록 확인"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 4,
+    "scores": null
+  },
+  {
+    "id": "F008",
+    "category": "logic",
+    "description": "#81 detect-dialog native 명령 (Swift) — native/Sources/Commands/UICommands.swift에 handleDetectDialog 추가. 앱의 모든 윈도우를 순회하며 kAXSubroleAttribute가 AXDialog/AXSheet/AXSystemDialog인 요소 감지. kAXModalAttribute 체크. 각 다이얼로그의 title, subrole, 버튼 목록(AXButton children)을 JSON으로 출력.",
+    "verification": "swift build 성공 + handleDetectDialog 함수 존재 + AXDialog/AXSheet 감지 + JSON 출력 형식",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build:native", "expect": "Swift 빌드 성공"},
+      {"action": "grep", "target": "native/Sources/Commands/UICommands.swift", "pattern": "handleDetectDialog|AXDialog|AXSheet|kAXModalAttribute", "expect": "다이얼로그 감지 로직 존재"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 4,
+    "scores": null
+  },
+  {
+    "id": "F009",
+    "category": "logic",
+    "description": "#82 set_ui_value MCP 도구 (TS) — src/tools/ui.ts에 set_ui_value 도구 등록. 파라미터: unifiedTarget + id/label + attribute(value, selectedTextRange, focused) + value(문자열). native의 set-ui-value 명령 호출.",
+    "verification": "npm run build 성공 + set_ui_value 도구가 MCP에 등록됨 + Zod 스키마 정확",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "grep", "target": "src/tools/ui.ts", "pattern": "set_ui_value", "expect": "도구 등록 존재"},
+      {"action": "test", "command": "npm test", "expect": "contract test에서 도구 등록 확인"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 5,
+    "scores": null
+  },
+  {
+    "id": "F010",
+    "category": "logic",
+    "description": "#82 set-ui-value native 명령 (Swift) — native/Sources/Commands/UICommands.swift에 handleSetUIValue 추가. AXUIElementSetAttributeValue 사용. value→kAXValueAttribute, selectedTextRange→kAXSelectedTextRangeAttribute(CFRange 변환), focused→kAXFocusedAttribute 매핑.",
+    "verification": "swift build 성공 + handleSetUIValue 함수 존재 + AXUIElementSetAttributeValue 호출 + CFRange 변환 로직",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build:native", "expect": "Swift 빌드 성공"},
+      {"action": "grep", "target": "native/Sources/Commands/UICommands.swift", "pattern": "handleSetUIValue|AXUIElementSetAttributeValue|selectedTextRange", "expect": "값 설정 로직 존재"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 5,
+    "scores": null
+  },
+  {
+    "id": "F011",
+    "category": "logic",
+    "description": "#82 read_ui_param MCP 도구 (TS) — src/tools/ui.ts에 read_ui_param 도구 등록. 파라미터: unifiedTarget + id/label + attribute(stringForRange, boundsForRange, lineForIndex, rangeForLine) + param(문자열, 쉼표 구분 숫자). native의 read-ui-param 명령 호출.",
+    "verification": "npm run build 성공 + read_ui_param 도구가 MCP에 등록됨 + 파라미터 검증 정확",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build", "expect": "빌드 성공"},
+      {"action": "grep", "target": "src/tools/ui.ts", "pattern": "read_ui_param", "expect": "도구 등록 존재"},
+      {"action": "test", "command": "npm test", "expect": "contract test에서 도구 등록 확인"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 5,
+    "scores": null
+  },
+  {
+    "id": "F012",
+    "category": "logic",
+    "description": "#82 read-ui-param native 명령 (Swift) — native/Sources/Commands/UICommands.swift에 handleReadUIParam 추가. AXUIElementCopyParameterizedAttributeValue 사용. stringForRange(CFRange→String), boundsForRange(CFRange→CGRect), lineForIndex(Int→Int), rangeForLine(Int→CFRange) 매핑.",
+    "verification": "swift build 성공 + handleReadUIParam 함수 존재 + parameterized attribute 호출 로직",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build:native", "expect": "Swift 빌드 성공"},
+      {"action": "grep", "target": "native/Sources/Commands/UICommands.swift", "pattern": "handleReadUIParam|CopyParameterizedAttributeValue|stringForRange|boundsForRange", "expect": "parameterized attribute 읽기 로직 존재"}
+    ],
+    "status": "built",
+    "reference": ".claude/references/macos-accessibility-automation.md",
+    "priority": 5,
+    "scores": null
+  },
+  {
+    "id": "F013",
+    "category": "test",
+    "description": "Unit tests — 모든 신규/수정 도구에 대한 unit test 추가. (1) key_combo/key_sequence 문자열 키 이름 테스트, (2) context_menu_action 파라미터 포워딩 테스트, (3) detect_dialog 등록 테스트, (4) set_ui_value 파라미터 테스트, (5) read_ui_param 파라미터 테스트, (6) menu_action submenu 시나리오 기존 테스트 유지.",
+    "verification": "npm test 통과 + 신규 테스트 케이스 10개 이상 추가",
+    "verification_steps": [
+      {"action": "test", "command": "npm test", "expect": "모든 테스트 통과 (exit 0)"},
+      {"action": "grep", "target": "tests/unit.test.mjs", "pattern": "context_menu_action|detect_dialog|set_ui_value|read_ui_param|human.*key|string.*keycode", "expect": "신규 도구 테스트 존재"}
+    ],
+    "status": "built",
+    "reference": null,
+    "priority": 6,
+    "scores": null
+  },
+  {
+    "id": "F014",
+    "category": "test",
+    "description": "Contract tests — 모든 신규 도구가 MCP 서버에 등록되었는지 확인하는 contract test 추가. context_menu_action, detect_dialog, set_ui_value, read_ui_param 4개 도구의 등록 확인.",
+    "verification": "npm test 통과 + contract test에서 4개 신규 도구 등록 확인",
+    "verification_steps": [
+      {"action": "test", "command": "npm test", "expect": "모든 테스트 통과"},
+      {"action": "grep", "target": "tests/mcp.contract.test.mjs", "pattern": "context_menu_action|detect_dialog|set_ui_value|read_ui_param", "expect": "4개 신규 도구 contract test 존재"}
+    ],
+    "status": "built",
+    "reference": null,
+    "priority": 6,
+    "scores": null
+  },
+  {
+    "id": "F015",
+    "category": "config",
+    "description": "Native CLI dispatch 등록 — main.swift의 runParsed() switch에 context-menu-action, detect-dialog, set-ui-value, read-ui-param 4개 신규 커맨드 등록 + printHelp()에 설명 추가.",
+    "verification": "swift build 성공 + 4개 신규 커맨드가 dispatch switch에 존재 + help 텍스트에 반영",
+    "verification_steps": [
+      {"action": "build", "command": "npm run build:native", "expect": "Swift 빌드 성공"},
+      {"action": "grep", "target": "native/Sources/main.swift", "pattern": "context-menu-action|detect-dialog|set-ui-value|read-ui-param", "expect": "4개 커맨드 dispatch 존재"}
+    ],
+    "status": "built",
+    "reference": null,
+    "priority": 3,
+    "scores": null
+  }
+]

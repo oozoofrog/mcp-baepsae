@@ -23,7 +23,10 @@ export const TOOL_MANIFEST: ToolManifestEntry[] = [
   { name: "scroll", category: "UI", summary: "Send scroll wheel events to the target app." },
   { name: "drag_drop", category: "UI", summary: "Drag and drop in the target app." },
   { name: "wait_for_ui", category: "UI", summary: "Wait for a UI element to appear or disappear." },
+  { name: "detect_dialog", category: "UI", summary: "Detect if a modal dialog, sheet, or alert is currently presented." },
   { name: "read_ui_value", category: "UI", summary: "Read value, selected text, or insertion point of a UI element." },
+  { name: "set_ui_value", category: "UI", summary: "Set value, text selection range, or focus on a UI element via Accessibility API." },
+  { name: "read_ui_param", category: "UI", summary: "Read parameterized accessibility attributes like text ranges, line numbers, and bounds." },
 
   { name: "key", category: "Input", summary: "Press a single HID keycode in the target app." },
   { name: "key_sequence", category: "Input", summary: "Press multiple HID keycodes in sequence in the target app." },
@@ -39,6 +42,7 @@ export const TOOL_MANIFEST: ToolManifestEntry[] = [
   { name: "screenshot_app", category: "System", summary: "Take a screenshot of the target app window." },
   { name: "right_click", category: "System", summary: "Right-click in the target app." },
   { name: "focus_window", category: "System", summary: "Raise and focus a specific window by index or title." },
+  { name: "context_menu_action", category: "System", summary: "Select an item from an open context menu (call after right_click). Supports submenu paths with > separator." },
 
   { name: "list_simulators", category: "Simulator-only", summary: "List available simulators using simctl." },
   { name: "screenshot", category: "Simulator-only", summary: "Capture a screenshot from simulator display using simctl screenshot." },

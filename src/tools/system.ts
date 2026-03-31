@@ -150,4 +150,19 @@ export function registerSystemTools(server: McpServer): void {
       return await runNative(args);
     }
   );
+
+  server.tool(
+    "context_menu_action",
+    "Select an item from an open context menu. Call after right_click. Supports submenu paths with > separator (e.g. 'Refactor > Rename').",
+    {
+      ...unifiedTargetSchema,
+      item: z.string().min(1).describe("Context menu item path (e.g. 'Copy', 'Refactor > Rename')"),
+    },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      const args = ["context-menu-action", ...target, "--item", (params as any).item];
+      return await runNative(args);
+    }
+  );
 }
