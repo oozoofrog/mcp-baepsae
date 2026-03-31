@@ -178,12 +178,24 @@ export function registerSystemTools(server: McpServer): void {
       timeout: z.number().optional().describe("Max wait time in seconds (default: 10)"),
     },
     async (params) => {
+      const anyParams = params as any;
+      if (!anyParams.preset && !anyParams.notifications) {
+        return {
+          content: [{ type: "text" as const, text: "watch_notification requires either preset or notifications parameter." }],
+          isError: true,
+          error: makeToolError({
+            code: "validation.watch_notification.missing_filter",
+            category: "validation",
+            message: "watch_notification requires either preset or notifications parameter.",
+          }),
+        };
+      }
       const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
       if (!Array.isArray(target)) return target;
       const args = ["watch-notification", ...target];
-      pushOption(args, "--preset", (params as any).preset);
-      pushOption(args, "--notifications", (params as any).notifications);
-      pushOption(args, "--timeout", (params as any).timeout);
+      pushOption(args, "--preset", anyParams.preset);
+      pushOption(args, "--notifications", anyParams.notifications);
+      pushOption(args, "--timeout", anyParams.timeout);
       return await runNative(args);
     }
   );

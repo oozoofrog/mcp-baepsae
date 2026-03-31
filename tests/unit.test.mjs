@@ -134,7 +134,7 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
 // Section 1: Tool registry completeness
 // ===========================================================================
 
-  test("tool registry lists all 46 expected MCP tools", async () => {
+  test("tool registry lists all 47 expected MCP tools", async () => {
   await withClient(async (client) => {
     const result = await client.listTools();
     const names = new Set(result.tools.map((t) => t.name));
@@ -186,6 +186,7 @@ test("backend catalog exposes distinct simulator, accessibility, input, and util
       "read_ui_param",
       "hit_test",
       "enumerate_ui",
+      "watch_notification",
     ];
 
     for (const name of allExpected) {
@@ -2380,6 +2381,103 @@ test("analyze_ui with pageSize and page params", async () => {
     assert.match(text, /--page-size/);
     assert.match(text, /50/);
     assert.match(text, /--page/);
+  });
+});
+
+// ===========================================================================
+// Section: watch_notification presets (#85, #91-#94)
+// ===========================================================================
+
+test("watch_notification with window preset sends correct args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "watch_notification",
+      arguments: {
+        bundleId: "com.example.app",
+        preset: "window",
+        timeout: 5,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /watch-notification/);
+    assert.match(text, /--preset/);
+    assert.match(text, /window/);
+    assert.match(text, /--timeout/);
+  });
+});
+
+test("watch_notification with text preset sends correct args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "watch_notification",
+      arguments: {
+        bundleId: "com.example.app",
+        preset: "text",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /watch-notification/);
+    assert.match(text, /--preset/);
+    assert.match(text, /text/);
+  });
+});
+
+test("watch_notification with focus preset sends correct args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "watch_notification",
+      arguments: {
+        bundleId: "com.example.app",
+        preset: "focus",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /watch-notification/);
+    assert.match(text, /focus/);
+  });
+});
+
+test("watch_notification with menu preset sends correct args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "watch_notification",
+      arguments: {
+        bundleId: "com.example.app",
+        preset: "menu",
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /watch-notification/);
+    assert.match(text, /menu/);
+  });
+});
+
+test("watch_notification with custom notifications sends correct args", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "watch_notification",
+      arguments: {
+        bundleId: "com.example.app",
+        notifications: "AXValueChanged,AXWindowCreated",
+        timeout: 15,
+      },
+    });
+    const text = extractText(result);
+    assert.match(text, /watch-notification/);
+    assert.match(text, /--notifications/);
+    assert.match(text, /AXValueChanged/);
+  });
+});
+
+test("watch_notification requires preset or notifications", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "watch_notification",
+      arguments: {
+        bundleId: "com.example.app",
+      },
+    });
+    assert.ok(result.isError);
   });
 });
 

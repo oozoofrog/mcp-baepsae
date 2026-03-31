@@ -118,7 +118,7 @@
       {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"},
       {"action": "grep", "target": "src/tools", "pattern": "WindowCreated\\|SheetCreated\\|window.*preset", "expect": "윈도우 관련 알림 등록됨"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 5,
     "scores": null
@@ -133,7 +133,7 @@
       {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"},
       {"action": "grep", "target": "native/Sources/Commands\\|src/tools", "pattern": "ValueChanged\\|SelectedTextChanged\\|text.*preset", "expect": "텍스트 알림 처리됨"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 5,
     "scores": null
@@ -148,7 +148,7 @@
       {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"},
       {"action": "grep", "target": "native/Sources/Commands\\|src/tools", "pattern": "ApplicationActivated\\|ApplicationDeactivated\\|focus.*preset", "expect": "포커스 알림 처리됨"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 5,
     "scores": null
@@ -163,7 +163,7 @@
       {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"},
       {"action": "grep", "target": "native/Sources/Commands\\|src/tools", "pattern": "MenuOpened\\|MenuClosed\\|menu.*preset", "expect": "메뉴 알림 처리됨"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 5,
     "scores": null
@@ -190,7 +190,7 @@
     "verification_steps": [
       {"action": "test", "command": "npm test", "expect": "모든 테스트 통과, watch_notification 테스트 포함"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": "tests/unit.test.mjs",
     "priority": 5,
     "scores": null

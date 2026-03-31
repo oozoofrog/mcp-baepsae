@@ -746,3 +746,10 @@ test("enumerate_ui tool is registered", async () => {
     assert.ok(tools.find((t) => t.name === "enumerate_ui"), "enumerate_ui should be registered");
   });
 });
+
+test("watch_notification tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "watch_notification"), "watch_notification should be registered");
+  });
+});
