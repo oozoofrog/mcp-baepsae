@@ -1,0 +1,89 @@
+/commit-commands:commit-push-pr
+
+---
+
+수동 검증 시작해주세요.
+
+---
+
+add git issues
+
+---
+
+github workflow 체크
+
+---
+
+merge pr
+
+---
+
+/apple-harness git issue 체크해서 작업 설계
+
+---
+
+빌드 및 배포를 github action으로 다시 추가해주세요. 이전에 뺐던거 같은 기억이 있습니다. 확실하진 않네요.
+
+---
+
+그럼 불필요합니다. 빌드 단계로 진행해주세요.
+
+---
+
+continue
+
+---
+
+yes
+
+---
+
+wait for ci
+
+---
+
+merge pr
+
+---
+
+/codex:rescue 빠진  AX  api 있는지 조사해주세요.
+
+---
+
+add git issue
+
+---
+
+/api-learn gather all AX api
+
+---
+
+수집한 정보들을 토대로 추가할 수 있는 기능 이슈 생성
+
+---
+
+/apple-harness 모두 수정
+
+---
+
+go
+
+---
+
+/commit-commands:commit-push-pr
+
+---
+
+merge pr
+
+---
+
+version check, is this need version update?
+
+---
+
+남은 깃 이슈는?
+
+---
+
+go
