@@ -1,0 +1,22 @@
+{
+  "cli_version": "0.5.2",
+  "checkpoint_id": "30f0464714b5",
+  "session_id": "67dcb0a2-9b3b-43c4-a723-bf506282d801",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-31T14:21:52.466583Z",
+  "branch": "feat/ax-api-complete",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "turn_id": "a5dc8011648c",
+  "token_usage": {
+    "input_tokens": 4681,
+    "cache_creation_tokens": 946619,
+    "cache_read_tokens": 53260479,
+    "output_tokens": 128066,
+    "api_call_count": 240
+  },
+  "session_metrics": {
+    "turn_count": 28
+  }
+}
