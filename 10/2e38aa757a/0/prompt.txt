@@ -1,0 +1,29 @@
+/commit-commands:commit-push-pr
+
+---
+
+수동 검증 시작해주세요.
+
+---
+
+add git issues
+
+---
+
+github workflow 체크
+
+---
+
+merge pr
+
+---
+
+/apple-harness git issue 체크해서 작업 설계
+
+---
+
+빌드 및 배포를 github action으로 다시 추가해주세요. 이전에 뺐던거 같은 기억이 있습니다. 확실하진 않네요.
+
+---
+
+그럼 불필요합니다. 빌드 단계로 진행해주세요.
