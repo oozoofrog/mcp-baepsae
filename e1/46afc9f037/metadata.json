@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.2",
+  "checkpoint_id": "e146afc9f037",
+  "strategy": "manual-commit",
+  "branch": "feat/macos-ui-automation-hardening",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/e1/46afc9f037/0/metadata.json",
+      "transcript": "/e1/46afc9f037/0/full.jsonl",
+      "content_hash": "/e1/46afc9f037/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3279,
+    "cache_creation_tokens": 229032,
+    "cache_read_tokens": 15313272,
+    "output_tokens": 63641,
+    "api_call_count": 102
+  }
+}
