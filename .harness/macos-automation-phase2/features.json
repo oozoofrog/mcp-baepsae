@@ -37,7 +37,7 @@
       {"action": "grep", "target": "src/utils.ts", "pattern": "KEY_NAME_MAP|keyNameToCode", "expect": "매핑 테이블 존재"},
       {"action": "test", "command": "npm test", "expect": "모든 테스트 통과"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 2,
     "scores": null
@@ -51,7 +51,7 @@
       {"action": "grep", "target": "src/tools/input.ts", "pattern": "z.union|resolveKeycode|keyNameToCode", "expect": "문자열→숫자 변환 로직 존재"},
       {"action": "test", "command": "npm test", "expect": "문자열/숫자 모두 허용하는 unit test 통과"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 2,
     "scores": null

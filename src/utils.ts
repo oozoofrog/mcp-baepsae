@@ -56,7 +56,62 @@ export const BAEPSAE_SUBCOMMANDS = [
   "clipboard",
 ] as const;
 
-export const keycodeSchema = z.number().int().min(0).max(255);
+export const keycodeSchema = z.union([
+  z.number().int().min(0).max(255),
+  z.string().min(1),
+]).describe("HID keycode (0-255) or key name (e.g. 'command', 'shift', 'a', 'f1')");
+
+// 키 이름 → HID keycode 매핑 테이블 (QWERTY 레이아웃 기준)
+export const KEY_NAME_MAP: Record<string, number> = {
+  // Modifier keys
+  command: 55, cmd: 55, leftcommand: 55,
+  rightcommand: 54, rcmd: 54,
+  shift: 56, leftshift: 56,
+  rightshift: 60, rshift: 60,
+  option: 58, alt: 58, leftoption: 58,
+  rightoption: 61, ralt: 61, roption: 61,
+  control: 59, ctrl: 59, leftcontrol: 59,
+  rightcontrol: 62, rctrl: 62,
+  capslock: 57, fn: 63,
+  // Special keys
+  return: 36, enter: 36,
+  tab: 48, space: 49,
+  delete: 51, backspace: 51,
+  forwarddelete: 117,
+  escape: 53, esc: 53,
+  // Arrow keys
+  up: 126, down: 125, left: 123, right: 124,
+  // Navigation keys
+  home: 115, end: 119, pageup: 116, pagedown: 121,
+  // Letters (QWERTY layout)
+  a: 0, s: 1, d: 2, f: 3, h: 4, g: 5, z: 6, x: 7, c: 8, v: 9,
+  b: 11, q: 12, w: 13, e: 14, r: 15, y: 16, t: 17, o: 31, u: 32,
+  i: 34, p: 35, l: 37, j: 38, k: 40, n: 45, m: 46,
+  // Number keys
+  "0": 29, "1": 18, "2": 19, "3": 20, "4": 21, "5": 23, "6": 22, "7": 26, "8": 28, "9": 25,
+  // Function keys
+  f1: 122, f2: 120, f3: 99, f4: 118, f5: 96, f6: 97,
+  f7: 98, f8: 100, f9: 101, f10: 109, f11: 103, f12: 111,
+  // Punctuation keys
+  minus: 27, equal: 24, leftbracket: 33, rightbracket: 30,
+  semicolon: 41, quote: 39, comma: 43, period: 47, slash: 44, backslash: 42,
+  grave: 50, // backtick
+};
+
+/**
+ * 키 이름(문자열) 또는 숫자 keycode를 HID keycode 숫자로 변환합니다.
+ * - 숫자인 경우 그대로 반환
+ * - 문자열인 경우 KEY_NAME_MAP에서 조회, 없으면 에러 발생
+ */
+export function resolveKeycode(value: number | string): number {
+  if (typeof value === "number") return value;
+  const lower = value.toLowerCase().replace(/[\s_-]/g, "");
+  const code = KEY_NAME_MAP[lower];
+  if (code === undefined) {
+    throw new Error(`Unknown key name: '${value}'. Use a numeric keycode (0-255) or a known name.`);
+  }
+  return code;
+}
 
 export function makeToolError(params: {
   code: string;
