@@ -1,0 +1,5 @@
+/commit-commands:commit-push-pr
+
+---
+
+수동 검증 시작해주세요.
