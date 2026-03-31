@@ -81,6 +81,31 @@ func handleDescribeUI(_ parsed: ParsedOptions) throws -> Int32 {
         }
     }
 
+    // Page-size based pagination for large trees
+    if let pageSizeStr = parsed.options["--page-size"], let pageSize = Int(pageSizeStr) {
+        let page = Int(parsed.options["--page"] ?? "0") ?? 0
+        var totalCount: CFIndex = 0
+        AXUIElementGetAttributeValueCount(targetRoot, kAXChildrenAttribute as CFString, &totalCount)
+        let offset = page * pageSize
+        if offset >= Int(totalCount) {
+            print("Page \(page) is beyond total children count (\(totalCount)).")
+            print("total=\(totalCount) pageSize=\(pageSize) pages=\((Int(totalCount) + pageSize - 1) / max(pageSize, 1))")
+            return 0
+        }
+        var pageChildren: CFArray?
+        let fetchCount = min(pageSize, Int(totalCount) - offset)
+        AXUIElementCopyAttributeValues(targetRoot, kAXChildrenAttribute as CFString, CFIndex(offset), CFIndex(fetchCount), &pageChildren)
+        let totalPages = (Int(totalCount) + pageSize - 1) / max(pageSize, 1)
+        print("page=\(page)/\(max(totalPages - 1, 0)) total=\(totalCount) pageSize=\(pageSize) showing=\(offset)..\(offset + fetchCount - 1)")
+        if let children = pageChildren as? [AXUIElement] {
+            for child in children {
+                let childLines = describeAccessibilityTree(from: child, options: descOpts)
+                print(childLines.joined(separator: "\n"))
+            }
+        }
+        return 0
+    }
+
     var lines = describeAccessibilityTree(from: targetRoot, options: descOpts)
     if lines.isEmpty {
         throw NativeError.commandFailed("No accessibility elements found.")

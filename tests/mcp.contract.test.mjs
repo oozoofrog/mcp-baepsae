@@ -732,3 +732,17 @@ test("read_ui_param tool is registered", async () => {
     assert.ok(tools.find((t) => t.name === "read_ui_param"), "read_ui_param should be registered");
   });
 });
+
+test("hit_test tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "hit_test"), "hit_test should be registered");
+  });
+});
+
+test("enumerate_ui tool is registered", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    assert.ok(tools.find((t) => t.name === "enumerate_ui"), "enumerate_ui should be registered");
+  });
+});

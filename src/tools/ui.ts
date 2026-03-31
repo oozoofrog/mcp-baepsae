@@ -24,6 +24,8 @@ type DescribeParams = {
   maxDepth?: number;
   summary?: boolean;
   window?: number | string;
+  pageSize?: number;
+  page?: number;
 };
 
 type SearchParams = {
@@ -97,6 +99,8 @@ const describeSchema = {
   summary: z.boolean().optional().describe("Summary mode — collapse children as [N children]"),
   window: z.union([z.number().int().min(0), z.string()])
     .optional().describe("Window index or title substring (macOS only)"),
+  pageSize: z.number().int().min(1).optional().describe("Page size for paginated child access"),
+  page: z.number().int().min(0).optional().describe("Page number (0-based)"),
 };
 
 const searchSchema = {
@@ -255,6 +259,8 @@ function buildDescribeArgs(target: string[], params: DescribeParams): string[] {
   if (params.window !== undefined) {
     args.push("--window", String(params.window));
   }
+  pushOption(args, "--page-size", params.pageSize);
+  pushOption(args, "--page", params.page);
   return args;
 }
 

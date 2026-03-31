@@ -2315,6 +2315,75 @@ test("read_ui_param with lineForIndex passes correct args", async () => {
 });
 
 // ===========================================================================
+// Section: hit_test (#84)
+// ===========================================================================
+
+test("hit_test sends coordinates to native", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "hit_test",
+      arguments: { x: 500, y: 300 },
+    });
+    const text = extractText(result);
+    assert.match(text, /hit-test/);
+    assert.match(text, /-x/);
+    assert.match(text, /500/);
+    assert.match(text, /-y/);
+    assert.match(text, /300/);
+  });
+});
+
+// ===========================================================================
+// Section: enumerate_ui (#88)
+// ===========================================================================
+
+test("enumerate_ui passes id to native", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "enumerate_ui",
+      arguments: { bundleId: "com.example.app", id: "myElement" },
+    });
+    const text = extractText(result);
+    assert.match(text, /enumerate-ui/);
+    assert.match(text, /--id/);
+    assert.match(text, /myElement/);
+  });
+});
+
+// ===========================================================================
+// Section: read_ui_value selectedTextRange (#87)
+// ===========================================================================
+
+test("read_ui_value with selectedTextRange attribute", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "read_ui_value",
+      arguments: { bundleId: "com.example.app", attribute: "selectedTextRange" },
+    });
+    const text = extractText(result);
+    assert.match(text, /read-ui-value/);
+    assert.match(text, /selectedTextRange/);
+  });
+});
+
+// ===========================================================================
+// Section: analyze_ui pagination (#90)
+// ===========================================================================
+
+test("analyze_ui with pageSize and page params", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "analyze_ui",
+      arguments: { bundleId: "com.example.app", pageSize: 50, page: 0 },
+    });
+    const text = extractText(result);
+    assert.match(text, /--page-size/);
+    assert.match(text, /50/);
+    assert.match(text, /--page/);
+  });
+});
+
+// ===========================================================================
 // Cleanup
 // ===========================================================================
 

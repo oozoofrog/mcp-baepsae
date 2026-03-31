@@ -86,7 +86,7 @@
       {"action": "test", "command": "npm test", "expect": "전체 테스트 통과"},
       {"action": "grep", "target": "native/Sources/Commands/UICommands.swift", "pattern": "page-size\\|pageSize\\|GetAttributeValueCount", "expect": "페이지네이션 로직 존재"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 3,
     "scores": null
@@ -177,7 +177,7 @@
       {"action": "test", "command": "npm test", "expect": "모든 테스트 통과, 새 테스트 포함"},
       {"action": "count", "command": "grep -c 'test(' tests/unit.test.mjs tests/mcp.contract.test.mjs", "expect": "테스트 수 기존 대비 증가"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": "tests/unit.test.mjs",
     "priority": 3,
     "scores": null
@@ -205,7 +205,7 @@
       {"action": "grep", "target": "README.md", "pattern": "도구\\|tools", "expect": "도구 수가 최신"},
       {"action": "grep", "target": "src/tool-manifest.ts", "pattern": "hit_test\\|enumerate_ui\\|watch_notification", "expect": "새 도구 모두 등록됨"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": "src/tool-manifest.ts",
     "priority": 3,
     "scores": null
