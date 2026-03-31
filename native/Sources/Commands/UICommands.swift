@@ -597,3 +597,175 @@ func handleScroll(_ parsed: ParsedOptions) throws -> Int32 {
     }
     return 0
 }
+
+// MARK: - handleSetUIValue (F010)
+
+func handleSetUIValue(_ parsed: ParsedOptions) throws -> Int32 {
+    let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
+    try activateTarget(target)
+    let appRoot = try accessibilityRootElement(for: target)
+
+    let attributeStr = parsed.options["--attribute"] ?? "value"
+    let valueStr = try requiredOption("--value", from: parsed)
+
+    // Find element
+    let element: AXUIElement
+    if let accessibilityId = parsed.options["--id"] {
+        guard let found = findAccessibilityElement(in: appRoot, identifier: accessibilityId, label: nil) else {
+            throw NativeError.commandFailed("No element with id: \(accessibilityId)")
+        }
+        element = found
+    } else if let label = parsed.options["--label"] {
+        guard let found = findAccessibilityElement(in: appRoot, identifier: nil, label: label) else {
+            throw NativeError.commandFailed("No element with label: \(label)")
+        }
+        element = found
+    } else {
+        var focusedRef: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(appRoot, "AXFocusedUIElement" as CFString, &focusedRef)
+        guard status == .success, let ref = focusedRef else {
+            throw NativeError.commandFailed("No focused element and no --id or --label provided.")
+        }
+        element = ref as! AXUIElement
+    }
+
+    switch attributeStr {
+    case "value":
+        let result = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, valueStr as CFTypeRef)
+        guard result == .success else {
+            throw NativeError.commandFailed("Failed to set value (AXError \(result.rawValue)). Element may not support writable value.")
+        }
+        print("Set value: \(valueStr)")
+
+    case "selectedTextRange":
+        // Parse "location,length" format
+        let parts = valueStr.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+        guard parts.count == 2 else {
+            throw NativeError.invalidArguments("selectedTextRange requires 'location,length' format (e.g. '10,5').")
+        }
+        var range = CFRange(location: parts[0], length: parts[1])
+        guard let axValue = AXValueCreate(.cfRange, &range) else {
+            throw NativeError.commandFailed("Failed to create AXValue for range.")
+        }
+        let result = AXUIElementSetAttributeValue(element, "AXSelectedTextRange" as CFString, axValue)
+        guard result == .success else {
+            throw NativeError.commandFailed("Failed to set selectedTextRange (AXError \(result.rawValue)).")
+        }
+        print("Set selectedTextRange: location=\(parts[0]), length=\(parts[1])")
+
+    case "focused":
+        let boolValue = (valueStr == "true" || valueStr == "1")
+        let result = AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, boolValue as CFTypeRef)
+        guard result == .success else {
+            throw NativeError.commandFailed("Failed to set focused (AXError \(result.rawValue)).")
+        }
+        print("Set focused: \(boolValue)")
+
+    default:
+        throw NativeError.invalidArguments("Unsupported attribute: \(attributeStr). Use: value, selectedTextRange, focused.")
+    }
+    return 0
+}
+
+// MARK: - handleReadUIParam (F012)
+
+func handleReadUIParam(_ parsed: ParsedOptions) throws -> Int32 {
+    let target = try resolveTarget(from: parsed)
+    try ensureAccessibilityTrusted()
+    try activateTarget(target)
+    let appRoot = try accessibilityRootElement(for: target)
+
+    let attributeStr = try requiredOption("--attribute", from: parsed)
+    let paramStr = try requiredOption("--param", from: parsed)
+
+    // Find element
+    let element: AXUIElement
+    if let accessibilityId = parsed.options["--id"] {
+        guard let found = findAccessibilityElement(in: appRoot, identifier: accessibilityId, label: nil) else {
+            throw NativeError.commandFailed("No element with id: \(accessibilityId)")
+        }
+        element = found
+    } else if let label = parsed.options["--label"] {
+        guard let found = findAccessibilityElement(in: appRoot, identifier: nil, label: label) else {
+            throw NativeError.commandFailed("No element with label: \(label)")
+        }
+        element = found
+    } else {
+        var focusedRef: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(appRoot, "AXFocusedUIElement" as CFString, &focusedRef)
+        guard status == .success, let ref = focusedRef else {
+            throw NativeError.commandFailed("No focused element and no --id or --label provided.")
+        }
+        element = ref as! AXUIElement
+    }
+
+    let axAttribute: String
+    let parameter: CFTypeRef
+
+    switch attributeStr {
+    case "stringForRange", "boundsForRange":
+        let parts = paramStr.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+        guard parts.count == 2 else {
+            throw NativeError.invalidArguments("\(attributeStr) requires 'location,length' format.")
+        }
+        var range = CFRange(location: parts[0], length: parts[1])
+        guard let axValue = AXValueCreate(.cfRange, &range) else {
+            throw NativeError.commandFailed("Failed to create AXValue for range.")
+        }
+        parameter = axValue
+        axAttribute = attributeStr == "stringForRange"
+            ? "AXStringForRange"
+            : "AXBoundsForRange"
+
+    case "lineForIndex":
+        guard let index = Int(paramStr) else {
+            throw NativeError.invalidArguments("lineForIndex requires a numeric index.")
+        }
+        parameter = index as CFTypeRef
+        axAttribute = "AXLineForIndex"
+
+    case "rangeForLine":
+        guard let line = Int(paramStr) else {
+            throw NativeError.invalidArguments("rangeForLine requires a numeric line number.")
+        }
+        parameter = line as CFTypeRef
+        axAttribute = "AXRangeForLine"
+
+    default:
+        throw NativeError.invalidArguments("Unsupported parameterized attribute: \(attributeStr). Use: stringForRange, boundsForRange, lineForIndex, rangeForLine.")
+    }
+
+    var resultRef: CFTypeRef?
+    let status = AXUIElementCopyParameterizedAttributeValue(element, axAttribute as CFString, parameter, &resultRef)
+    guard status == .success, let result = resultRef else {
+        throw NativeError.commandFailed("Failed to read \(attributeStr) (AXError \(status.rawValue)).")
+    }
+
+    if let str = result as? String {
+        print(str)
+    } else if let num = result as? NSNumber {
+        print(num.stringValue)
+    } else if CFGetTypeID(result) == AXValueGetTypeID() {
+        let axVal = result as! AXValue
+        let valType = AXValueGetType(axVal)
+        if valType == .cfRange {
+            var range = CFRange(location: 0, length: 0)
+            AXValueGetValue(axVal, .cfRange, &range)
+            print("\(range.location),\(range.length)")
+        } else if valType == .cgRect {
+            var rect = CGRect.zero
+            AXValueGetValue(axVal, .cgRect, &rect)
+            print("\(rect.origin.x),\(rect.origin.y),\(rect.width),\(rect.height)")
+        } else if valType == .cgPoint {
+            var point = CGPoint.zero
+            AXValueGetValue(axVal, .cgPoint, &point)
+            print("\(point.x),\(point.y)")
+        } else {
+            print(String(describing: result))
+        }
+    } else {
+        print(String(describing: result))
+    }
+    return 0
+}

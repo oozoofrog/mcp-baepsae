@@ -42,6 +42,8 @@ let supportedCommands: Set<String> = [
     "read-ui-value",
     "context-menu-action",
     "detect-dialog",
+    "set-ui-value",
+    "read-ui-param",
 ]
 
 // MARK: - Argument Parsing

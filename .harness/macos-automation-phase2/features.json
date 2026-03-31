@@ -124,7 +124,7 @@
       {"action": "grep", "target": "src/tools/ui.ts", "pattern": "set_ui_value", "expect": "도구 등록 존재"},
       {"action": "test", "command": "npm test", "expect": "contract test에서 도구 등록 확인"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 5,
     "scores": null
@@ -138,7 +138,7 @@
       {"action": "build", "command": "npm run build:native", "expect": "Swift 빌드 성공"},
       {"action": "grep", "target": "native/Sources/Commands/UICommands.swift", "pattern": "handleSetUIValue|AXUIElementSetAttributeValue|selectedTextRange", "expect": "값 설정 로직 존재"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 5,
     "scores": null
@@ -153,7 +153,7 @@
       {"action": "grep", "target": "src/tools/ui.ts", "pattern": "read_ui_param", "expect": "도구 등록 존재"},
       {"action": "test", "command": "npm test", "expect": "contract test에서 도구 등록 확인"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 5,
     "scores": null
@@ -167,7 +167,7 @@
       {"action": "build", "command": "npm run build:native", "expect": "Swift 빌드 성공"},
       {"action": "grep", "target": "native/Sources/Commands/UICommands.swift", "pattern": "handleReadUIParam|CopyParameterizedAttributeValue|stringForRange|boundsForRange", "expect": "parameterized attribute 읽기 로직 존재"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 5,
     "scores": null
@@ -209,7 +209,7 @@
       {"action": "build", "command": "npm run build:native", "expect": "Swift 빌드 성공"},
       {"action": "grep", "target": "native/Sources/main.swift", "pattern": "context-menu-action|detect-dialog|set-ui-value|read-ui-param", "expect": "4개 커맨드 dispatch 존재"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": null,
     "priority": 3,
     "scores": null

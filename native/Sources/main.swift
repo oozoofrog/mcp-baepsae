@@ -46,6 +46,8 @@ func printHelp() {
       baepsae-native read-ui-value <TARGET> [--id <ID> | --label <LABEL>] [--attribute <value|selectedText|insertionPoint|numberOfCharacters>]
       baepsae-native context-menu-action <TARGET> --item <ITEM_PATH>
       baepsae-native detect-dialog <TARGET>
+      baepsae-native set-ui-value <TARGET> [--id <ID> | --label <LABEL>] --attribute <value|selectedTextRange|focused> --value <VALUE>
+      baepsae-native read-ui-param <TARGET> [--id <ID> | --label <LABEL>] --attribute <stringForRange|boundsForRange|lineForIndex|rangeForLine> --param <PARAM>
 
     Where <TARGET> is one of:
       --udid <UDID>           iOS Simulator device UDID
@@ -203,6 +205,12 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
 
     case "detect-dialog":
         return try handleDetectDialog(parsed)
+
+    case "set-ui-value":
+        return try handleSetUIValue(parsed)
+
+    case "read-ui-param":
+        return try handleReadUIParam(parsed)
 
     default:
         throw NativeError.invalidArguments("Unhandled command: \(parsed.command)")

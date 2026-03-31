@@ -578,6 +578,50 @@ export function registerUITools(server: McpServer): void {
   );
 
   server.tool(
+    "set_ui_value",
+    "Set value, text selection range, or focus on a UI element via Accessibility API.",
+    {
+      ...unifiedTargetSchema,
+      id: z.string().optional().describe("Accessibility identifier"),
+      label: z.string().optional().describe("Accessibility label"),
+      attribute: z.enum(["value", "selectedTextRange", "focused"])
+        .describe("Attribute to set"),
+      value: z.string().describe("Value to set (for selectedTextRange use 'location,length' format)"),
+    },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      const args = ["set-ui-value", ...target];
+      pushOption(args, "--id", (params as any).id);
+      pushOption(args, "--label", (params as any).label);
+      args.push("--attribute", (params as any).attribute, "--value", (params as any).value);
+      return await runNative(args);
+    }
+  );
+
+  server.tool(
+    "read_ui_param",
+    "Read parameterized accessibility attributes like text ranges, line numbers, and bounds.",
+    {
+      ...unifiedTargetSchema,
+      id: z.string().optional().describe("Accessibility identifier"),
+      label: z.string().optional().describe("Accessibility label"),
+      attribute: z.enum(["stringForRange", "boundsForRange", "lineForIndex", "rangeForLine"])
+        .describe("Parameterized attribute to read"),
+      param: z.string().describe("Parameter value (for range types: 'location,length'; for index/line: number)"),
+    },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      const args = ["read-ui-param", ...target];
+      pushOption(args, "--id", (params as any).id);
+      pushOption(args, "--label", (params as any).label);
+      args.push("--attribute", (params as any).attribute, "--param", (params as any).param);
+      return await runNative(args);
+    }
+  );
+
+  server.tool(
     "read_ui_value",
     "Read value, selected text, or insertion point of a UI element via Accessibility API.",
     {
