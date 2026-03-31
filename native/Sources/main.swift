@@ -50,6 +50,7 @@ func printHelp() {
       baepsae-native read-ui-param <TARGET> [--id <ID> | --label <LABEL>] --attribute <stringForRange|boundsForRange|lineForIndex|rangeForLine> --param <PARAM>
       baepsae-native hit-test -x <X> -y <Y>
       baepsae-native enumerate-ui <TARGET> [--id <ID> | --label <LABEL>]
+      baepsae-native watch-notification <TARGET> [--preset <window|text|focus|menu> | --notifications <N1,N2,...>] [--timeout <S>]
 
     Where <TARGET> is one of:
       --udid <UDID>           iOS Simulator device UDID
@@ -219,6 +220,9 @@ func runParsed(_ parsed: ParsedOptions) throws -> Int32 {
 
     case "enumerate-ui":
         return try handleEnumerateUI(parsed)
+
+    case "watch-notification":
+        return try handleWatchNotification(parsed)
 
     default:
         throw NativeError.invalidArguments("Unhandled command: \(parsed.command)")

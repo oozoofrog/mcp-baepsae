@@ -46,6 +46,7 @@ let supportedCommands: Set<String> = [
     "read-ui-param",
     "hit-test",
     "enumerate-ui",
+    "watch-notification",
 ]
 
 // MARK: - Argument Parsing

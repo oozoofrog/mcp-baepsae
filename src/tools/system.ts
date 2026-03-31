@@ -165,4 +165,26 @@ export function registerSystemTools(server: McpServer): void {
       return await runNative(args);
     }
   );
+
+  server.tool(
+    "watch_notification",
+    "Watch for AX notifications from an app. Blocks until a notification fires or timeout. Use presets for common patterns: window (created/destroyed), text (value/selection changed), focus (app/window focus), menu (opened/closed).",
+    {
+      ...unifiedTargetSchema,
+      preset: z.enum(["window", "text", "focus", "menu"]).optional()
+        .describe("Notification preset (window, text, focus, menu)"),
+      notifications: z.string().optional()
+        .describe("Comma-separated notification names (e.g. 'AXValueChanged,AXWindowCreated')"),
+      timeout: z.number().optional().describe("Max wait time in seconds (default: 10)"),
+    },
+    async (params) => {
+      const target = resolveUnifiedTargetArgs(params as UnifiedTargetParams);
+      if (!Array.isArray(target)) return target;
+      const args = ["watch-notification", ...target];
+      pushOption(args, "--preset", (params as any).preset);
+      pushOption(args, "--notifications", (params as any).notifications);
+      pushOption(args, "--timeout", (params as any).timeout);
+      return await runNative(args);
+    }
+  );
 }

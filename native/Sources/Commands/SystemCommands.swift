@@ -423,6 +423,111 @@ func handleContextMenuAction(_ parsed: ParsedOptions) throws -> Int32 {
     return 0
 }
 
+func handleWatchNotification(_ parsed: ParsedOptions) throws -> Int32 {
+    let target = try resolveTarget(from: parsed)
+    guard case .macApp(let pid, _, _) = target else {
+        throw NativeError.commandFailed("watch-notification is only supported for macOS apps.")
+    }
+    try ensureAccessibilityTrusted()
+
+    let timeout = try optionalDoubleOption("--timeout", from: parsed) ?? 10.0
+
+    // 감시할 알림 목록 결정 (--preset 또는 --notifications)
+    let notifications: [String]
+    if let preset = parsed.options["--preset"] {
+        switch preset {
+        case "window":
+            notifications = [
+                "AXWindowCreated",
+                "AXSheetCreated",
+                "AXDrawerCreated",
+                "AXUIElementDestroyed",
+            ]
+        case "text":
+            notifications = [
+                "AXValueChanged",
+                "AXSelectedTextChanged",
+                "AXSelectedChildrenChanged",
+            ]
+        case "focus":
+            notifications = [
+                "AXApplicationActivated",
+                "AXApplicationDeactivated",
+                "AXFocusedWindowChanged",
+                "AXFocusedUIElementChanged",
+                "AXMainWindowChanged",
+            ]
+        case "menu":
+            notifications = [
+                "AXMenuOpened",
+                "AXMenuClosed",
+                "AXMenuItemSelected",
+            ]
+        default:
+            throw NativeError.invalidArguments("Unknown preset: \(preset). Use: window, text, focus, menu.")
+        }
+    } else if let raw = parsed.options["--notifications"] {
+        notifications = raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+    } else {
+        throw NativeError.invalidArguments("watch-notification requires --preset or --notifications.")
+    }
+
+    // 콜백에서 공유할 상태 (클래스로 참조 타입 사용)
+    class NotificationState {
+        var received: String?
+        var elementInfo: String?
+    }
+    let state = NotificationState()
+
+    // AXObserver 콜백: 알림 수신 시 상태 기록 후 RunLoop 중단
+    let callback: AXObserverCallback = { _, element, notification, refcon in
+        guard let statePtr = refcon else { return }
+        let state = Unmanaged<NotificationState>.fromOpaque(statePtr).takeUnretainedValue()
+        let notifName = notification as String
+        let role = StringAttribute(element, kAXRoleAttribute as CFString) ?? ""
+        let title = StringAttribute(element, kAXTitleAttribute as CFString) ?? ""
+        state.received = notifName
+        state.elementInfo = "role=\(role) title=\(title)"
+        CFRunLoopStop(CFRunLoopGetCurrent())
+    }
+
+    var observer: AXObserver?
+    let createStatus = AXObserverCreate(pid, callback, &observer)
+    guard createStatus == .success, let obs = observer else {
+        throw NativeError.commandFailed("Failed to create AXObserver (AXError \(createStatus.rawValue)).")
+    }
+
+    let appElement = AXUIElementCreateApplication(pid)
+    let stateRef = Unmanaged.passRetained(state).toOpaque()
+
+    for notif in notifications {
+        let addStatus = AXObserverAddNotification(obs, appElement, notif as CFString, stateRef)
+        if addStatus != .success && addStatus != .notificationAlreadyRegistered {
+            fputs("Warning: failed to add notification '\(notif)' (AXError \(addStatus.rawValue))\n", stderr)
+        }
+    }
+
+    // Observer를 현재 RunLoop에 추가
+    CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(obs), .defaultMode)
+
+    // 타임아웃 기반으로 RunLoop 실행
+    CFRunLoopRunInMode(.defaultMode, timeout, false)
+
+    // 정리: retain 해제 및 알림 제거
+    Unmanaged<NotificationState>.fromOpaque(stateRef).release()
+    for notif in notifications {
+        AXObserverRemoveNotification(obs, appElement, notif as CFString)
+    }
+
+    if let received = state.received {
+        print("notification=\(received) \(state.elementInfo ?? "")")
+        return 0
+    } else {
+        print("No notification received within \(timeout)s timeout.")
+        return 0
+    }
+}
+
 func handleReadUIValue(_ parsed: ParsedOptions) throws -> Int32 {
     let target = try resolveTarget(from: parsed)
     try ensureAccessibilityTrusted()

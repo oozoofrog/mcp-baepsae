@@ -103,7 +103,7 @@
       {"action": "grep", "target": "native/Sources/main.swift", "pattern": "watch-notification", "expect": "runParsed dispatch에 포함됨"},
       {"action": "grep", "target": "native/Sources/Commands", "pattern": "AXObserverCreate", "expect": "AXObserver API 사용 확인"}
     ],
-    "status": "pending",
+    "status": "built",
     "reference": ".claude/references/macos-accessibility-automation.md",
     "priority": 4,
     "scores": null

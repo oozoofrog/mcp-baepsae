@@ -45,6 +45,7 @@ export const TOOL_MANIFEST: ToolManifestEntry[] = [
   { name: "right_click", category: "System", summary: "Right-click in the target app." },
   { name: "focus_window", category: "System", summary: "Raise and focus a specific window by index or title." },
   { name: "context_menu_action", category: "System", summary: "Select an item from an open context menu (call after right_click). Supports submenu paths with > separator." },
+  { name: "watch_notification", category: "System", summary: "Watch for AX notifications from a macOS app using AXObserver. Blocks until a notification fires or timeout." },
 
   { name: "list_simulators", category: "Simulator-only", summary: "List available simulators using simctl." },
   { name: "screenshot", category: "Simulator-only", summary: "Capture a screenshot from simulator display using simctl screenshot." },
